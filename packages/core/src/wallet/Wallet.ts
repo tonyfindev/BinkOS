@@ -9,13 +9,13 @@ import { Network } from '../network';
 import { NetworkName } from '../network/types';
 import {
   WalletConfig,
-  WalletInterface,
   SignMessageParams,
   SignTransactionParams,
-  TransactionType
+  TransactionType,
+  IWallet
 } from './types';
 
-export class Wallet implements WalletInterface {
+export class Wallet implements IWallet {
   readonly #evmWallet: ethers.HDNodeWallet;
   readonly #solanaKeypair: Keypair;
   readonly #network: Network;

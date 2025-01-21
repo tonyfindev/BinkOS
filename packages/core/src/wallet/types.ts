@@ -19,7 +19,7 @@ export interface SignTransactionParams {
   transaction: TransactionType;
 }
 
-export interface WalletInterface {
+export interface IWallet {
   getAddress(network: NetworkName): Promise<string>;
   signMessage(params: SignMessageParams): Promise<string>;
   signTransaction(params: SignTransactionParams): Promise<string>;

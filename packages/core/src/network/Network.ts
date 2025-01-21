@@ -7,6 +7,10 @@ export class Network {
   readonly #providers: Map<NetworkName, ethers.JsonRpcProvider | Connection>;
 
   constructor(config: NetworksConfig) {
+    if (Object.keys(config.networks).length === 0) {
+      throw new Error('No networks configured');
+    }
+
     this.#config = config;
     this.#providers = new Map();
     this.#initialize();
