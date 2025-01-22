@@ -5,7 +5,9 @@
       "rootDir": "./src"
     },
     "references": [
-      { "path": "../../packages/core" }
+      { "path": "../../packages/core" },
+      { "path": "../../packages/plugins/swap" },
+      { "path": "../../packages/providers/pancakeswap" }
     ],
     "include": ["src/**/*"]
   } 
