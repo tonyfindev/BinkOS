@@ -1,22 +1,23 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { AgentExecutor, createOpenAIFunctionsAgent } from 'langchain/agents';
+import { AgentExecutor, createOpenAIFunctionsAgent, createOpenAIToolsAgent } from 'langchain/agents';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { IWallet } from '../wallet/types';
 import { NetworksConfig } from '../network/types';
 import { AgentConfig, AgentExecuteParams, IAgent } from './types';
-import { GetWalletAddressTool, SignMessageTool, ITool } from './tools';
+import { GetWalletAddressTool, ITool } from './tools';
+import { BaseAgent } from './BaseAgent';
+import { IPlugin } from '../plugin/types';
 
-export class Agent implements IAgent {
+export class Agent extends BaseAgent {
   private model: ChatOpenAI;
   private wallet: IWallet;
-  private tools: DynamicStructuredTool[];
   private executor!: AgentExecutor;
-  private toolImplementations: ITool[];
   private networks: NetworksConfig['networks'];
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
+    super();
     this.wallet = wallet;
     this.networks = networks;
     this.model = new ChatOpenAI({
@@ -25,27 +26,60 @@ export class Agent implements IAgent {
       maxTokens: config.maxTokens,
     });
 
-    this.toolImplementations = this.initializeTools();
-    this.tools = this.createTools();
+    this.initializeDefaultTools();
     this.initializeExecutor();
   }
 
-  private initializeTools(): ITool[] {
-    const tools = [
-      new GetWalletAddressTool(),
-      new SignMessageTool(),
+  private initializeDefaultTools(): void {
+    const defaultTools = [
+      new GetWalletAddressTool({}),
     ];
 
-    // Inject agent into tools
-    tools.forEach(tool => tool.setAgent(this));
-
-    return tools;
+    // Initialize default tools
+    for (const tool of defaultTools) {
+      this.registerTool(tool);
+    }
   }
 
-  private createTools(): DynamicStructuredTool[] {
-    return this.toolImplementations.map(tool => 
-      tool.createTool({ agent: this })
-    );
+  async registerTool(tool: ITool): Promise<void> {
+    tool.setAgent(this);
+    this.tools.push(tool.createTool());
+    this.initializeExecutor();
+  }
+
+  async registerPlugin(plugin: IPlugin): Promise<void> {
+    const pluginName = plugin.getName();
+    this.plugins.set(pluginName, plugin);
+
+    // Register all tools from the plugin
+    const tools = plugin.getTools();
+    for (const tool of tools) {
+      await this.registerTool(tool);
+    }
+    this.initializeExecutor();
+  }
+
+  getPlugin(name: string): IPlugin | undefined {
+    return this.plugins.get(name);
+  }
+
+  protected async unregisterPlugin(name: string): Promise<void> {
+    const plugin = this.plugins.get(name);
+    if (plugin) {
+      await plugin.cleanup();
+      this.plugins.delete(name);
+      
+      // Recreate tools array without this plugin's tools
+      const pluginToolNames = new Set(plugin.getTools().map(t => t.getName()));
+      this.tools = this.tools.filter(t => !pluginToolNames.has(t.name));
+      
+      // Reinitialize executor with updated tools
+      await this.onToolsUpdated();
+    }
+  }
+
+  protected async onToolsUpdated(): Promise<void> {
+    await this.initializeExecutor();
   }
 
   private async initializeExecutor(): Promise<void> {
@@ -62,33 +96,41 @@ export class Agent implements IAgent {
       new MessagesPlaceholder("agent_scratchpad"),
     ]);
 
-    const agent = createOpenAIFunctionsAgent({
+    const agent = createOpenAIToolsAgent({
       llm: this.model,
-      tools: this.tools,
+      tools: this.getTools(),
       prompt,
     });
 
     return AgentExecutor.fromAgentAndTools({
       agent: await agent,
-      tools: this.tools,
+      tools: this.getTools(),
     });
   }
 
-  public async execute(params: AgentExecuteParams): Promise<string> {
+  public async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
     // Wait for executor to be initialized if it hasn't been already
     if (!this.executor) {
       await this.initializeExecutor();
     }
 
-    const messages: BaseMessage[] = params.history ?? [];
-    messages.push(new HumanMessage(params.input));
+    if (typeof commandOrParams === 'string') {
+      const result = await this.executor.invoke({
+        input: commandOrParams,
+        chat_history: [],
+      });
+      return result.output;
+    } else {
+      const messages: BaseMessage[] = commandOrParams.history ?? [];
+      messages.push(new HumanMessage(commandOrParams.input));
 
-    const result = await this.executor.invoke({
-      input: params.input,
-      chat_history: messages,
-    });
+      const result = await this.executor.invoke({
+        input: commandOrParams.input,
+        chat_history: messages,
+      });
 
-    return result.output;
+      return result.output;
+    }
   }
 
   public getWallet(): IWallet {

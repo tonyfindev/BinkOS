@@ -5,28 +5,28 @@ import { BaseTool } from './BaseTool';
 import { createNetworkSchema } from './schemas';
 
 export class GetWalletAddressTool extends BaseTool {
-  getName(config: IToolConfig): string {
+  getName(): string {
     return 'get_wallet_address';
   }
 
-  getDescription(config: IToolConfig): string {
-    const networks = Object.keys(config.agent.getNetworks()).join(', ');
+  getDescription(): string {
+    const networks = Object.keys(this.agent.getNetworks()).join(', ');
     return `Get the wallet address for a specific network. Available networks: ${networks}`;
   }
 
-  getSchema(config: IToolConfig): z.ZodObject<any> {
+  getSchema(): z.ZodObject<any> {
     return z.object({
-      network: createNetworkSchema(config.agent),
+      network: createNetworkSchema(this.agent),
     });
   }
 
-  createTool(config: IToolConfig): DynamicStructuredTool {
+  createTool(): DynamicStructuredTool {
     return new DynamicStructuredTool({
-      name: this.getName(config),
-      description: this.getDescription(config),
-      schema: this.getSchema(config),
+      name: this.getName(),
+      description: this.getDescription(),
+      schema: this.getSchema(),
       func: async ({ network }) => {
-        return await config.agent.getWallet().getAddress(network);
+        return await this.agent.getWallet().getAddress(network);
       },
     });
   }

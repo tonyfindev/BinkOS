@@ -3,13 +3,12 @@ import { z } from 'zod';
 import { IAgent } from '../types';
 
 export interface IToolConfig {
-  agent: IAgent;
 }
 
 export interface ITool {
-  getName(config: IToolConfig): string;
-  getDescription(config: IToolConfig): string;
-  getSchema(config: IToolConfig): z.ZodObject<any>;
-  createTool(config: IToolConfig): DynamicStructuredTool;
+  getName(): string;
+  getDescription(): string;
+  getSchema(): z.ZodObject<any>;
+  createTool(): DynamicStructuredTool;
   setAgent(agent: IAgent): void;
 } 

@@ -5,20 +5,18 @@ import { ITool, IToolConfig } from './types';
 
 export abstract class BaseTool implements ITool {
   protected agent!: IAgent;
+  protected config: IToolConfig;
 
-  abstract getName(config: IToolConfig): string;
-  abstract getDescription(config: IToolConfig): string;
-  abstract getSchema(config: IToolConfig): z.ZodObject<any>;
-  abstract createTool(config: IToolConfig): DynamicStructuredTool;
+  constructor(config: IToolConfig) {
+    this.config = config;
+  }
+
+  abstract getName(): string;
+  abstract getDescription(): string;
+  abstract getSchema(): z.ZodObject<any>;
+  abstract createTool(): DynamicStructuredTool<z.ZodObject<any>>;
 
   setAgent(agent: IAgent): void {
     this.agent = agent;
-  }
-
-  protected getAgent(): IAgent {
-    if (!this.agent) {
-      throw new Error('Agent not initialized');
-    }
-    return this.agent;
   }
 } 
