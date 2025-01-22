@@ -15,10 +15,12 @@ Bink is a powerful DeFAI (Decentralized Finance + AI) OS that seamlessly combine
 - Trade across different blockchains
 - AI finds the best prices and routes
 - Supports major DEXs:
+  - PancakeSwap (BNB Chain)
   - Jupiter (Solana)
   - Uniswap (Ethereum)
   - 1inch (Multi-chain)
   - OKX DEX
+
 
 ### 🌉 Cross-Chain Bridge
 - Move assets between networks
@@ -68,6 +70,7 @@ Bink is a powerful DeFAI (Decentralized Finance + AI) OS that seamlessly combine
 - Fraud detection
 
 ## Supported Networks
+- BNB Chain
 - Ethereum & L2s
 - Solana
 - Other major blockchains
