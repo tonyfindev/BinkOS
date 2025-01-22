@@ -8,7 +8,9 @@
   },
   "workspaces": [
     "packages/*",
-    "examples/*"
+    "examples/*",
+    "packages/plugins/*",
+    "packages/providers/*"
   ],
   "dependencies": {},
   "devDependencies": {

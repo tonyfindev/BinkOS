@@ -1,10 +1,10 @@
 # Bink OS - Your AI-Powered DeFi Operating System
 
 ## Overview
-Bink is a powerful DeFAI (Decentralized Finance + AI) OS that seamlessly combines the decentralized financial ecosystem with AI-driven analytics and automation. It provides a robust platform for building and deploying intelligent DeFi applications across multiple networks.
+Bink is a powerful DeFAI (Decentralized Finance + AI) OS built on BNB Chain that seamlessly combines the decentralized financial ecosystem with AI-driven analytics and automation. It provides a robust platform for building and deploying intelligent DeFi applications across multiple networks, with native support for BNB Chain's ecosystem.
 
 ## Why Choose Bink OS?
-- 🌐 **Works Everywhere**: Compatible with major blockchains and L2s
+- 🌐 **Works Everywhere**: Built on BNB Chain with compatibility across major blockchains and L2s
 - 🤖 **AI-Powered**: Smart trading and risk management
 - 🔒 **Secure**: Built-in protection for your assets
 - 🔌 **Expandable**: Easy to add new features and integrations
