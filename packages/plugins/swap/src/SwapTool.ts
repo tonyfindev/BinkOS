@@ -127,7 +127,7 @@ export class SwapTool extends BaseTool {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async (args) => {
+      func: async (args: any) => {
         const {
           fromToken,
           toToken,
@@ -186,6 +186,7 @@ export class SwapTool extends BaseTool {
         );
         const requiredAmount = BigInt(quote.fromAmount);
 
+
         if (allowance < requiredAmount) {
           const approveTx = await selectedProvider.buildApproveTransaction(
             quote.fromToken,
@@ -194,6 +195,7 @@ export class SwapTool extends BaseTool {
             userAddress
           );
 
+          console.log('🤖 Approving...');
           // Sign and send approval transaction
           const approveReceipt = await wallet.signAndSendTransaction(chain, {
             to: approveTx.to,
@@ -202,9 +204,12 @@ export class SwapTool extends BaseTool {
             gasLimit: BigInt(approveTx.gasLimit),
           });
 
+          console.log('🤖 ApproveReceipt:', approveReceipt);
+
           // Wait for approval to be mined
           await approveReceipt.wait();
         }
+        console.log('🤖 Swapping...');
 
         // Sign and send swap transaction
         const receipt = await wallet.signAndSendTransaction(chain, {

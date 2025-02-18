@@ -69,6 +69,8 @@ async function main() {
   }, network);
   console.log('✓ Wallet created\n');
 
+  console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
+  console.log('🤖 Wallet ETH:', await wallet.getAddress('ethereum'));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent({
@@ -102,7 +104,7 @@ async function main() {
   console.log('💱 Example 1: Swap with exact input amount on BNB Chain');
   const inputResult = await agent.execute({
     input: `
-      Swap exactly 1 BINK for BNB on PancakeSwap with 0.5% slippage on bnb chain.
+      Swap exactly 20 BINK for BNB on PancakeSwap with 0.5% slippage on bnb chain.
       Use the following token addresses:
       BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
       BNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c

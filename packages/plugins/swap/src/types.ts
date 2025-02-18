@@ -1,4 +1,5 @@
 export interface SwapQuote {
+  quoteId: string;
   fromToken: string;
   toToken: string;
   fromAmount: string;
