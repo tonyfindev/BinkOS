@@ -1,13 +1,8 @@
-import pg, {
-  QueryConfig,
-  QueryConfigValues,
-  QueryResult,
-  QueryResultRow,
-} from "pg";
-import { DatabaseAdapter, UUID } from "@binkai/core";
-import { MessageEntity, UserEntity } from "@binkai/core";
-import fs from "fs";
-import path from "path";
+import pg, { QueryConfig, QueryConfigValues, QueryResult, QueryResultRow } from 'pg';
+import { DatabaseAdapter, UUID } from '@binkai/core';
+import { MessageEntity, UserEntity } from '@binkai/core';
+import fs from 'fs';
+import path from 'path';
 
 type Pool = pg.Pool;
 
@@ -39,8 +34,8 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
       ...connectionConfig,
     });
 
-    this.pool.on("error", (err: any) => {
-      console.error("Unexpected pool error", err);
+    this.pool.on('error', (err: any) => {
+      console.error('Unexpected pool error', err);
       this.handlePoolError(err);
     });
 
@@ -48,32 +43,29 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
   }
 
   private setupPoolErrorHandling() {
-    process.on("SIGINT", async () => {
+    process.on('SIGINT', async () => {
       await this.cleanup();
       process.exit(0);
     });
 
-    process.on("SIGTERM", async () => {
+    process.on('SIGTERM', async () => {
       await this.cleanup();
       process.exit(0);
     });
 
-    process.on("beforeExit", async () => {
+    process.on('beforeExit', async () => {
       await this.cleanup();
     });
   }
 
-  private async wrapDatabase<T>(
-    operation: () => Promise<T>,
-    context: string
-  ): Promise<T> {
+  private async wrapDatabase<T>(operation: () => Promise<T>, context: string): Promise<T> {
     return this.withCircuitBreaker(async () => {
       return this.withRetry(operation);
     }, context);
   }
 
   private async withRetry<T>(operation: () => Promise<T>): Promise<T> {
-    let lastError: Error = new Error("Unknown error"); // Initialize with default
+    let lastError: Error = new Error('Unknown error'); // Initialize with default
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
@@ -83,26 +75,20 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
 
         if (attempt < this.maxRetries) {
           // Calculate delay with exponential backoff
-          const backoffDelay = Math.min(
-            this.baseDelay * Math.pow(2, attempt - 1),
-            this.maxDelay
-          );
+          const backoffDelay = Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay);
 
           // Add jitter to prevent thundering herd
           const jitter = Math.random() * this.jitterMax;
           const delay = backoffDelay + jitter;
 
-          console.warn(
-            `Database operation failed (attempt ${attempt}/${this.maxRetries}):`,
-            {
-              error: error instanceof Error ? error.message : String(error),
-              nextRetryIn: `${(delay / 1000).toFixed(1)}s`,
-            }
-          );
+          console.warn(`Database operation failed (attempt ${attempt}/${this.maxRetries}):`, {
+            error: error instanceof Error ? error.message : String(error),
+            nextRetryIn: `${(delay / 1000).toFixed(1)}s`,
+          });
 
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await new Promise(resolve => setTimeout(resolve, delay));
         } else {
-          console.error("Max retry attempts reached:", {
+          console.error('Max retry attempts reached:', {
             error: error instanceof Error ? error.message : String(error),
             totalAttempts: attempt,
           });
@@ -115,7 +101,7 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
   }
 
   private async handlePoolError(error: Error) {
-    console.error("Pool error occurred, attempting to reconnect", {
+    console.error('Pool error occurred, attempting to reconnect', {
       error: error.message,
     });
 
@@ -130,13 +116,10 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
       });
 
       await this.checkDatabaseConnection();
-      console.info("Pool reconnection successful");
+      console.info('Pool reconnection successful');
     } catch (reconnectError) {
-      console.error("Failed to reconnect pool", {
-        error:
-          reconnectError instanceof Error
-            ? reconnectError.message
-            : String(reconnectError),
+      console.error('Failed to reconnect pool', {
+        error: reconnectError instanceof Error ? reconnectError.message : String(reconnectError),
       });
       throw reconnectError;
     }
@@ -144,11 +127,11 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
 
   async query<R extends QueryResultRow = any, I = any[]>(
     queryTextOrConfig: string | QueryConfig<I>,
-    values?: QueryConfigValues<I>
+    values?: QueryConfigValues<I>,
   ): Promise<QueryResult<R>> {
     return this.wrapDatabase(async () => {
       return await this.pool.query(queryTextOrConfig, values);
-    }, "query");
+    }, 'query');
   }
 
   async init() {
@@ -156,7 +139,7 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
 
     const client = await this.pool.connect();
     try {
-      await client.query("BEGIN");
+      await client.query('BEGIN');
       // Check if schema already exists (check for a core table)
       const { rows } = await client.query(`
               SELECT EXISTS (
@@ -166,17 +149,14 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
           `);
 
       if (!rows[0].exists) {
-        console.info("Applying database schema - tables");
-        const schema = fs.readFileSync(
-          path.resolve(__dirname, "../migration.sql"),
-          "utf8"
-        );
+        console.info('Applying database schema - tables');
+        const schema = fs.readFileSync(path.resolve(__dirname, '../migration.sql'), 'utf8');
         await client.query(schema);
       }
 
-      await client.query("COMMIT");
+      await client.query('COMMIT');
     } catch (error) {
-      await client.query("ROLLBACK");
+      await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
@@ -192,14 +172,12 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
     try {
       client = await this.pool.connect();
       // TODO  confirm connection success
-      const result = await client.query("SELECT NOW()");
-      console.info("Database connection test successful:", result.rows[0]);
+      const result = await client.query('SELECT NOW()');
+      console.info('Database connection test successful:', result.rows[0]);
       return true;
     } catch (error) {
-      console.error("Database connection test failed:", error);
-      throw new Error(
-        `Failed to connect to database: ${(error as Error).message}`
-      );
+      console.error('Database connection test failed:', error);
+      throw new Error(`Failed to connect to database: ${(error as Error).message}`);
     } finally {
       if (client) client.release();
     }
@@ -208,20 +186,17 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
   async cleanup(): Promise<void> {
     try {
       await this.pool.end();
-      console.info("Database pool closed");
+      console.info('Database pool closed');
     } catch (error) {
-      console.error("Error closing database pool:", error);
+      console.error('Error closing database pool:', error);
     }
   }
 
   async getUserById(userId: UUID): Promise<UserEntity | null> {
     return this.wrapDatabase(async () => {
-      const { rows } = await this.pool.query(
-        "SELECT * FROM users WHERE id = $1",
-        [userId]
-      );
+      const { rows } = await this.pool.query('SELECT * FROM users WHERE id = $1', [userId]);
       if (rows.length === 0) {
-        console.debug("Account not found:", { userId });
+        console.debug('Account not found:', { userId });
         return null;
       }
 
@@ -229,11 +204,9 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
       return {
         ...account,
         metadata:
-          typeof account.metadata === "string"
-            ? JSON.parse(account.metadata)
-            : account.metadata,
+          typeof account.metadata === 'string' ? JSON.parse(account.metadata) : account.metadata,
       };
-    }, "getUserById");
+    }, 'getUserById');
   }
 
   async createUser(user: UserEntity): Promise<boolean> {
@@ -244,143 +217,119 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
                   VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             user.name,
-            user.username || "",
-            user.email || "",
-            user.address || "",
-            user.avatarUrl || "",
+            user.username || '',
+            user.email || '',
+            user.address || '',
+            user.avatarUrl || '',
             JSON.stringify(user.metadata),
-          ]
+          ],
         );
-        console.debug("User created successfully");
+        console.debug('User created successfully');
         return true;
       } catch (error) {
-        console.error("Error creating user:", {
+        console.error('Error creating user:', {
           error: error instanceof Error ? error.message : String(error),
           address: user.address,
         });
         return false;
       }
-    }, "createUser");
+    }, 'createUser');
   }
 
-  async createAndGetUserByAddress(
-    user: UserEntity
-  ): Promise<UserEntity | null> {
+  async createAndGetUserByAddress(user: UserEntity): Promise<UserEntity | null> {
     return this.wrapDatabase(async () => {
       try {
         if (!user.address) {
-          console.error("Address is required");
+          console.error('Address is required');
           return null;
         }
-        const { rows } = await this.pool.query(
-          "SELECT * FROM users WHERE address = $1",
-          [user.address]
-        );
+        const { rows } = await this.pool.query('SELECT * FROM users WHERE address = $1', [
+          user.address,
+        ]);
         if (rows.length > 0) {
           return rows[0];
         }
         await this.createUser(user);
-        const { rows: userRows } = await this.pool.query(
-          "SELECT * FROM users WHERE address = $1",
-          [user.address]
-        );
+        const { rows: userRows } = await this.pool.query('SELECT * FROM users WHERE address = $1', [
+          user.address,
+        ]);
         return userRows[0];
       } catch (error) {
-        console.error("Error creating user:", {
+        console.error('Error creating user:', {
           error: error instanceof Error ? error.message : String(error),
           address: user.address,
         });
         return null;
       }
-    }, "createAndGetUserByAddress");
+    }, 'createAndGetUserByAddress');
   }
 
-  private async createThreadIfNotExists(
-    threadId?: UUID,
-    title?: string
-  ): Promise<UUID> {
+  private async createThreadIfNotExists(threadId?: UUID, title?: string): Promise<UUID> {
     if (!threadId) {
       const { rows } = await this.pool.query(
-        "INSERT INTO threads (title) VALUES ($1) RETURNING id",
-        [title || ""]
+        'INSERT INTO threads (title) VALUES ($1) RETURNING id',
+        [title || ''],
       );
       return rows[0].id;
     } else {
-      const { rows } = await this.pool.query(
-        "SELECT id FROM threads WHERE id = $1",
-        [threadId]
-      );
+      const { rows } = await this.pool.query('SELECT id FROM threads WHERE id = $1', [threadId]);
       if (rows.length === 0) {
         // Thread doesn't exist, create it
-        await this.pool.query(
-          "INSERT INTO threads (id, title) VALUES ($1, $2)",
-          [threadId, title || ""]
-        );
+        await this.pool.query('INSERT INTO threads (id, title) VALUES ($1, $2)', [
+          threadId,
+          title || '',
+        ]);
       }
       return threadId;
     }
   }
 
-  async createMessages(
-    messages: MessageEntity[],
-    threadId?: UUID
-  ): Promise<boolean> {
+  async createMessages(messages: MessageEntity[], threadId?: UUID): Promise<boolean> {
     return this.wrapDatabase(async () => {
       try {
         if (messages.length === 0) return true;
 
         // If threadId is provided, ensure it exists
-        const thread_id = await this.createThreadIfNotExists(
-          threadId,
-          messages?.[0]?.content
-        );
+        const thread_id = await this.createThreadIfNotExists(threadId, messages?.[0]?.content);
 
         // Create parameterized query with $1, $2, etc.
         const values: any[] = [];
         const valueStrings = messages.map((_, index) => {
           const offset = index * 5;
-          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${
-            offset + 4
-          }, $${offset + 5})`;
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5})`;
         });
 
         // Flatten message data into values array
-        messages.forEach((message) => {
+        messages.forEach(message => {
           if (!message.userId) {
-            throw new Error("userId is required for message creation");
+            throw new Error('userId is required for message creation');
           }
           values.push(
             message.content,
             message.userId,
             message.messageType,
             JSON.stringify(message.metadata),
-            thread_id || null
+            thread_id || null,
           );
         });
 
         await this.pool.query(
           `INSERT INTO messages (content, user_id, message_type, metadata, thread_id)
-             VALUES ${valueStrings.join(", ")}`,
-          values
+             VALUES ${valueStrings.join(', ')}`,
+          values,
         );
         return true;
       } catch (error) {
-        console.error("Error creating message:", { error });
+        console.error('Error creating message:', { error });
         return false;
       }
-    }, "createMessages");
+    }, 'createMessages');
   }
 
-  async createMessage(
-    message: MessageEntity,
-    threadId?: UUID
-  ): Promise<boolean> {
+  async createMessage(message: MessageEntity, threadId?: UUID): Promise<boolean> {
     return this.wrapDatabase(async () => {
       try {
-        const thread_id = await this.createThreadIfNotExists(
-          threadId,
-          message?.content
-        );
+        const thread_id = await this.createThreadIfNotExists(threadId, message?.content);
         await this.pool.query(
           `INSERT INTO messages (content, user_id, message_type, metadata, thread_id)
            VALUES ($1, $2, $3, $4, $5)`,
@@ -389,37 +338,31 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
             message.userId,
             message.messageType,
             JSON.stringify(message.metadata),
-            thread_id || null
-          ]
+            thread_id || null,
+          ],
         );
         return true;
       } catch (error) {
-        console.error("Error creating message:", { error });
+        console.error('Error creating message:', { error });
         return false;
       }
-    }, "createMessage");
+    }, 'createMessage');
   }
 
-  async getMessagesByUserId(
-    userId: UUID,
-    take?: number
-  ): Promise<MessageEntity[]> {
+  async getMessagesByUserId(userId: UUID, take?: number): Promise<MessageEntity[]> {
     return this.wrapDatabase(async () => {
       const { rows } = await this.pool.query(
-        "SELECT * FROM messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
-        [userId, take || 10]
+        'SELECT * FROM messages WHERE user_id = $1 ORDER BY created_at ASC LIMIT $2',
+        [userId, take || 10],
       );
       return rows;
-    }, "getMessagesByUserId");
+    }, 'getMessagesByUserId');
   }
 
   async getMessageById(messageId: UUID): Promise<MessageEntity | null> {
     return this.wrapDatabase(async () => {
-      const { rows } = await this.pool.query(
-        "SELECT * FROM messages WHERE id = $1",
-        [messageId]
-      );
+      const { rows } = await this.pool.query('SELECT * FROM messages WHERE id = $1', [messageId]);
       return rows[0] || null;
-    }, "getMessageById");
+    }, 'getMessageById');
   }
 }
