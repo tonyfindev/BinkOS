@@ -234,12 +234,15 @@ export class Wallet implements IWallet {
       
       // Try to parse as VersionedTransaction first
       try {
-        const tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
+        let tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, "base64"));  
+        const { blockhash } = await connection.getLatestBlockhash();
+        tx.message.recentBlockhash = blockhash; // Update blockhash!
+
         // Sign transaction
         tx.sign([this.#solanaKeypair]);
         
         // Send raw transaction
-        const rawTransaction = tx.serialize();
+        const rawTransaction = Buffer.from(tx.serialize());
         const signature = await connection.sendRawTransaction(
           rawTransaction,
           { skipPreflight: false, preflightCommitment: 'confirmed' }
@@ -259,32 +262,35 @@ export class Wallet implements IWallet {
           },
         };
       } catch (e) {
-        // If not a VersionedTransaction, try as regular Transaction
-        const tx = SolanaTransaction.from(Buffer.from(transaction.data, 'base64'));
-        
-        // Sign transaction
-        tx.sign(this.#solanaKeypair);
-        
-        // Send raw transaction
-        const rawTransaction = tx.serialize();
-        const signature = await connection.sendRawTransaction(
-          rawTransaction,
-          { skipPreflight: false, preflightCommitment: 'confirmed' }
-        );
+          console.log("🚀 ~ Wallet ~ signAndSendTransactionSolana ~ error:", e)
+        throw e;
 
-        return {
-          hash: signature,
-          wait: async () => {
-            await connection.confirmTransaction(signature);
-            return {
-              hash: signature,
-              wait: async () => ({
-                hash: signature,
-                wait: async () => { throw new Error('Already waited') }
-              })
-            };
-          },
-        };
+        // // If not a VersionedTransaction, try as regular Transaction
+        // const tx = SolanaTransaction.from(Buffer.from(transaction.data, 'base64'));
+        
+        // // Sign transaction
+        // tx.sign(this.#solanaKeypair);
+        
+        // // Send raw transaction
+        // const rawTransaction = tx.serialize();
+        // const signature = await connection.sendRawTransaction(
+        //   rawTransaction,
+        //   { skipPreflight: false, preflightCommitment: 'confirmed' }
+        // );
+
+        // return {
+        //   hash: signature,
+        //   wait: async () => {
+        //     await connection.confirmTransaction(signature);
+        //     return {
+        //       hash: signature,
+        //       wait: async () => ({
+        //         hash: signature,
+        //         wait: async () => { throw new Error('Already waited') }
+        //       })
+        //     };
+        //   },
+        // };
       }
     }
   }
