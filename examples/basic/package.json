@@ -5,6 +5,7 @@
   "scripts": {
     "start": "ts-node src/index.ts",
     "swap": "ts-node src/swap-example.ts",
+    "swap-okx": "ts-node src/swap-example-okx.ts",
     "token": "ts-node src/token-example.ts",
     "retrieval": "ts-node src/retrieval-example.ts",
     "build": "tsc"
@@ -12,6 +13,7 @@
   "dependencies": {
     "@binkai/core": "workspace:*",
     "@binkai/pancakeswap-provider": "workspace:*",
+    "@binkai/okx-provider": "workspace:*",
     "@binkai/swap-plugin": "workspace:*",
     "@binkai/token-plugin": "workspace:*",
     "@binkai/birdeye-provider": "workspace:*",

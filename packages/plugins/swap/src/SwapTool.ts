@@ -88,10 +88,12 @@ export class SwapTool extends BaseTool {
       throw new Error(`No providers available for chain ${params.chain}`);
     }
 
+    const userAddress = await this.agent.getWallet().getAddress(params.chain);
+
     const quotes = await Promise.all(
       providers.map(async (provider) => {
         try {
-          const quote = await provider.getQuote(params);
+          const quote = await provider.getQuote(params, userAddress);
           return { provider, quote };
         } catch (error) {
           console.warn(`Failed to get quote from ${provider.getName()}:`, error);
@@ -166,7 +168,7 @@ export class SwapTool extends BaseTool {
             if (!selectedProvider.getSupportedChains().includes(chain)) {
               throw new Error(`Provider ${preferredProvider} does not support chain ${chain}`);
             }
-            quote = await selectedProvider.getQuote(swapParams);
+            quote = await selectedProvider.getQuote(swapParams, userAddress);
           } else {
             const bestQuote = await this.findBestQuote({
               ...swapParams,
