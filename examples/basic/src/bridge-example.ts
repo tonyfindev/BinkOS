@@ -94,11 +94,7 @@ async function main() {
   // Configure the plugin with supported chains
   await bridgePlugin.initialize({
       fromChain: "bnb",
-      fromToken: NATIVE_MINT,
-      token: NATIVE_MINT,
       toChain: "solana",
-      wallet: await walletEvm.getAddress('bnb'),
-      walletReceive: wallet.getPublicKey('solana'),
       defaultChain: 'bnb',
       providers: [debridge],
       supportedChains: ['bnb', 'solana'], // These will be intersected with agent's networks
@@ -106,11 +102,7 @@ async function main() {
   
     await bridgePlugin.initialize({
     fromChain: "solana",
-    fromToken: NATIVE_MINT,
-    token: NATIVE_MINT,
     toChain: "bnb",
-    wallet: wallet.getPublicKey('solana')  ,
-    walletReceive: await walletEvm.getAddress('bnb'),
     defaultChain: 'solana',
     providers: [debridge],
     supportedChains: ['bnb', 'solana'], // These will be intersected with agent's networks

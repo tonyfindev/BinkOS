@@ -6,7 +6,7 @@ import {
 } from '@binkai/bridge-plugin';
 import { Provider } from 'ethers';
 import axios from 'axios';
-import { VersionedTransaction } from '@solana/web3.js';
+import { clusterApiUrl, Connection, VersionedTransaction } from '@solana/web3.js';
 import { Addresses, ChainID, Tokens } from './utils';
 
 export class deBridgeProvider implements IBridgeProvider {
@@ -61,9 +61,14 @@ export class deBridgeProvider implements IBridgeProvider {
     const data = response.data;
     let dataTx;
     if (quote.fromChain === 'solana') {
-        const txBuffer = Buffer.from(data.tx.data.slice(2), 'hex');
-        const versionedTx = VersionedTransaction.deserialize(txBuffer);
-        dataTx = Buffer.from(versionedTx.serialize()).toString('base64');
+      const connection = new Connection(clusterApiUrl('mainnet-beta'));
+      const txBuffer = Buffer.from(data.tx.data.slice(2), 'hex');
+      const versionedTx = VersionedTransaction.deserialize(txBuffer);
+      // add blockhash to versionedTx
+      const { blockhash } = await connection.getLatestBlockhash();
+      versionedTx.message.recentBlockhash = blockhash; 
+      dataTx = Buffer.from(versionedTx.serialize()).toString('base64');
+      // Update blockhash!
     } else {
         dataTx = data.tx.data;
     }
