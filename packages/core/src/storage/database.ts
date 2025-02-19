@@ -1,16 +1,10 @@
-import type {
-  IDatabaseAdapter,
-  UserEntity,
-  MessageEntity,
-  UUID,
-} from "../types/database";
 import { CircuitBreaker } from "./CircuitBreaker";
 
 /**
  * An abstract class representing a database adapter for managing various entities
  * like accounts, memories, actors, goals, and rooms.
  */
-export abstract class DatabaseAdapter<DB = any> implements IDatabaseAdapter {
+export abstract class DatabaseAdapter<DB = any> {
   /**
    * The database instance.
    */
@@ -61,18 +55,6 @@ export abstract class DatabaseAdapter<DB = any> implements IDatabaseAdapter {
    * @returns A Promise that resolves when closing is complete.
    */
   abstract close(): Promise<void>;
-
-  abstract createUser(user: UserEntity): Promise<boolean>;
-
-  abstract createAndGetUserByAddress(user: UserEntity): Promise<UserEntity | null>;
-
-  abstract getUserById(userId: UUID): Promise<UserEntity | null>;
-
-  abstract createMessages(messages: MessageEntity[]): Promise<boolean>;
-
-  abstract getMessageById(messageId: UUID): Promise<MessageEntity | null>;
-
-  abstract getMessagesByUserId(userId: UUID, take?: number): Promise<MessageEntity[]>;
 
   //   /**
   //    * Removes a specific room from the database.

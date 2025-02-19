@@ -6,7 +6,6 @@ import {
   settings,
   NetworkType,
   NetworksConfig,
-  DatabaseAdapter,
 } from "@binkai/core";
 import { SwapPlugin } from "@binkai/swap-plugin";
 import { PancakeSwapProvider } from "@binkai/pancakeswap-provider";
@@ -100,7 +99,7 @@ async function main() {
 
   // Initialize database
   console.log("🗄️ Initializing database...");
-  let db: DatabaseAdapter | undefined;
+  let db: PostgresDatabaseAdapter | undefined;
   if (settings.get("POSTGRES_URL")) {
     db = new PostgresDatabaseAdapter({
       connectionString: settings.get("POSTGRES_URL"),

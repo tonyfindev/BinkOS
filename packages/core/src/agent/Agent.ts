@@ -16,7 +16,7 @@ export class Agent extends BaseAgent {
   private wallet: IWallet;
   private executor!: AgentExecutor;
   private networks: NetworksConfig['networks'];
-  db: DatabaseAdapter<any> | undefined;
+  private db: DatabaseAdapter<any> | undefined;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super();
@@ -88,11 +88,15 @@ export class Agent extends BaseAgent {
     this.executor = await this.createExecutor();
   }
 
-  async registerDatabase(database: DatabaseAdapter<any>): Promise<void> {
-    this.db = database;
+  async registerDatabase(
+    database: DatabaseAdapter<any> | undefined
+  ): Promise<void> {
     try {
-      await this.db.init()
-      console.info("✓ Database initialized\n");
+      if (database) {
+        this.db = database;
+        await this.db.init();
+        console.info("✓ Database initialized\n");
+      }
     } catch (error) {
       console.error("Failed to connect to Postgres:", error);
       throw error; // Re-throw to handle it in the calling code
