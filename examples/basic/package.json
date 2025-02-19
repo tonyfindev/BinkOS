@@ -6,6 +6,7 @@
     "start": "ts-node src/index.ts",
     "swap": "ts-node src/swap-example.ts",
     "token": "ts-node src/token-example.ts",
+    "retrieval": "ts-node src/retrieval-example.ts",
     "build": "tsc"
   },
   "dependencies": {
@@ -14,6 +15,8 @@
     "@binkai/swap-plugin": "workspace:*",
     "@binkai/token-plugin": "workspace:*",
     "@binkai/birdeye-provider": "workspace:*",
+    "@binkai/bink-provider": "workspace:*",
+    "@binkai/retrieval-plugin": "workspace:*",
     "@pancakeswap/sdk": "^5.7.7",
     "bip39": "^3.1.0",
     "ethers": "^6.11.1",

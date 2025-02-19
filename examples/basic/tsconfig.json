@@ -7,7 +7,9 @@
     "references": [
       { "path": "../../packages/core" },
       { "path": "../../packages/plugins/swap" },
-      { "path": "../../packages/providers/pancakeswap" }
+      { "path": "../../packages/plugins/retrieval" },
+      { "path": "../../packages/providers/pancakeswap" },
+      { "path": "../../packages/providers/bink" }
     ],
     "include": ["src/**/*"]
   } 
