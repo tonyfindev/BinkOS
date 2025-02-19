@@ -1,73 +1,66 @@
-import { ethers } from "ethers";
-import {
-  Agent,
-  Wallet,
-  Network,
-  settings,
-  NetworkType,
-  NetworksConfig,
-} from "@binkai/core";
-import { SwapPlugin } from "@binkai/swap-plugin";
-import { PancakeSwapProvider } from "@binkai/pancakeswap-provider";
-import { ChainId } from "@pancakeswap/sdk";
-import { PostgresDatabaseAdapter } from "@binkai/postgres-adapter";
+import { ethers } from 'ethers';
+import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
+import { SwapPlugin } from '@binkai/swap-plugin';
+import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
+import { ChainId } from '@pancakeswap/sdk';
+import { PostgresDatabaseAdapter } from '@binkai/postgres-adapter';
 
 // Hardcoded RPC URLs for demonstration
-const BNB_RPC = "https://bsc-dataseed1.binance.org";
-const ETH_RPC = "https://eth.llamarpc.com";
+const BNB_RPC = 'https://bsc-dataseed1.binance.org';
+const ETH_RPC = 'https://eth.llamarpc.com';
 
 async function main() {
-  console.log("🚀 Starting BinkOS swap example...\n");
+  console.log('🚀 Starting BinkOS swap example...\n');
 
   // Check required environment variables
-  if (!settings.has("OPENAI_API_KEY")) {
-    console.error("❌ Error: Please set OPENAI_API_KEY in your .env file");
+  if (!settings.has('OPENAI_API_KEY')) {
+    console.error('❌ Error: Please set OPENAI_API_KEY in your .env file');
     process.exit(1);
   }
 
-  console.log("🔑 OpenAI API key found\n");
+  console.log('🔑 OpenAI API key found\n');
 
   // Define available networks
-  console.log("📡 Configuring networks...");
-  const networks: NetworksConfig["networks"] = {
+  console.log('📡 Configuring networks...');
+  const networks: NetworksConfig['networks'] = {
     bnb: {
-      type: "evm" as NetworkType,
+      type: 'evm' as NetworkType,
       config: {
         chainId: 56,
         rpcUrl: BNB_RPC,
-        name: "BNB Chain",
+        name: 'BNB Chain',
         nativeCurrency: {
-          name: "BNB",
-          symbol: "BNB",
+          name: 'BNB',
+          symbol: 'BNB',
           decimals: 18,
         },
       },
     },
     ethereum: {
-      type: "evm" as NetworkType,
+      type: 'evm' as NetworkType,
       config: {
         chainId: 1,
         rpcUrl: ETH_RPC,
-        name: "Ethereum",
+        name: 'Ethereum',
         nativeCurrency: {
-          name: "Ether",
-          symbol: "ETH",
+          name: 'Ether',
+          symbol: 'ETH',
           decimals: 18,
         },
       },
     },
   };
-  console.log("✓ Networks configured:", Object.keys(networks).join(", "), "\n");
+  console.log('✓ Networks configured:', Object.keys(networks).join(', '), '\n');
 
   // Initialize network
-  console.log("🌐 Initializing network...");
+  console.log('🌐 Initializing network...');
   const network = new Network({ networks });
-  console.log("✓ Network initialized\n");
+  console.log('✓ Network initialized\n');
 
   // Initialize provider
-  console.log("🔌 Initializing provider...");
+  console.log('🔌 Initializing provider...');
   const provider = new ethers.JsonRpcProvider(BNB_RPC);
-  console.log("✓ Provider initialized\n");
+  console.log('✓ Provider initialized\n');
 
   // Initialize a new wallet
   console.log('👛 Creating wallet...');
@@ -82,8 +75,8 @@ async function main() {
   );
   console.log('✓ Wallet created\n');
 
-  console.log("🤖 Wallet BNB:", await wallet.getAddress("bnb"));
-  console.log("🤖 Wallet ETH:", await wallet.getAddress("ethereum"));
+  console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
+  console.log('🤖 Wallet ETH:', await wallet.getAddress('ethereum'));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
@@ -96,8 +89,18 @@ async function main() {
   );
   console.log('✓ Agent initialized\n');
 
+  // Initialize database
+  console.log('🗄️ Initializing database...');
+  let db: PostgresDatabaseAdapter | undefined;
+  if (settings.get('POSTGRES_URL')) {
+    db = new PostgresDatabaseAdapter({
+      connectionString: settings.get('POSTGRES_URL'),
+    });
+    await agent.registerDatabase(db);
+  }
+
   // Create and configure the swap plugin
-  console.log("🔄 Initializing swap plugin...");
+  console.log('🔄 Initializing swap plugin...');
   const swapPlugin = new SwapPlugin();
 
   // Create providers with proper chain IDs
@@ -106,14 +109,14 @@ async function main() {
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
-    defaultChain: "bnb",
+    defaultChain: 'bnb',
     providers: [pancakeswap],
-    supportedChains: ["bnb", "ethereum"], // These will be intersected with agent's networks
+    supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
   });
-  console.log("✓ Swap plugin initialized\n");
+  console.log('✓ Swap plugin initialized\n');
 
   // Register the plugin with the agent
-  console.log("🔌 Registering swap plugin with agent...");
+  console.log('🔌 Registering swap plugin with agent...');
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
 
@@ -144,19 +147,16 @@ async function main() {
   const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
 
   // Check available providers for each chain
-  console.log("📊 Available providers by chain:");
+  console.log('📊 Available providers by chain:');
   const chains = registeredPlugin.getSupportedChains();
   for (const chain of chains) {
     const providers = registeredPlugin.getProvidersForChain(chain);
-    console.log(
-      `Chain ${chain}:`,
-      providers.map((p) => p.getName()).join(", ")
-    );
+    console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
   }
   console.log();
 }
 
-main().catch((error) => {
-  console.error("❌ Error:", error.message);
+main().catch(error => {
+  console.error('❌ Error:', error.message);
   process.exit(1);
 });
