@@ -4,7 +4,9 @@
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "clean": "find . -type d -name 'dist' -not -path '*/node_modules/*' -exec rm -rf {} + && find . -name 'tsconfig.tsbuildinfo' -type f -delete",
-    "build": "pnpm clean && pnpm -r --filter=!./examples/* build"
+    "build": "pnpm clean && pnpm -r --filter=!./examples/* build",
+    "publish": "lerna publish from-package --yes --no-git-tag-version --no-push",
+    "version": "lerna version --no-private --force-publish --yes"
   },
   "workspaces": [
     "packages/*",
