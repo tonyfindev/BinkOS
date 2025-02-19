@@ -15,11 +15,13 @@ export class Agent extends BaseAgent {
   private wallet: IWallet;
   private executor!: AgentExecutor;
   private networks: NetworksConfig['networks'];
+  private config: AgentConfig;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super();
     this.wallet = wallet;
     this.networks = networks;
+    this.config = config;
     this.model = new ChatOpenAI({
       modelName: config.model,
       temperature: config.temperature ?? 0,
@@ -87,10 +89,12 @@ export class Agent extends BaseAgent {
   }
 
   private async createExecutor(): Promise<AgentExecutor> {
+    const supportedNetworkPrompt = `Available networks include: ${Object.keys(this.networks).join(', ')}`;
+
+    const defaultSystemPrompt = `You are a helpful blockchain agent. You can help users interact with different blockchain networks.`;
+
     const prompt = ChatPromptTemplate.fromMessages([
-      ["system", `You are a helpful blockchain agent with access to wallet functionality.
-       You can help users interact with different blockchain networks.
-       Available networks include: ${Object.keys(this.networks).join(', ')}`],
+      ["system", `${this.config.systemPrompt ?? defaultSystemPrompt}\n${supportedNetworkPrompt}`],
       new MessagesPlaceholder("chat_history"),
       ["human", "{input}"],
       new MessagesPlaceholder("agent_scratchpad"),
