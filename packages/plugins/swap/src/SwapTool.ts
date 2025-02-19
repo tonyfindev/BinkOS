@@ -189,7 +189,6 @@ export class SwapTool extends BaseTool {
           );
           const requiredAmount = BigInt(quote.fromAmount);
 
-
           if (allowance < requiredAmount) {
             const approveTx = await selectedProvider.buildApproveTransaction(
               quote.fromToken,
@@ -197,7 +196,6 @@ export class SwapTool extends BaseTool {
               quote.fromAmount,
               userAddress
             );
-
             console.log('🤖 Approving...');
             // Sign and send approval transaction
             const approveReceipt = await wallet.signAndSendTransaction(chain, {
@@ -221,7 +219,6 @@ export class SwapTool extends BaseTool {
             value: BigInt(swapTx.value),
             gasLimit: BigInt(swapTx.gasLimit),
           });
-
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
 
