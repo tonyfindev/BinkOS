@@ -17,6 +17,9 @@ importers:
 
   examples/basic:
     dependencies:
+      '@binkai/birdeye-provider':
+        specifier: workspace:*
+        version: link:../../packages/providers/birdeye
       '@binkai/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -26,9 +29,15 @@ importers:
       '@binkai/swap-plugin':
         specifier: workspace:*
         version: link:../../packages/plugins/swap
+      '@binkai/token-plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugins/token
       '@pancakeswap/sdk':
         specifier: ^5.7.7
         version: 5.8.10(bufferutil@4.0.9)(typescript@5.7.3)(utf-8-validate@5.0.10)(zod@3.24.1)
+      axios:
+        specifier: ^1.6.7
+        version: 1.7.9
       bip39:
         specifier: ^3.1.0
         version: 3.1.0
@@ -125,6 +134,47 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.17.14
+      rimraf:
+        specifier: ^5.0.0
+        version: 5.0.10
+      typescript:
+        specifier: ^5.0.0
+        version: 5.7.3
+
+  packages/plugins/token:
+    dependencies:
+      '@binkai/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@langchain/core':
+        specifier: ^0.3.32
+        version: 0.3.32(openai@4.79.3(encoding@0.1.13)(ws@8.18.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.1))
+      zod:
+        specifier: ^3.22.4
+        version: 3.24.1
+    devDependencies:
+      rimraf:
+        specifier: ^5.0.0
+        version: 5.0.10
+      typescript:
+        specifier: ^5.0.0
+        version: 5.7.3
+
+  packages/providers/birdeye:
+    dependencies:
+      '@binkai/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@binkai/token-plugin':
+        specifier: workspace:*
+        version: link:../../plugins/token
+      axios:
+        specifier: ^1.6.7
+        version: 1.7.9
+      zod:
+        specifier: ^3.22.4
+        version: 3.24.1
+    devDependencies:
       rimraf:
         specifier: ^5.0.0
         version: 5.0.10
