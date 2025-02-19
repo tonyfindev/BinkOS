@@ -190,7 +190,7 @@ export class PancakeSwapProvider implements ISwapProvider {
         route: trade.routes.map(route => (route as any).path[0].address),
         estimatedGas: '350000', // TODO: get gas limit from trade
         type: params.type,
-        slippage: slippage,
+        slippage: params.slippage,
       };
 
       // Store the quote and trade for later use

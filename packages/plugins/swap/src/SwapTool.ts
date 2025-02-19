@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { BaseTool, IToolConfig } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
+import { validateTokenAddress } from './utils/addressValidation';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -81,8 +82,8 @@ export class SwapTool extends BaseTool {
     }
 
     return z.object({
-      fromToken: z.string().describe('The token address or symbol to swap from'),
-      toToken: z.string().describe('The token address or symbol to swap to'),
+      fromToken: z.string().describe('The token address swap from'),
+      toToken: z.string().describe('The token address swap to'),
       amount: z.string().describe('The amount of tokens to swap'),
       amountType: z
         .enum(['input', 'output'])
@@ -168,6 +169,14 @@ export class SwapTool extends BaseTool {
           } = args;
 
           console.log('🤖 Swap Args:', args);
+
+          // Validate token addresses
+          if (!validateTokenAddress(fromToken, chain)) {
+            throw new Error(`Invalid fromToken address for chain ${chain}: ${fromToken}`);
+          }
+          if (!validateTokenAddress(toToken, chain)) {
+            throw new Error(`Invalid toToken address for chain ${chain}: ${toToken}`);
+          }
 
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();

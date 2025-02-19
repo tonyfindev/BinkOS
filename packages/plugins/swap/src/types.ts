@@ -16,6 +16,7 @@ export interface SwapQuote {
     value: string;
     gasLimit: string;
   };
+  slippage: number;
 }
 
 export interface SwapResult extends SwapQuote {
