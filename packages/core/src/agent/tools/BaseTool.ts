@@ -19,4 +19,4 @@ export abstract class BaseTool implements ITool {
   setAgent(agent: IAgent): void {
     this.agent = agent;
   }
-} 
+}

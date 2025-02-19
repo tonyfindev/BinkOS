@@ -68,7 +68,7 @@ describe('Settings', () => {
     it('should load values from .env files', () => {
       (existsSync as jest.Mock).mockReturnValue(true);
       (config as jest.Mock).mockReturnValue({
-        parsed: { TEST_KEY: 'env_value' }
+        parsed: { TEST_KEY: 'env_value' },
       });
       const instance = Settings.getInstance();
       expect(instance.get('TEST_KEY')).toBe('env_value');
@@ -85,7 +85,7 @@ describe('Settings', () => {
       (existsSync as jest.Mock).mockReturnValue(true);
       (config as jest.Mock).mockReturnValue({
         error: new Error('Parse error'),
-        parsed: null
+        parsed: null,
       });
       Settings.getInstance();
       expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Parse error'));
@@ -95,7 +95,7 @@ describe('Settings', () => {
       (existsSync as jest.Mock).mockReturnValue(true);
       process.env.PRIORITY_TEST = 'process_value';
       (config as jest.Mock).mockReturnValue({
-        parsed: { PRIORITY_TEST: 'env_value' }
+        parsed: { PRIORITY_TEST: 'env_value' },
       });
       const instance = Settings.getInstance();
       expect(instance.get('PRIORITY_TEST')).toBe('process_value');
@@ -113,7 +113,7 @@ describe('Settings', () => {
 
     it('should use default values', () => {
       const instance = Settings.getInstance({
-        defaultValues: { DEFAULT_KEY: 'default_value' }
+        defaultValues: { DEFAULT_KEY: 'default_value' },
       });
       expect(instance.get('DEFAULT_KEY')).toBe('default_value');
       expect(consoleWarnSpy).not.toHaveBeenCalled();
@@ -212,4 +212,4 @@ describe('Settings', () => {
       expect(instance.get('RELOAD_TEST')).toBe('reload_value');
     });
   });
-}); 
+});

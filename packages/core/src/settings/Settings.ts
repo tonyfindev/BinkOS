@@ -21,11 +21,11 @@ export class Settings {
         '.env.development',
         '.env',
         '.env.production',
-        '.env.test'
+        '.env.test',
       ],
-      throwOnMissing: options.throwOnMissing || false
+      throwOnMissing: options.throwOnMissing || false,
     };
-    
+
     this.configStore = new Map();
     this.initialize();
   }
@@ -105,14 +105,14 @@ export class Settings {
    */
   public get(key: string, defaultValue?: string): string | undefined {
     const value = this.configStore.get(key.toUpperCase());
-    
+
     if (value === undefined) {
       if (this.options.throwOnMissing && defaultValue === undefined) {
         throw new Error(`Required configuration key "${key}" is not set`);
       }
       return defaultValue;
     }
-    
+
     return value;
   }
 
@@ -199,4 +199,4 @@ export class Settings {
 }
 
 // Export singleton instance with default options
-export const settings = Settings.getInstance(); 
+export const settings = Settings.getInstance();

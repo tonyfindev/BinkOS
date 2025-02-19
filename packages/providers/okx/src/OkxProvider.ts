@@ -2,7 +2,6 @@ import { ISwapProvider, SwapQuote, SwapResult, SwapParams } from '@binkai/swap-p
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import CryptoJS from 'crypto-js';
 
-
 // Enhanced interface with better type safety
 interface TokenInfo extends Token {
   // Inherits all Token properties and maintains DRY principle
@@ -74,10 +73,7 @@ export class OkxProvider implements ISwapProvider {
     ]);
 
     const contract = new Contract(tokenAddress, erc20Interface, this.provider);
-    const [decimals, symbol] = await Promise.all([
-      contract.decimals(),
-      contract.symbol(),
-    ]);
+    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
 
     return {
       address: tokenAddress.toLowerCase() as `0x${string}`,
@@ -96,17 +92,17 @@ export class OkxProvider implements ISwapProvider {
     const now = Date.now();
     const cached = this.tokenCache.get(tokenAddress);
 
-    if (cached && (now - cached.timestamp) < this.CACHE_TTL) {
+    if (cached && now - cached.timestamp < this.CACHE_TTL) {
       return cached.token;
     }
 
     const info = await this.getTokenInfo(tokenAddress);
-    console.log("🤖 Token info", info)
+    console.log('🤖 Token info', info);
     const token = {
       chainId: info.chainId,
       address: info.address.toLowerCase() as `0x${string}`,
       decimals: info.decimals,
-      symbol: info.symbol
+      symbol: info.symbol,
     };
 
     this.tokenCache.set(tokenAddress, { token, timestamp: now });
@@ -121,10 +117,7 @@ export class OkxProvider implements ISwapProvider {
    */
   private generateApiHeaders(path: string, timestamp: string): HeadersInit {
     const signature = CryptoJS.enc.Base64.stringify(
-      CryptoJS.HmacSHA256(
-        timestamp + 'GET' + path,
-        this.secretKey
-      )
+      CryptoJS.HmacSHA256(timestamp + 'GET' + path, this.secretKey),
     );
 
     return {
@@ -143,17 +136,16 @@ export class OkxProvider implements ISwapProvider {
         this.getToken(params.toToken),
       ]);
 
-      const amountIn = params.type === 'input'
-        ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
-        : undefined;
+      const amountIn =
+        params.type === 'input'
+          ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
+          : undefined;
 
       // Convert BNB addresses to OKX format
-      const tokenInAddress = tokenIn.address === CONSTANTS.BNB_ADDRESS
-        ? CONSTANTS.OKX_BNB_ADDRESS
-        : tokenIn.address;
-      const tokenOutAddress = tokenOut.address === CONSTANTS.BNB_ADDRESS
-        ? CONSTANTS.OKX_BNB_ADDRESS
-        : tokenOut.address;
+      const tokenInAddress =
+        tokenIn.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKX_BNB_ADDRESS : tokenIn.address;
+      const tokenOutAddress =
+        tokenOut.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKX_BNB_ADDRESS : tokenOut.address;
 
       const now = new Date();
 
@@ -167,13 +159,10 @@ export class OkxProvider implements ISwapProvider {
 
       const headers = this.generateApiHeaders(path, isoString);
 
-      const response = await fetch(
-        `https://www.okx.com${path}`,
-        {
-          method: 'GET',
-          headers,
-        },
-      );
+      const response = await fetch(`https://www.okx.com${path}`, {
+        method: 'GET',
+        headers,
+      });
 
       const data = await response.json();
 
@@ -195,6 +184,9 @@ export class OkxProvider implements ISwapProvider {
         quoteId,
         fromToken: params.fromToken,
         toToken: params.toToken,
+        fromTokenDecimals: tokenIn.decimals,
+        toTokenDecimals: tokenOut.decimals,
+        slippage: params.slippage,
         // fromAmount: params.type === 'input'
         //   ? params.amount
         //   : ethers.formatUnits(inputAmount.toString(), tokenIn.decimals),
@@ -212,9 +204,8 @@ export class OkxProvider implements ISwapProvider {
           data: tx?.data || '',
           value: tx?.value || '0',
           gasLimit: tx?.gas || '350000',
-        }
+        },
       };
-
 
       // Store the quote and trade for later use
       this.quotes.set(quoteId, { quote, expiresAt: Date.now() + CONSTANTS.QUOTE_EXPIRY });
@@ -224,11 +215,12 @@ export class OkxProvider implements ISwapProvider {
         this.quotes.delete(quoteId);
       }, CONSTANTS.QUOTE_EXPIRY);
 
-      return quote
-
+      return quote;
     } catch (error: unknown) {
       console.error('Error getting quote:', error);
-      throw new Error(`Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -249,11 +241,18 @@ export class OkxProvider implements ISwapProvider {
       };
     } catch (error: unknown) {
       console.error('Error building swap transaction:', error);
-      throw new Error(`Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
-  async buildApproveTransaction(token: string, spender: string, amount: string, userAddress: string): Promise<SwapTransaction> {
+  async buildApproveTransaction(
+    token: string,
+    spender: string,
+    amount: string,
+    userAddress: string,
+  ): Promise<SwapTransaction> {
     const tokenInfo = await this.getToken(token);
     const erc20Interface = new Interface([
       'function approve(address spender, uint256 amount) returns (bool)',
@@ -261,7 +260,8 @@ export class OkxProvider implements ISwapProvider {
 
     const data = erc20Interface.encodeFunctionData('approve', [
       spender,
-      ethers.parseUnits(amount, tokenInfo.decimals), ,
+      ethers.parseUnits(amount, tokenInfo.decimals),
+      ,
     ]);
 
     return {
@@ -276,8 +276,8 @@ export class OkxProvider implements ISwapProvider {
     const erc20 = new Contract(
       token,
       ['function allowance(address owner, address spender) view returns (uint256)'],
-      this.provider
+      this.provider,
     );
     return await erc20.allowance(owner, spender);
   }
-} 
+}

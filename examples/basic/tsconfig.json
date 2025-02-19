@@ -1,15 +1,17 @@
 {
-    "extends": "../../tsconfig.json",
-    "compilerOptions": {
-      "outDir": "./dist",
-      "rootDir": "./src"
-    },
-    "references": [
-      { "path": "../../packages/core" },
-      { "path": "../../packages/plugins/swap" },
-      { "path": "../../packages/plugins/retrieval" },
-      { "path": "../../packages/providers/pancakeswap" },
-      { "path": "../../packages/providers/bink" }
-    ],
-    "include": ["src/**/*"]
-  } 
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true
+  },
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/plugins/swap" },
+    { "path": "../../packages/adapters/postgres" },
+    { "path": "../../packages/plugins/retrieval" },
+    { "path": "../../packages/providers/pancakeswap" },
+    { "path": "../../packages/providers/bink" }
+  ],
+  "include": ["src/**/*"]
+}

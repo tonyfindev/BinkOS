@@ -1,6 +1,13 @@
 import { ethers } from 'ethers';
 import { Connection } from '@solana/web3.js';
-import { NetworksConfig, NetworkConfig, EVMNetworkConfig, SolanaNetworkConfig, NetworkName, NetworkType } from './types';
+import {
+  NetworksConfig,
+  NetworkConfig,
+  EVMNetworkConfig,
+  SolanaNetworkConfig,
+  NetworkName,
+  NetworkType,
+} from './types';
 
 export class Network {
   readonly #config: NetworksConfig;
@@ -40,7 +47,7 @@ export class Network {
 
   public getProvider<T extends NetworkType>(
     name: NetworkName,
-    type: T
+    type: T,
   ): T extends 'evm' ? ethers.JsonRpcProvider : Connection {
     const provider = this.#providers.get(name);
     if (!provider) {
@@ -74,4 +81,4 @@ export class Network {
   public getNetworkType(name: NetworkName): NetworkType {
     return this.getConfig(name).type;
   }
-} 
+}

@@ -1,9 +1,11 @@
 # Bink OS - Your AI-Powered DeFi Operating System
 
 ## Overview
+
 Bink is a powerful DeFAI (Decentralized Finance + AI) OS built on BNB Chain that seamlessly combines the decentralized financial ecosystem with AI-driven analytics and automation. It provides a robust platform for building and deploying intelligent DeFi applications across multiple networks, with native support for BNB Chain's ecosystem.
 
 ## Why Choose Bink OS?
+
 - 🌐 **Works Everywhere**: Built on BNB Chain with compatibility across major blockchains and L2s
 - 🤖 **AI-Powered**: Smart trading and risk management
 - 🔒 **Secure**: Built-in protection for your assets
@@ -12,6 +14,7 @@ Bink is a powerful DeFAI (Decentralized Finance + AI) OS built on BNB Chain that
 ## Core Features
 
 ### 💱 Trading & Swaps
+
 - Trade across different blockchains
 - AI finds the best prices and routes
 - Supports major DEXs:
@@ -21,8 +24,8 @@ Bink is a powerful DeFAI (Decentralized Finance + AI) OS built on BNB Chain that
   - 1inch (Multi-chain)
   - OKX DEX
 
-
 ### 🌉 Cross-Chain Bridge
+
 - Move assets between networks
 - Automatic best route finding
 - Supports popular bridges:
@@ -30,12 +33,14 @@ Bink is a powerful DeFAI (Decentralized Finance + AI) OS built on BNB Chain that
   - Other major bridges
 
 ### 👛 Wallet Management
+
 - Secure key storage
 - Multi-signature support
 - Hardware wallet integration
 - Real-time balance tracking
 
 ### 📊 Analytics & AI
+
 - Price predictions
 - Market trend analysis
 - Risk assessment
@@ -44,7 +49,9 @@ Bink is a powerful DeFAI (Decentralized Finance + AI) OS built on BNB Chain that
 ## Smart Features
 
 ### 🤖 AI Capabilities
+
 - **Market Intelligence**
+
   - Price predictions
   - Trend analysis
   - Risk detection
@@ -57,12 +64,14 @@ Bink is a powerful DeFAI (Decentralized Finance + AI) OS built on BNB Chain that
   - Risk management
 
 ### 💬 Natural Language Interface
+
 - Voice trading commands
 - Conversational portfolio management
 - Plain English market queries
 - Easy-to-understand transaction details
 
 ## Security Measures
+
 - Encrypted wallet management
 - Multi-factor authentication
 - Regular security audits
@@ -70,6 +79,7 @@ Bink is a powerful DeFAI (Decentralized Finance + AI) OS built on BNB Chain that
 - Fraud detection
 
 ## Supported Networks
+
 - BNB Chain
 - Ethereum & L2s
 - Solana
@@ -77,18 +87,22 @@ Bink is a powerful DeFAI (Decentralized Finance + AI) OS built on BNB Chain that
 - Cross-chain compatibility
 
 ## Getting Started
+
 [Documentation Coming Soon]
 
 ## For Developers
+
 - Modular architecture
 - Plugin system
 - API integrations
 - Contribution guidelines available
 
 ## ⚠️ Important Note
+
 Bink OS is in active development. Always verify transactions and use with caution.
 
 ## Need Help?
+
 - Documentation: [Coming Soon]
 - Contributions: Welcome! See contributing guidelines
 - Updates: Follow our development progress

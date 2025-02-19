@@ -21,11 +21,11 @@ export class ProviderRegistry {
 
   getProvidersByChain(chain: string): ITokenProvider[] {
     return Array.from(this.providers.values()).filter(provider =>
-      provider.getSupportedChains().includes(chain)
+      provider.getSupportedChains().includes(chain),
     );
   }
 
   getAllProviders(): ITokenProvider[] {
     return Array.from(this.providers.values());
   }
-} 
+}
