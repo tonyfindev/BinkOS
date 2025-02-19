@@ -16,4 +16,4 @@
     { "path": "./packages/adapters/postgres" },
   ],
   "exclude": ["node_modules", "dist"]
-} 
+}

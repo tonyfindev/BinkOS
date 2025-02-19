@@ -86,11 +86,11 @@ export class TokenPlugin extends BasePlugin {
     // Cleanup any provider resources if needed
     const providers = this.getProviders();
     await Promise.all(
-      providers.map(async (provider) => {
+      providers.map(async provider => {
         if ('cleanup' in provider && typeof provider.cleanup === 'function') {
           await provider.cleanup();
         }
-      })
+      }),
     );
   }
-} 
+}

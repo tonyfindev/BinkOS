@@ -37,13 +37,15 @@ export const TokenInfoSchema = z.object({
   name: z.string(),
   decimals: z.number(),
   totalSupply: z.string().optional(),
-  price: z.object({
-    usd: z.number().optional(),
-    nativeToken: z.number().optional(),
-  }).optional(),
+  price: z
+    .object({
+      usd: z.number().optional(),
+      nativeToken: z.number().optional(),
+    })
+    .optional(),
   marketCap: z.number().optional(),
   volume24h: z.number().optional(),
   priceChange24h: z.number().optional(),
   logoURI: z.string().optional(),
   verified: z.boolean().optional(),
-}); 
+});

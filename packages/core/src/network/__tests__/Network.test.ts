@@ -59,13 +59,13 @@ describe('Network', () => {
 
     it('should throw error for non-existent network', () => {
       expect(() => network.getProvider('non-existent' as any, 'evm')).toThrow(
-        'Provider not found for network: non-existent'
+        'Provider not found for network: non-existent',
       );
     });
 
     it('should throw error for wrong network type', () => {
       expect(() => network.getProvider('sepolia', 'solana')).toThrow(
-        'Network sepolia is not of type solana'
+        'Network sepolia is not of type solana',
       );
     });
   });
@@ -78,7 +78,7 @@ describe('Network', () => {
 
     it('should throw error for non-existent network', () => {
       expect(() => network.getConfig('non-existent' as any)).toThrow(
-        'Network configuration not found for: non-existent'
+        'Network configuration not found for: non-existent',
       );
     });
   });
@@ -109,8 +109,8 @@ describe('Network', () => {
 
     it('should throw error for non-existent network', () => {
       expect(() => network.getNetworkType('non-existent' as any)).toThrow(
-        'Network configuration not found for: non-existent'
+        'Network configuration not found for: non-existent',
       );
     });
   });
-}); 
+});

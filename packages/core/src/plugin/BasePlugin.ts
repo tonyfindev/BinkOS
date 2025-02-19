@@ -36,4 +36,4 @@ export abstract class BasePlugin implements IPlugin {
     }
     return this.agent;
   }
-} 
+}

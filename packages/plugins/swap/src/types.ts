@@ -16,6 +16,7 @@ export interface SwapQuote {
     value: string;
     gasLimit: string;
   };
+  slippage: number;
 }
 
 export interface SwapResult extends SwapQuote {
@@ -75,7 +76,12 @@ export interface ISwapProvider {
    * @param amount The amount to approve
    * @param userAddress The address of the user who will approve
    */
-  buildApproveTransaction(token: string, spender: string, amount: string, userAddress: string): Promise<SwapTransaction>;
+  buildApproveTransaction(
+    token: string,
+    spender: string,
+    amount: string,
+    userAddress: string,
+  ): Promise<SwapTransaction>;
 
   /**
    * Check the allowance of a token for a spender
@@ -84,4 +90,4 @@ export interface ISwapProvider {
    * @param spender The address to check allowance for
    */
   checkAllowance(token: string, owner: string, spender: string): Promise<bigint>;
-} 
+}

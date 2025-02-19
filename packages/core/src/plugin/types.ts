@@ -30,4 +30,4 @@ export interface IPlugin {
    * Clean up any resources when plugin is unregistered
    */
   cleanup(): Promise<void>;
-} 
+}

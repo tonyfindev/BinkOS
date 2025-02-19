@@ -6,7 +6,10 @@
     "clean": "find . -type d -name 'dist' -not -path '*/node_modules/*' -exec rm -rf {} + && find . -name 'tsconfig.tsbuildinfo' -type f -delete",
     "build": "pnpm clean && pnpm -r --filter=!./examples/* build",
     "publish": "lerna publish from-package --yes --no-git-tag-version --no-push",
-    "version": "lerna version --no-private --force-publish --yes"
+    "version": "lerna version --no-private --force-publish --yes",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "postinstall": "husky"
   },
   "workspaces": [
     "packages/*",
@@ -15,9 +18,19 @@
     "packages/adapters/*",
     "packages/providers/*"
   ],
+  "lint-staged": {
+    "**/*.{ts,tsx,js,jsx,json,md}": [
+      "prettier --write"
+    ]
+  },
   "dependencies": {},
   "devDependencies": {
+    "@commitlint/cli": "^19.7.1",
+    "@commitlint/config-conventional": "^19.7.1",
+    "husky": "^9.1.7",
     "lerna": "^8.1.9",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.1",
     "typescript": "^5.7.3"
   }
 }

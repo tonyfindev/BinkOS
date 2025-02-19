@@ -50,10 +50,10 @@ export interface BirdeyeConfig {
 }
 
 export const CHAIN_MAPPING = {
-  'solana': 'solana',
-  'base': 'base',
-  'bnb': 'bsc', // BSC chain mapping
+  solana: 'solana',
+  base: 'base',
+  bnb: 'bsc', // BSC chain mapping
   // Add more chains as they become supported
 } as const;
 
-export type SupportedChain = keyof typeof CHAIN_MAPPING; 
+export type SupportedChain = keyof typeof CHAIN_MAPPING;

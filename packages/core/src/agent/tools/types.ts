@@ -2,8 +2,7 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { IAgent } from '../types';
 
-export interface IToolConfig {
-}
+export interface IToolConfig {}
 
 export interface ITool {
   getName(): string;
@@ -11,4 +10,4 @@ export interface ITool {
   getSchema(): z.ZodObject<any>;
   createTool(): DynamicStructuredTool;
   setAgent(agent: IAgent): void;
-} 
+}

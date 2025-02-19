@@ -1,5 +1,11 @@
 import { ethers } from 'ethers';
-import { Keypair, Transaction as SolanaTransaction, VersionedTransaction, SystemProgram, PublicKey } from '@solana/web3.js';
+import {
+  Keypair,
+  Transaction as SolanaTransaction,
+  VersionedTransaction,
+  SystemProgram,
+  PublicKey,
+} from '@solana/web3.js';
 import { Network } from '../../network';
 import { NetworksConfig, NetworkType } from '../../network/types';
 import { Wallet } from '../Wallet';
@@ -52,10 +58,12 @@ describe('Wallet', () => {
     it('should generate correct EVM address', async () => {
       const address = await wallet.getAddress(networkName);
       expect(address).toMatch(/^0x[a-fA-F0-9]{40}$/);
-      expect(address).toBe(ethers.HDNodeWallet.fromPhrase(
-        walletConfig.seedPhrase,
-        `m/44'/60'/0'/0/${walletConfig.index}`
-      ).address);
+      expect(address).toBe(
+        ethers.HDNodeWallet.fromPhrase(
+          walletConfig.seedPhrase,
+          `m/44'/60'/0'/0/${walletConfig.index}`,
+        ).address,
+      );
     });
 
     it('should sign message correctly for EVM', async () => {
@@ -115,23 +123,22 @@ describe('Wallet', () => {
       const publicKey = new PublicKey(await wallet.getAddress(networkName));
       const messageBytes = new TextEncoder().encode(message);
       const signatureBytes = Buffer.from(signature, 'base64');
-      const isValid = await PublicKey.createProgramAddress(
-        [messageBytes],
-        publicKey
-      ).catch(() => false);
+      const isValid = await PublicKey.createProgramAddress([messageBytes], publicKey).catch(
+        () => false,
+      );
       expect(isValid).toBeTruthy();
     });
 
     it('should sign Solana transaction correctly', async () => {
       const fromPubkey = new PublicKey(await wallet.getAddress(networkName));
       const toPubkey = new PublicKey('11111111111111111111111111111111');
-      
+
       const transaction = new SolanaTransaction().add(
         SystemProgram.transfer({
           fromPubkey,
           toPubkey,
           lamports: 1000,
-        })
+        }),
       );
 
       // Set a mock recent blockhash
@@ -150,13 +157,13 @@ describe('Wallet', () => {
     it('should sign Solana versioned transaction correctly', async () => {
       const fromPubkey = new PublicKey(await wallet.getAddress(networkName));
       const toPubkey = new PublicKey('11111111111111111111111111111111');
-      
+
       const legacyTx = new SolanaTransaction().add(
         SystemProgram.transfer({
           fromPubkey,
           toPubkey,
           lamports: 1000,
-        })
+        }),
       );
 
       // Set a mock recent blockhash
@@ -195,8 +202,8 @@ describe('Wallet', () => {
         wallet.signTransaction({
           network: 'solana-devnet',
           transaction: {} as any,
-        })
+        }),
       ).rejects.toThrow('Invalid Solana transaction type');
     });
   });
-}); 
+});

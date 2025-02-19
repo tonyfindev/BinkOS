@@ -62,10 +62,15 @@ async function main() {
 
   // Initialize a new wallet
   console.log('👛 Creating wallet...');
-  const wallet = new Wallet({
-    seedPhrase: settings.get('WALLET_MNEMONIC') || 'test test test test test test test test test test test junk',
-    index: 0
-  }, network);
+  const wallet = new Wallet(
+    {
+      seedPhrase:
+        settings.get('WALLET_MNEMONIC') ||
+        'test test test test test test test test test test test junk',
+      index: 0,
+    },
+    network,
+  );
 
   console.log('✓ Wallet created\n');
 
@@ -73,10 +78,14 @@ async function main() {
   console.log('🤖 Wallet ETH:', await wallet.getAddress('ethereum'));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
-  const agent = new Agent({
-    model: 'gpt-4o',
-    temperature: 0,
-  }, wallet, networks);
+  const agent = new Agent(
+    {
+      model: 'gpt-4o',
+      temperature: 0,
+    },
+    wallet,
+    networks,
+  );
   console.log('✓ Agent initialized\n');
 
   // Create and configure the swap plugin
@@ -110,7 +119,7 @@ async function main() {
       Use the following token addresses:
       BNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
       USDC: 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d
-    `
+    `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');
 
@@ -157,4 +166,4 @@ async function main() {
 main().catch(error => {
   console.error('❌ Error:', error.message);
   process.exit(1);
-}); 
+});
