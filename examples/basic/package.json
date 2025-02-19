@@ -6,6 +6,7 @@
     "start": "ts-node src/example.ts",
     "swap": "ts-node src/swap-example.ts",
     "swap-okx": "ts-node src/swap-example-okx.ts",
+    "swap-kyber": "ts-node src/swap-example-kyber.ts",
     "token": "ts-node src/token-example.ts",
     "build": "tsc"
   },
@@ -13,6 +14,7 @@
     "@binkai/core": "workspace:*",
     "@binkai/pancakeswap-provider": "workspace:*",
     "@binkai/okx-provider": "workspace:*",
+    "@binkai/kyber-provider": "workspace:*",
     "@binkai/swap-plugin": "workspace:*",
     "@binkai/token-plugin": "workspace:*",
     "@binkai/birdeye-provider": "workspace:*",
