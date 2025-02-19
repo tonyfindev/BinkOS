@@ -4,6 +4,7 @@ import { IPlugin } from '../plugin/types';
 import { IWallet } from '../wallet/types';
 import { NetworksConfig } from '../network/types';
 import { DynamicStructuredTool } from '@langchain/core/tools';
+import { DatabaseAdapter } from '../storage';
 
 export abstract class BaseAgent implements IAgent {
   protected tools: DynamicStructuredTool[] = [];
@@ -63,4 +64,5 @@ export abstract class BaseAgent implements IAgent {
   abstract execute(params: AgentExecuteParams): Promise<string>;
   abstract getWallet(): IWallet;
   abstract getNetworks(): NetworksConfig['networks'];
+  abstract registerDatabase(db: DatabaseAdapter): Promise<void>;
 } 

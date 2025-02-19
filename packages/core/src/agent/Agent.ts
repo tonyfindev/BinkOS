@@ -9,12 +9,14 @@ import { AgentConfig, AgentExecuteParams, IAgent } from './types';
 import { GetWalletAddressTool, ITool } from './tools';
 import { BaseAgent } from './BaseAgent';
 import { IPlugin } from '../plugin/types';
+import { DatabaseAdapter } from '../storage';
 
 export class Agent extends BaseAgent {
   private model: ChatOpenAI;
   private wallet: IWallet;
   private executor!: AgentExecutor;
   private networks: NetworksConfig['networks'];
+  db: DatabaseAdapter<any> | undefined;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super();
@@ -86,6 +88,17 @@ export class Agent extends BaseAgent {
     this.executor = await this.createExecutor();
   }
 
+  async registerDatabase(database: DatabaseAdapter<any>): Promise<void> {
+    this.db = database;
+    try {
+      await this.db.init()
+      console.info("✓ Database initialized\n");
+    } catch (error) {
+      console.error("Failed to connect to Postgres:", error);
+      throw error; // Re-throw to handle it in the calling code
+    }
+  }
+
   private async createExecutor(): Promise<AgentExecutor> {
     const prompt = ChatPromptTemplate.fromMessages([
       ["system", `You are a helpful blockchain agent with access to wallet functionality.
@@ -121,8 +134,8 @@ export class Agent extends BaseAgent {
       });
       return result.output;
     } else {
-      const messages: BaseMessage[] = commandOrParams.history ?? [];
-      messages.push(new HumanMessage(commandOrParams.input));
+      let messages: BaseMessage[] = commandOrParams.history ?? [];
+      messages = [new HumanMessage(commandOrParams.input), ...messages];
 
       const result = await this.executor.invoke({
         input: commandOrParams.input,
