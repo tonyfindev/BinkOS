@@ -4,6 +4,8 @@ export interface SwapQuote {
   toToken: string;
   fromAmount: string;
   toAmount: string;
+  fromTokenDecimals: number;
+  toTokenDecimals: number;
   priceImpact: number;
   route: string[];
   estimatedGas: string;
@@ -47,6 +49,12 @@ export interface ISwapProvider {
    * Get supported chains for this provider
    */
   getSupportedChains(): string[];
+
+  /**
+   * Get the provider-specific prompt that helps guide the AI in using this provider effectively
+   * This is optional - if not implemented, no special prompt will be used
+   */
+  getPrompt?(): string;
 
   /**
    * Get a quote for swapping tokens

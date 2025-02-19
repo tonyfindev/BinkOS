@@ -40,7 +40,21 @@ export class SwapTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const chains = Array.from(this.supportedChains).join(', ');
-    return `Swap tokens using various DEX providers (${providers}). Supports chains: ${chains}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
+    let description = `Swap tokens using various DEX providers (${providers}). Supports chains: ${chains}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
+
+    // Add provider-specific prompts if they exist
+    const providerPrompts = this.registry.getProviders()
+      .map((provider: ISwapProvider) => {
+        const prompt = provider.getPrompt?.();
+        return prompt ? `${provider.getName()}: ${prompt}` : null;
+      })
+      .filter((prompt: unknown): prompt is string => !!prompt);
+
+    if (providerPrompts.length > 0) {
+      description += '\n\nProvider-specific information:\n' + providerPrompts.join('\n');
+    }
+
+    return description;
   }
 
   private getSupportedChains(): string[] {
@@ -187,8 +201,9 @@ export class SwapTool extends BaseTool {
             userAddress,
             swapTx.to
           );
-          const requiredAmount = BigInt(quote.fromAmount);
+          const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromTokenDecimals);
 
+          console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
           if (allowance < requiredAmount) {
             const approveTx = await selectedProvider.buildApproveTransaction(
@@ -238,6 +253,7 @@ export class SwapTool extends BaseTool {
             chain,
           });
         } catch (error) {
+          console.error('Swap error:', error);
           return JSON.stringify({
             status: 'error',
             message: error,

@@ -9,6 +9,7 @@ export interface AgentConfig {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  systemPrompt?: string;
 }
 
 export interface AgentExecuteParams {

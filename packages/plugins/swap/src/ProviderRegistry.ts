@@ -19,6 +19,10 @@ export class ProviderRegistry {
     return Array.from(this.providers.keys());
   }
 
+  getProviders(): ISwapProvider[] {
+    return Array.from(this.providers.values());
+  }
+
   getProvidersByChain(chain: string): ISwapProvider[] {
     return Array.from(this.providers.values()).filter(provider => 
       provider.getSupportedChains().includes(chain)

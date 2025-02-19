@@ -195,6 +195,8 @@ export class OkxProvider implements ISwapProvider {
         quoteId,
         fromToken: params.fromToken,
         toToken: params.toToken,
+        fromTokenDecimals: tokenIn.decimals,
+        toTokenDecimals: tokenOut.decimals,
         // fromAmount: params.type === 'input'
         //   ? params.amount
         //   : ethers.formatUnits(inputAmount.toString(), tokenIn.decimals),

@@ -54,7 +54,11 @@ export class PancakeSwapProvider implements ISwapProvider {
   }
 
   getSupportedChains(): string[] {
-    return ['bnb', 'ethereum'];
+    return ['bnb'];
+  }
+
+  getPrompt(): string {
+    return `If you are using PancakeSwap, You can use BNB with address ${Native.onChain(this.chainId).wrapped.address}`;
   }
 
   private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
@@ -84,7 +88,6 @@ export class PancakeSwapProvider implements ISwapProvider {
     }
 
     const info = await this.getTokenInfo(tokenAddress);
-    console.log('🤖 Token info:', info);
     const token = new Token(
       info.chainId,
       info.address,
@@ -103,7 +106,6 @@ export class PancakeSwapProvider implements ISwapProvider {
         currencyA: tokenIn,
         currencyB: tokenOut,
       });
-      console.log('✓ V3 pools fetched:', v3Pools.length);
       return v3Pools;
     } catch (error) {
       console.warn('Failed to fetch V3 pools:', error);
@@ -112,12 +114,13 @@ export class PancakeSwapProvider implements ISwapProvider {
   }
 
   async getQuote(params: SwapParams): Promise<SwapQuote> {
+
     try {
       const [tokenIn, tokenOut] = await Promise.all([
-        params.fromToken.toLowerCase() === '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'.toLowerCase()
+        params.fromToken.toLowerCase() === Native.onChain(this.chainId).wrapped.address.toLowerCase()
           ? Native.onChain(this.chainId)
           : this.getToken(params.fromToken),
-        params.toToken.toLowerCase() === '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'.toLowerCase()
+        params.toToken.toLowerCase() === Native.onChain(this.chainId).wrapped.address.toLowerCase()
           ? Native.onChain(this.chainId)
           : this.getToken(params.toToken),
       ]);
@@ -161,7 +164,7 @@ export class PancakeSwapProvider implements ISwapProvider {
       if (!trade) {
         throw new Error('No route found');
       }
-
+      
       // Calculate output amounts based on trade type
       const slippageTolerance = new Percent(Math.floor(params.slippage * 100), 10000);
       const { inputAmount, outputAmount } = trade;
@@ -173,6 +176,8 @@ export class PancakeSwapProvider implements ISwapProvider {
         quoteId,
         fromToken: params.fromToken,
         toToken: params.toToken,
+        fromTokenDecimals: tokenIn.decimals,
+        toTokenDecimals: tokenOut.decimals,
         fromAmount: params.type === 'input'
           ? params.amount
           : ethers.formatUnits(inputAmount.quotient.toString(), tokenIn.decimals),
@@ -251,6 +256,9 @@ export class PancakeSwapProvider implements ISwapProvider {
   }
 
   async checkAllowance(token: string, owner: string, spender: string): Promise<bigint> {
+    if (token.toLowerCase() === Native.onChain(this.chainId).wrapped.address.toLowerCase()) {
+      return BigInt(Number.MAX_SAFE_INTEGER);
+    }
     const erc20 = new Contract(
       token,
       ['function allowance(address owner, address spender) view returns (uint256)'],
