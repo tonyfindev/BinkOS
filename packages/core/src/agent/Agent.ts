@@ -1,36 +1,29 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatOpenAI } from '@langchain/openai';
 import {
   AgentExecutor,
   createOpenAIFunctionsAgent,
   createOpenAIToolsAgent,
-} from "langchain/agents";
-import { DynamicStructuredTool } from "@langchain/core/tools";
-import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
-import {
-  ChatPromptTemplate,
-  MessagesPlaceholder,
-} from "@langchain/core/prompts";
-import { IWallet } from "../wallet/types";
-import { NetworksConfig } from "../network/types";
-import { AgentConfig, AgentExecuteParams, IAgent } from "./types";
-import { GetWalletAddressTool, ITool } from "./tools";
-import { BaseAgent } from "./BaseAgent";
-import { IPlugin } from "../plugin/types";
-import { DatabaseAdapter } from "../storage";
+} from 'langchain/agents';
+import { DynamicStructuredTool } from '@langchain/core/tools';
+import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
+import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
+import { IWallet } from '../wallet/types';
+import { NetworksConfig } from '../network/types';
+import { AgentConfig, AgentExecuteParams, IAgent } from './types';
+import { GetWalletAddressTool, ITool } from './tools';
+import { BaseAgent } from './BaseAgent';
+import { IPlugin } from '../plugin/types';
+import { DatabaseAdapter } from '../storage';
 
 export class Agent extends BaseAgent {
   private model: ChatOpenAI;
   private wallet: IWallet;
   private executor!: AgentExecutor;
-  private networks: NetworksConfig["networks"];
+  private networks: NetworksConfig['networks'];
   private db: DatabaseAdapter<any> | undefined;
   private config: AgentConfig;
 
-  constructor(
-    config: AgentConfig,
-    wallet: IWallet,
-    networks: NetworksConfig["networks"]
-  ) {
+  constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super();
     this.wallet = wallet;
     this.networks = networks;
@@ -83,10 +76,8 @@ export class Agent extends BaseAgent {
       this.plugins.delete(name);
 
       // Recreate tools array without this plugin's tools
-      const pluginToolNames = new Set(
-        plugin.getTools().map((t) => t.getName())
-      );
-      this.tools = this.tools.filter((t) => !pluginToolNames.has(t.name));
+      const pluginToolNames = new Set(plugin.getTools().map(t => t.getName()));
+      this.tools = this.tools.filter(t => !pluginToolNames.has(t.name));
 
       // Reinitialize executor with updated tools
       await this.onToolsUpdated();
@@ -101,38 +92,31 @@ export class Agent extends BaseAgent {
     this.executor = await this.createExecutor();
   }
 
-  async registerDatabase(
-    database: DatabaseAdapter<any> | undefined
-  ): Promise<void> {
+  async registerDatabase(database: DatabaseAdapter<any> | undefined): Promise<void> {
     try {
       if (database) {
         this.db = database;
         await this.db.init();
-        console.info("✓ Database initialized\n");
+        console.info('✓ Database initialized\n');
       }
     } catch (error) {
-      console.error("Failed to connect to Postgres:", error);
+      console.error('Failed to connect to Postgres:', error);
       throw error; // Re-throw to handle it in the calling code
     }
   }
 
   private async createExecutor(): Promise<AgentExecutor> {
-    const supportedNetworkPrompt = `Available networks include: ${Object.keys(
-      this.networks
-    ).join(", ")}`;
+    const supportedNetworkPrompt = `Available networks include: ${Object.keys(this.networks).join(
+      ', ',
+    )}`;
 
     const defaultSystemPrompt = `You are a helpful blockchain agent. You can help users interact with different blockchain networks.`;
 
     const prompt = ChatPromptTemplate.fromMessages([
-      [
-        "system",
-        `${
-          this.config.systemPrompt ?? defaultSystemPrompt
-        }\n${supportedNetworkPrompt}`,
-      ],
-      new MessagesPlaceholder("chat_history"),
-      ["human", "{input}"],
-      new MessagesPlaceholder("agent_scratchpad"),
+      ['system', `${this.config.systemPrompt ?? defaultSystemPrompt}\n${supportedNetworkPrompt}`],
+      new MessagesPlaceholder('chat_history'),
+      ['human', '{input}'],
+      new MessagesPlaceholder('agent_scratchpad'),
     ]);
 
     const agent = createOpenAIToolsAgent({
@@ -147,9 +131,7 @@ export class Agent extends BaseAgent {
     });
   }
 
-  public async execute(
-    commandOrParams: string | AgentExecuteParams
-  ): Promise<any> {
+  public async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
     // Wait for executor to be initialized if it hasn't been already
     if (!this.executor) {
       await this.initializeExecutor();
@@ -166,11 +148,15 @@ export class Agent extends BaseAgent {
       });
       if (user?.id) {
         const _history = await this.db?.getMessagesByUserId(user?.id);
-        history = _history.map((message: any) => message?.type === 'human' ? new HumanMessage(message?.content) : new AIMessage(message?.content))
+        history = _history.map((message: any) =>
+          message?.type === 'human'
+            ? new HumanMessage(message?.content)
+            : new AIMessage(message?.content),
+        );
       }
     }
 
-    if (typeof commandOrParams === "string") {
+    if (typeof commandOrParams === 'string') {
       const result = await this.executor.invoke({
         input: commandOrParams,
         chat_history: history,
@@ -180,16 +166,16 @@ export class Agent extends BaseAgent {
           {
             content: commandOrParams,
             userId: user?.id,
-            messageType: "human",
+            messageType: 'human',
           },
           {
             content: result.output,
             userId: user?.id,
-            messageType: "ai",
+            messageType: 'ai',
           },
         ])
         .then(() => {
-          console.log("✓ Messages persisted");
+          console.log('✓ Messages persisted');
         });
       return result.output;
     } else {
@@ -205,19 +191,20 @@ export class Agent extends BaseAgent {
             {
               content: commandOrParams.input,
               userId: user?.id,
-              messageType: "human",
+              messageType: 'human',
             },
             {
               content: result.output,
               userId: user?.id,
-              messageType: "ai",
+              messageType: 'ai',
             },
           ],
-          commandOrParams.threadId
+          commandOrParams.threadId,
         )
         .then(() => {
-          console.log("✓ Messages persisted");
+          console.log('✓ Messages persisted');
         });
+      return result.output;
     }
   }
 
@@ -225,7 +212,7 @@ export class Agent extends BaseAgent {
     return this.wallet;
   }
 
-  public getNetworks(): NetworksConfig["networks"] {
+  public getNetworks(): NetworksConfig['networks'] {
     return this.networks;
   }
 }
