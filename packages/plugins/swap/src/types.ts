@@ -8,6 +8,12 @@ export interface SwapQuote {
   route: string[];
   estimatedGas: string;
   type: 'input' | 'output'; // Whether this is an exact input or exact output swap
+  tx?: {
+    to: string;
+    data: string;
+    value: string;
+    gasLimit: string;
+  };
 }
 
 export interface SwapResult extends SwapQuote {
@@ -45,7 +51,7 @@ export interface ISwapProvider {
   /**
    * Get a quote for swapping tokens
    */
-  getQuote(params: SwapParams): Promise<SwapQuote>;
+  getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote>;
 
   /**
    * Build a transaction for swapping tokens
