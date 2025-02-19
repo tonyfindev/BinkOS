@@ -11,7 +11,6 @@ import { SwapPlugin } from "@binkai/swap-plugin";
 import { PancakeSwapProvider } from "@binkai/pancakeswap-provider";
 import { ChainId } from "@pancakeswap/sdk";
 import { PostgresDatabaseAdapter } from "@binkai/postgres-adapter";
-import {  HumanMessage, AIMessage } from '@langchain/core/messages';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = "https://bsc-dataseed1.binance.org";
@@ -129,19 +128,19 @@ async function main() {
   console.log("✓ Plugin registered\n");
 
   // Example 1: Swap exact 1 USDT for BNB on BNB Chain
-  const networkNames = Object.keys(agent.getNetworks());
-  if (networkNames.length === 0) {
-    throw new Error('No networks configured');
-  }
-  const defaultNetwork = networkNames[0];
-  const address = await agent.getWallet()?.getAddress(defaultNetwork);
-  const user = await db?.createAndGetUserByAddress({
-    address,
-  });
-  let history: any = [];
-  if (user?.id) {
-    history = await db?.getMessagesByUserId(user?.id);
-  }
+  // const networkNames = Object.keys(agent.getNetworks());
+  // if (networkNames.length === 0) {
+  //   throw new Error('No networks configured');
+  // }
+  // const defaultNetwork = networkNames[0];
+  // const address = await agent.getWallet()?.getAddress(defaultNetwork);
+  // const user = await db?.createAndGetUserByAddress({
+  //   address,
+  // });
+  // let history: any = [];
+  // if (user?.id) {
+  //   history = await db?.getMessagesByUserId(user?.id);
+  // }
 
 
   console.log("💱 Example 1: Swap with exact input amount on BNB Chain");
@@ -154,18 +153,8 @@ async function main() {
   console.log("💱 Example 1: Swap with exact input amount on BNB Chain");
   const inputResult = await agent.execute({
     input: inputCommand,
-    history: history.map((message: any) => message?.type === 'human' ? new HumanMessage(message?.content) : new AIMessage(message?.content)),
   });
   console.log("✓ Swap result (input):", inputResult, "\n");
-  db?.createMessages([{
-    content: inputCommand,
-    userId: user?.id,
-    messageType: 'human',
-  }, {
-    content: inputResult,
-    userId: user?.id,
-    messageType: 'ai',
-  }]);
 
   // Example 2: Swap USDT for exact 0.1 BNB on BNB Chain
   console.log("💱 Example 2: Swap with exact output amount on BNB Chain");
