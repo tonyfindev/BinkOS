@@ -15,6 +15,7 @@
     "packages/*",
     "examples/*",
     "packages/plugins/*",
+    "packages/adapters/*",
     "packages/providers/*"
   ],
   "lint-staged": {

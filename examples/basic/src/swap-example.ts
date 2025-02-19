@@ -3,6 +3,7 @@ import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
 import { ChainId } from '@pancakeswap/sdk';
+import { PostgresDatabaseAdapter } from '@binkai/postgres-adapter';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -87,6 +88,16 @@ async function main() {
     networks,
   );
   console.log('✓ Agent initialized\n');
+
+  // Initialize database
+  console.log('🗄️ Initializing database...');
+  let db: PostgresDatabaseAdapter | undefined;
+  if (settings.get('POSTGRES_URL')) {
+    db = new PostgresDatabaseAdapter({
+      connectionString: settings.get('POSTGRES_URL'),
+    });
+    await agent.registerDatabase(db);
+  }
 
   // Create and configure the swap plugin
   console.log('🔄 Initializing swap plugin...');

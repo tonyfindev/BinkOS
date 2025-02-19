@@ -3,3 +3,4 @@ packages:
   - 'packages/plugins/*'
   - 'packages/providers/*'
   - 'examples/*'
+  - 'packages/adapters/*'
