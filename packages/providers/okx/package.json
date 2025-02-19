@@ -1,6 +1,6 @@
 {
   "name": "@binkai/okx-provider",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@binkai/swap-plugin": "workspace:*",
-    "ethers": "^6.0.0",
-    "crypto-js": "^4.1.1"
+    "crypto-js": "^4.1.1",
+    "ethers": "^6.0.0"
   },
   "devDependencies": {
     "@types/crypto-js": "^4.2.2",
