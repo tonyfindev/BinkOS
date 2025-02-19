@@ -33,9 +33,8 @@ export class Wallet implements IWallet {
     this.#network = network;
 
     // Initialize EVM wallet
-    this.#evmWallet = ethers.HDNodeWallet.fromPhrase(
-      config.seedPhrase,
-      `m/44'/60'/0'/0/${config.index ?? 0}`,
+      this.#evmWallet = ethers.Wallet.fromPhrase(
+        config.seedPhrase
     );
 
     // Initialize Solana wallet
