@@ -4,6 +4,7 @@ import { BaseMessage } from '@langchain/core/messages';
 import { NetworksConfig } from '../network/types';
 import { BaseTool } from './tools/BaseTool';
 import { IPlugin } from '../plugin/types';
+import { UUID } from '../types';
 
 export interface AgentConfig {
   model: string;
@@ -15,6 +16,7 @@ export interface AgentConfig {
 export interface AgentExecuteParams {
   input: string;
   history?: BaseMessage[];
+  threadId?: UUID;
 }
 
 export interface IAgent {

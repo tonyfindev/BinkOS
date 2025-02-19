@@ -1,3 +1,8 @@
+import type {
+  UserEntity,
+  MessageEntity,
+  UUID,
+} from "../types/database";
 import { CircuitBreaker } from "./CircuitBreaker";
 
 /**
@@ -55,6 +60,20 @@ export abstract class DatabaseAdapter<DB = any> {
    * @returns A Promise that resolves when closing is complete.
    */
   abstract close(): Promise<void>;
+
+  abstract createUser(user: UserEntity): Promise<boolean>;
+
+  abstract createAndGetUserByAddress(user: UserEntity): Promise<UserEntity | null>;
+
+  abstract getUserById(userId: UUID): Promise<UserEntity | null>;
+
+  abstract createMessages(messages: MessageEntity[], threadId?: UUID): Promise<boolean>;
+
+  abstract createMessage(message: MessageEntity, threadId?: UUID): Promise<boolean>;
+
+  abstract getMessageById(messageId: UUID): Promise<MessageEntity | null>;
+
+  abstract getMessagesByUserId(userId: UUID, take?: number): Promise<MessageEntity[]>;
 
   //   /**
   //    * Removes a specific room from the database.

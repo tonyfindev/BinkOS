@@ -114,6 +114,8 @@ export class GetTokenInfoTool extends BaseTool {
             includePrice = true,
           } = args;
 
+          console.log('🤖 Token Tool Args:', args);
+
           // Validate chain is supported
           const supportedChains = this.getSupportedChains();
           if (!supportedChains.includes(chain)) {
@@ -136,6 +138,8 @@ export class GetTokenInfoTool extends BaseTool {
               includePrice,
             });
           }
+
+          console.log('🤖 Token info:', tokenInfo);
 
           // Return result as JSON string
           return JSON.stringify({

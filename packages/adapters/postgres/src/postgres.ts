@@ -5,7 +5,7 @@ import pg, {
   QueryResultRow,
 } from "pg";
 import { DatabaseAdapter, UUID } from "@binkai/core";
-import { MessageEntity, UserEntity } from "./types/entities";
+import { MessageEntity, UserEntity } from "@binkai/core";
 import fs from "fs";
 import path from "path";
 
@@ -295,18 +295,53 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
     }, "createAndGetUserByAddress");
   }
 
-  async createMessages(messages: MessageEntity[]): Promise<boolean> {
+  private async createThreadIfNotExists(
+    threadId?: UUID,
+    title?: string
+  ): Promise<UUID> {
+    if (!threadId) {
+      const { rows } = await this.pool.query(
+        "INSERT INTO threads (title) VALUES ($1) RETURNING id",
+        [title || ""]
+      );
+      return rows[0].id;
+    } else {
+      const { rows } = await this.pool.query(
+        "SELECT id FROM threads WHERE id = $1",
+        [threadId]
+      );
+      if (rows.length === 0) {
+        // Thread doesn't exist, create it
+        await this.pool.query(
+          "INSERT INTO threads (id, title) VALUES ($1, $2)",
+          [threadId, title || ""]
+        );
+      }
+      return threadId;
+    }
+  }
+
+  async createMessages(
+    messages: MessageEntity[],
+    threadId?: UUID
+  ): Promise<boolean> {
     return this.wrapDatabase(async () => {
       try {
         if (messages.length === 0) return true;
 
+        // If threadId is provided, ensure it exists
+        const thread_id = await this.createThreadIfNotExists(
+          threadId,
+          messages?.[0]?.content
+        );
+
         // Create parameterized query with $1, $2, etc.
         const values: any[] = [];
         const valueStrings = messages.map((_, index) => {
-          const offset = index * 4;
+          const offset = index * 5;
           return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${
             offset + 4
-          })`;
+          }, $${offset + 5})`;
         });
 
         // Flatten message data into values array
@@ -318,12 +353,13 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
             message.content,
             message.userId,
             message.messageType,
-            JSON.stringify(message.metadata)
+            JSON.stringify(message.metadata),
+            thread_id || null
           );
         });
 
         await this.pool.query(
-          `INSERT INTO messages (content, user_id, message_type, metadata)
+          `INSERT INTO messages (content, user_id, message_type, metadata, thread_id)
              VALUES ${valueStrings.join(", ")}`,
           values
         );
@@ -333,6 +369,35 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
         return false;
       }
     }, "createMessages");
+  }
+
+  async createMessage(
+    message: MessageEntity,
+    threadId?: UUID
+  ): Promise<boolean> {
+    return this.wrapDatabase(async () => {
+      try {
+        const thread_id = await this.createThreadIfNotExists(
+          threadId,
+          message?.content
+        );
+        await this.pool.query(
+          `INSERT INTO messages (content, user_id, message_type, metadata, thread_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            message.content,
+            message.userId,
+            message.messageType,
+            JSON.stringify(message.metadata),
+            thread_id || null
+          ]
+        );
+        return true;
+      } catch (error) {
+        console.error("Error creating message:", { error });
+        return false;
+      }
+    }, "createMessage");
   }
 
   async getMessagesByUserId(

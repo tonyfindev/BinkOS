@@ -125,48 +125,32 @@ async function main() {
   // Register the plugin with the agent
   console.log("🔌 Registering swap plugin with agent...");
   await agent.registerPlugin(swapPlugin);
-  console.log("✓ Plugin registered\n");
+  console.log('✓ Plugin registered\n');
+  
 
-  // Example 1: Swap exact 1 USDT for BNB on BNB Chain
-  // const networkNames = Object.keys(agent.getNetworks());
-  // if (networkNames.length === 0) {
-  //   throw new Error('No networks configured');
-  // }
-  // const defaultNetwork = networkNames[0];
-  // const address = await agent.getWallet()?.getAddress(defaultNetwork);
-  // const user = await db?.createAndGetUserByAddress({
-  //   address,
-  // });
-  // let history: any = [];
-  // if (user?.id) {
-  //   history = await db?.getMessagesByUserId(user?.id);
-  // }
-
-
-  console.log("💱 Example 1: Swap with exact input amount on BNB Chain");
-  const inputCommand = `
-      Swap exactly 1 BINK for BNB on PancakeSwap with 0.5% slippage on bnb chain.
-      Use the following token addresses:
-      BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
-      BNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
-    `;
-  console.log("💱 Example 1: Swap with exact input amount on BNB Chain");
-  const inputResult = await agent.execute({
-    input: inputCommand,
-  });
-  console.log("✓ Swap result (input):", inputResult, "\n");
-
-  // Example 2: Swap USDT for exact 0.1 BNB on BNB Chain
-  console.log("💱 Example 2: Swap with exact output amount on BNB Chain");
-  const outputResult = await agent.execute({
+  // Example 1: Buy with exact input amount on BNB Chain
+  console.log('💱 Example 1: Buy with exact input amount on BNB Chain');
+  const result1 = await agent.execute({
     input: `
-      Swap BINK for exactly 0.001 BNB on PancakeSwap with 0.5% slippage on bnb chain.
+      Buy BINK from exactly 0.0001 BNB on PancakeSwap with 0.5% slippage on bnb chain.
       Use the following token addresses:
       BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
-      BNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
-    `,
+    `
   });
-  console.log("✓ Swap result (output):", outputResult, "\n");
+  console.log('✓ Swap result:', result1, '\n');
+
+
+  // Example 2: Sell with exact output amount on BNB Chain
+  console.log('💱 Example 2: Sell with exact output amount on BNB Chain');
+  const result2 = await agent.execute({
+    input: `
+      Sell exactly 20 BINK to BNB on PancakeSwap with 0.5% slippage on bnb chain.
+      Use the following token addresses:
+      BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
+    `
+  });
+  
+  console.log('✓ Swap result:', result2, '\n');
 
   // Get plugin information
   const registeredPlugin = agent.getPlugin("swap") as SwapPlugin;
