@@ -1,0 +1,88 @@
+import { BaseTool, IToolConfig } from "@binkai/core";
+import { z } from "zod";
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { IRetrievalProvider } from "./types";
+
+export class RetrievalTool extends BaseTool {
+  private providers: Map<string, IRetrievalProvider> = new Map();
+
+  constructor(config: IToolConfig) {
+    super(config);
+  }
+
+  getName(): string {
+    return "retrieval";
+  }
+
+  getDescription(): string {
+    const providers = Array.from(this.providers.keys()).join(", ");
+    return `Query knowledge base using various providers (${providers}). Use this when other tools cannot answer the question.`;
+  }
+
+  registerProvider(provider: IRetrievalProvider): void {
+    this.providers.set(provider.getName(), provider);
+  }
+
+  getSchema(): z.ZodObject<any> {
+    const providers = Array.from(this.providers.keys());
+    if (providers.length === 0) {
+      throw new Error("No retrieval providers registered");
+    }
+
+    return z.object({
+      query: z.string().describe("The question to ask"),
+      provider: z
+        .enum(providers as [string, ...string[]])
+        .optional()
+        .describe(
+          "The provider to use for querying. If not specified, the default provider will be used"
+        ),
+      context: z
+        .string()
+        .optional()
+        .describe("Additional context to help answer the question"),
+    });
+  }
+
+  createTool(): DynamicStructuredTool {
+    return new DynamicStructuredTool({
+      name: this.getName(),
+      description: this.getDescription(),
+      schema: this.getSchema(),
+      func: async (args: any) => {
+        try {
+          const { query, provider: providerName, context } = args;
+
+          let provider: IRetrievalProvider;
+          if (providerName) {
+            const selectedProvider = this.providers.get(providerName);
+            if (!selectedProvider) {
+              throw new Error(`Provider ${providerName} not found`);
+            }
+            provider = selectedProvider;
+          } else {
+            // Get first provider or throw error if none exists
+            const firstProvider = this.providers.values().next().value;
+            if (!firstProvider) {
+              throw new Error("No provider available");
+            }
+            provider = firstProvider;
+          }
+
+          const response = await provider.query({ query, context });
+
+          return JSON.stringify({
+            status: "success",
+            provider: provider.getName(),
+            sources: response.sources,
+          });
+        } catch (error) {
+          return JSON.stringify({
+            status: "error",
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    });
+  }
+}
