@@ -42,11 +42,11 @@ export abstract class BaseAgent implements IAgent {
 
       // Remove plugin
       this.plugins.delete(name);
-      
+
       // Recreate tools array without this plugin's tools
       const pluginToolNames = new Set(plugin.getTools().map(t => t.getName()));
       this.tools = this.tools.filter(t => !pluginToolNames.has(t.name));
-      
+
       await this.onToolsUpdated();
     }
   }
@@ -63,4 +63,4 @@ export abstract class BaseAgent implements IAgent {
   abstract execute(params: AgentExecuteParams): Promise<string>;
   abstract getWallet(): IWallet;
   abstract getNetworks(): NetworksConfig['networks'];
-} 
+}

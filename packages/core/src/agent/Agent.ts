@@ -1,5 +1,9 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { AgentExecutor, createOpenAIFunctionsAgent, createOpenAIToolsAgent } from 'langchain/agents';
+import {
+  AgentExecutor,
+  createOpenAIFunctionsAgent,
+  createOpenAIToolsAgent,
+} from 'langchain/agents';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
@@ -33,9 +37,7 @@ export class Agent extends BaseAgent {
   }
 
   private initializeDefaultTools(): void {
-    const defaultTools = [
-      new GetWalletAddressTool({}),
-    ];
+    const defaultTools = [new GetWalletAddressTool({})];
 
     // Initialize default tools
     for (const tool of defaultTools) {
@@ -70,11 +72,11 @@ export class Agent extends BaseAgent {
     if (plugin) {
       await plugin.cleanup();
       this.plugins.delete(name);
-      
+
       // Recreate tools array without this plugin's tools
       const pluginToolNames = new Set(plugin.getTools().map(t => t.getName()));
       this.tools = this.tools.filter(t => !pluginToolNames.has(t.name));
-      
+
       // Reinitialize executor with updated tools
       await this.onToolsUpdated();
     }
@@ -94,10 +96,10 @@ export class Agent extends BaseAgent {
     const defaultSystemPrompt = `You are a helpful blockchain agent. You can help users interact with different blockchain networks.`;
 
     const prompt = ChatPromptTemplate.fromMessages([
-      ["system", `${this.config.systemPrompt ?? defaultSystemPrompt}\n${supportedNetworkPrompt}`],
-      new MessagesPlaceholder("chat_history"),
-      ["human", "{input}"],
-      new MessagesPlaceholder("agent_scratchpad"),
+      ['system', `${this.config.systemPrompt ?? defaultSystemPrompt}\n${supportedNetworkPrompt}`],
+      new MessagesPlaceholder('chat_history'),
+      ['human', '{input}'],
+      new MessagesPlaceholder('agent_scratchpad'),
     ]);
 
     const agent = createOpenAIToolsAgent({
@@ -144,4 +146,4 @@ export class Agent extends BaseAgent {
   public getNetworks(): NetworksConfig['networks'] {
     return this.networks;
   }
-} 
+}

@@ -11,7 +11,13 @@ import {
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { createPublicClient, http, PublicClient } from 'viem';
 import { bsc } from 'viem/chains';
-import { SmartRouter, SmartRouterTrade, SMART_ROUTER_ADDRESSES, SwapRouter,V4Router } from '@pancakeswap/smart-router'
+import {
+  SmartRouter,
+  SmartRouterTrade,
+  SMART_ROUTER_ADDRESSES,
+  SwapRouter,
+  V4Router,
+} from '@pancakeswap/smart-router';
 interface TokenInfo {
   address: `0x${string}`;
   decimals: number;
@@ -31,7 +37,10 @@ export class PancakeSwapProvider implements ISwapProvider {
   private chainId: ChainId;
   private tokenCache: Map<string, Token> = new Map();
   private viemClient: PublicClient;
-  private quotes: Map<string, { quote: SwapQuote; trade: Awaited<ReturnType<typeof V4Router.getBestTrade>> | undefined }> = new Map();
+  private quotes: Map<
+    string,
+    { quote: SwapQuote; trade: Awaited<ReturnType<typeof V4Router.getBestTrade>> | undefined }
+  > = new Map();
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
     this.provider = provider;
@@ -68,10 +77,7 @@ export class PancakeSwapProvider implements ISwapProvider {
     ]);
 
     const contract = new Contract(tokenAddress, erc20Interface, this.provider);
-    const [decimals, symbol] = await Promise.all([
-      contract.decimals(),
-      contract.symbol(),
-    ]);
+    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
 
     return {
       address: tokenAddress.toLowerCase() as `0x${string}`,
@@ -88,12 +94,7 @@ export class PancakeSwapProvider implements ISwapProvider {
     }
 
     const info = await this.getTokenInfo(tokenAddress);
-    const token = new Token(
-      info.chainId,
-      info.address,
-      info.decimals,
-      info.symbol
-    );
+    const token = new Token(info.chainId, info.address, info.decimals, info.symbol);
 
     this.tokenCache.set(tokenAddress, token);
     return token;
@@ -114,10 +115,10 @@ export class PancakeSwapProvider implements ISwapProvider {
   }
 
   async getQuote(params: SwapParams): Promise<SwapQuote> {
-
     try {
       const [tokenIn, tokenOut] = await Promise.all([
-        params.fromToken.toLowerCase() === Native.onChain(this.chainId).wrapped.address.toLowerCase()
+        params.fromToken.toLowerCase() ===
+        Native.onChain(this.chainId).wrapped.address.toLowerCase()
           ? Native.onChain(this.chainId)
           : this.getToken(params.fromToken),
         params.toToken.toLowerCase() === Native.onChain(this.chainId).wrapped.address.toLowerCase()
@@ -126,12 +127,20 @@ export class PancakeSwapProvider implements ISwapProvider {
       ]);
 
       // Create currency amounts
-      const amountIn = params.type === 'input'
-        ? CurrencyAmount.fromRawAmount(tokenIn, ethers.parseUnits(params.amount, tokenIn.decimals).toString())
-        : undefined;
-      const amountOut = params.type === 'output'
-        ? CurrencyAmount.fromRawAmount(tokenOut, ethers.parseUnits(params.amount, tokenOut.decimals).toString())
-        : undefined;
+      const amountIn =
+        params.type === 'input'
+          ? CurrencyAmount.fromRawAmount(
+              tokenIn,
+              ethers.parseUnits(params.amount, tokenIn.decimals).toString(),
+            )
+          : undefined;
+      const amountOut =
+        params.type === 'output'
+          ? CurrencyAmount.fromRawAmount(
+              tokenOut,
+              ethers.parseUnits(params.amount, tokenOut.decimals).toString(),
+            )
+          : undefined;
 
       // Get candidate pools
       const pools = await this.getCandidatePools(tokenIn, tokenOut);
@@ -139,32 +148,23 @@ export class PancakeSwapProvider implements ISwapProvider {
       console.log('🤖 Pools:', pools.length);
 
       // Get the best trade using V4Router
-      const trade = params.type === 'input' && amountIn
-        ? await V4Router.getBestTrade(
-            amountIn,
-            tokenOut,
-            TradeType.EXACT_INPUT,
-            {
+      const trade =
+        params.type === 'input' && amountIn
+          ? await V4Router.getBestTrade(amountIn, tokenOut, TradeType.EXACT_INPUT, {
               gasPriceWei: () => this.viemClient.getGasPrice(),
               candidatePools: pools,
-            }
-          )
-        : amountOut
-          ? await V4Router.getBestTrade(
-              amountOut,
-              tokenIn,
-              TradeType.EXACT_OUTPUT,
-              {
+            })
+          : amountOut
+            ? await V4Router.getBestTrade(amountOut, tokenIn, TradeType.EXACT_OUTPUT, {
                 gasPriceWei: () => this.viemClient.getGasPrice(),
                 candidatePools: pools,
-              }
-            )
-          : null;
+              })
+            : null;
 
       if (!trade) {
         throw new Error('No route found');
       }
-      
+
       // Calculate output amounts based on trade type
       const slippage = new Percent(Math.floor(params.slippage * 100), 10000);
       const { inputAmount, outputAmount } = trade;
@@ -178,12 +178,14 @@ export class PancakeSwapProvider implements ISwapProvider {
         toToken: params.toToken,
         fromTokenDecimals: tokenIn.decimals,
         toTokenDecimals: tokenOut.decimals,
-        fromAmount: params.type === 'input'
-          ? params.amount
-          : ethers.formatUnits(inputAmount.quotient.toString(), tokenIn.decimals),
-        toAmount: params.type === 'output'
-          ? params.amount
-          : ethers.formatUnits(outputAmount.quotient.toString(), tokenOut.decimals),
+        fromAmount:
+          params.type === 'input'
+            ? params.amount
+            : ethers.formatUnits(inputAmount.quotient.toString(), tokenIn.decimals),
+        toAmount:
+          params.type === 'output'
+            ? params.amount
+            : ethers.formatUnits(outputAmount.quotient.toString(), tokenOut.decimals),
         priceImpact: Number((trade as any).priceImpact?.toSignificant(2) || 0),
         route: trade.routes.map(route => (route as any).path[0].address),
         estimatedGas: '350000', // TODO: get gas limit from trade
@@ -195,14 +197,19 @@ export class PancakeSwapProvider implements ISwapProvider {
       this.quotes.set(quoteId, { quote, trade });
 
       // Delete quote after 5 minutes
-      setTimeout(() => {
-        this.quotes.delete(quoteId);
-      }, 5 * 60 * 1000);
+      setTimeout(
+        () => {
+          this.quotes.delete(quoteId);
+        },
+        5 * 60 * 1000,
+      );
 
       return quote;
     } catch (error: unknown) {
       console.error('Error getting quote:', error);
-      throw new Error(`Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -218,12 +225,12 @@ export class PancakeSwapProvider implements ISwapProvider {
     if (!trade) {
       throw new Error('Trade not found. Please get a new quote.');
     }
-    
+
     try {
       const { value, calldata } = SwapRouter.swapCallParameters(trade as any, {
         recipient: userAddress as `0x${string}`,
         slippageTolerance: new Percent(Math.floor(quote.slippage * 100), 10000),
-      })
+      });
 
       return {
         to: SMART_ROUTER_ADDRESSES[this.chainId],
@@ -233,11 +240,18 @@ export class PancakeSwapProvider implements ISwapProvider {
       };
     } catch (error: unknown) {
       console.error('Error building swap transaction:', error);
-      throw new Error(`Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
-  async buildApproveTransaction(token: string, spender: string, amount: string, userAddress: string): Promise<SwapTransaction> {
+  async buildApproveTransaction(
+    token: string,
+    spender: string,
+    amount: string,
+    userAddress: string,
+  ): Promise<SwapTransaction> {
     const tokenInfo = await this.getToken(token);
     const erc20Interface = new Interface([
       'function approve(address spender, uint256 amount) returns (bool)',
@@ -263,43 +277,46 @@ export class PancakeSwapProvider implements ISwapProvider {
     const erc20 = new Contract(
       token,
       ['function allowance(address owner, address spender) view returns (uint256)'],
-      this.provider
+      this.provider,
     );
     return await erc20.allowance(owner, spender);
   }
 
-  private async recreateTrade(quote: SwapQuote, tokenIn: Currency, tokenOut: Currency): Promise<any> {
-    const amountIn = quote.type === 'input'
-      ? CurrencyAmount.fromRawAmount(tokenIn, ethers.parseUnits(quote.fromAmount, tokenIn.decimals).toString())
-      : undefined;
-    const amountOut = quote.type === 'output'
-      ? CurrencyAmount.fromRawAmount(tokenOut, ethers.parseUnits(quote.toAmount, tokenOut.decimals).toString())
-      : undefined;
+  private async recreateTrade(
+    quote: SwapQuote,
+    tokenIn: Currency,
+    tokenOut: Currency,
+  ): Promise<any> {
+    const amountIn =
+      quote.type === 'input'
+        ? CurrencyAmount.fromRawAmount(
+            tokenIn,
+            ethers.parseUnits(quote.fromAmount, tokenIn.decimals).toString(),
+          )
+        : undefined;
+    const amountOut =
+      quote.type === 'output'
+        ? CurrencyAmount.fromRawAmount(
+            tokenOut,
+            ethers.parseUnits(quote.toAmount, tokenOut.decimals).toString(),
+          )
+        : undefined;
 
     // Get candidate pools
     const pools = await this.getCandidatePools(tokenIn, tokenOut);
 
-    const trade = quote.type === 'input' && amountIn
-      ? await V4Router.getBestTrade(
-          amountIn,
-          tokenOut,
-          TradeType.EXACT_INPUT,
-          {
+    const trade =
+      quote.type === 'input' && amountIn
+        ? await V4Router.getBestTrade(amountIn, tokenOut, TradeType.EXACT_INPUT, {
             gasPriceWei: () => this.viemClient.getGasPrice(),
             candidatePools: pools,
-          }
-        )
-      : amountOut
-        ? await V4Router.getBestTrade(
-            amountOut,
-            tokenIn,
-            TradeType.EXACT_OUTPUT,
-            {
+          })
+        : amountOut
+          ? await V4Router.getBestTrade(amountOut, tokenIn, TradeType.EXACT_OUTPUT, {
               gasPriceWei: () => this.viemClient.getGasPrice(),
               candidatePools: pools,
-            }
-          )
-        : null;
+            })
+          : null;
 
     if (!trade) {
       throw new Error('Failed to recreate trade route');
@@ -307,4 +324,4 @@ export class PancakeSwapProvider implements ISwapProvider {
 
     return trade;
   }
-} 
+}

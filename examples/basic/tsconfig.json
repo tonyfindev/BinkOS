@@ -1,13 +1,13 @@
 {
-    "extends": "../../tsconfig.json",
-    "compilerOptions": {
-      "outDir": "./dist",
-      "rootDir": "./src"
-    },
-    "references": [
-      { "path": "../../packages/core" },
-      { "path": "../../packages/plugins/swap" },
-      { "path": "../../packages/providers/pancakeswap" }
-    ],
-    "include": ["src/**/*"]
-  } 
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/plugins/swap" },
+    { "path": "../../packages/providers/pancakeswap" }
+  ],
+  "include": ["src/**/*"]
+}

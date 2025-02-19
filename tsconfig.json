@@ -12,7 +12,6 @@
     "moduleResolution": "node",
     "resolveJsonModule": true
   },
-  "references": [
-  ],
+  "references": [],
   "exclude": ["node_modules", "dist"]
-} 
+}

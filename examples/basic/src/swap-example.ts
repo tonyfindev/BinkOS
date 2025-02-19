@@ -63,26 +63,35 @@ async function main() {
 
   // Initialize a new wallet
   console.log('👛 Creating wallet...');
-  const wallet = new Wallet({
-    seedPhrase: settings.get('WALLET_MNEMONIC') || 'test test test test test test test test test test test junk',
-    index: 0
-  }, network);
+  const wallet = new Wallet(
+    {
+      seedPhrase:
+        settings.get('WALLET_MNEMONIC') ||
+        'test test test test test test test test test test test junk',
+      index: 0,
+    },
+    network,
+  );
   console.log('✓ Wallet created\n');
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
   console.log('🤖 Wallet ETH:', await wallet.getAddress('ethereum'));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
-  const agent = new Agent({
-    model: 'gpt-4o',
-    temperature: 0,
-  }, wallet, networks);
+  const agent = new Agent(
+    {
+      model: 'gpt-4o',
+      temperature: 0,
+    },
+    wallet,
+    networks,
+  );
   console.log('✓ Agent initialized\n');
 
   // Create and configure the swap plugin
   console.log('🔄 Initializing swap plugin...');
   const swapPlugin = new SwapPlugin();
-  
+
   // Create providers with proper chain IDs
   const pancakeswap = new PancakeSwapProvider(provider, ChainId.BSC);
 
@@ -99,7 +108,6 @@ async function main() {
   console.log('🔌 Registering swap plugin with agent...');
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
-  
 
   // Example 1: Buy with exact input amount on BNB Chain
   console.log('💱 Example 1: Buy with exact input amount on BNB Chain');
@@ -108,10 +116,9 @@ async function main() {
       Buy BINK from exactly 0.0001 BNB on PancakeSwap with 0.5% slippage on bnb chain.
       Use the following token addresses:
       BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
-    `
+    `,
   });
   console.log('✓ Swap result:', result1, '\n');
-
 
   // Example 2: Sell with exact output amount on BNB Chain
   console.log('💱 Example 2: Sell with exact output amount on BNB Chain');
@@ -120,14 +127,14 @@ async function main() {
       Sell exactly 20 BINK to BNB on PancakeSwap with 0.5% slippage on bnb chain.
       Use the following token addresses:
       BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
-    `
+    `,
   });
-  
+
   console.log('✓ Swap result:', result2, '\n');
 
   // Get plugin information
   const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
-  
+
   // Check available providers for each chain
   console.log('📊 Available providers by chain:');
   const chains = registeredPlugin.getSupportedChains();
@@ -141,4 +148,4 @@ async function main() {
 main().catch(error => {
   console.error('❌ Error:', error.message);
   process.exit(1);
-}); 
+});

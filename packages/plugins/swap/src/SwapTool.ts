@@ -43,7 +43,8 @@ export class SwapTool extends BaseTool {
     let description = `Swap tokens using various DEX providers (${providers}). Supports chains: ${chains}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
 
     // Add provider-specific prompts if they exist
-    const providerPrompts = this.registry.getProviders()
+    const providerPrompts = this.registry
+      .getProviders()
       .map((provider: ISwapProvider) => {
         const prompt = provider.getPrompt?.();
         return prompt ? `${provider.getName()}: ${prompt}` : null;
@@ -65,9 +66,7 @@ export class SwapTool extends BaseTool {
     const providerChains = Array.from(this.supportedChains);
 
     // Return intersection of agent networks and provider supported chains
-    return agentNetworks.filter(network =>
-      providerChains.includes(network)
-    );
+    return agentNetworks.filter(network => providerChains.includes(network));
   }
 
   getSchema(): z.ZodObject<any> {
@@ -85,17 +84,29 @@ export class SwapTool extends BaseTool {
       fromToken: z.string().describe('The token address or symbol to swap from'),
       toToken: z.string().describe('The token address or symbol to swap to'),
       amount: z.string().describe('The amount of tokens to swap'),
-      amountType: z.enum(['input', 'output']).describe('Whether the amount is input (spend) or output (receive)'),
-      chain: z.enum(supportedChains as [string, ...string[]]).default(this.defaultChain)
+      amountType: z
+        .enum(['input', 'output'])
+        .describe('Whether the amount is input (spend) or output (receive)'),
+      chain: z
+        .enum(supportedChains as [string, ...string[]])
+        .default(this.defaultChain)
         .describe('The blockchain to execute the swap on'),
-      provider: z.enum(providers as [string, ...string[]]).optional()
-        .describe('The DEX provider to use for the swap. If not specified, the best rate will be found'),
-      slippage: z.number().optional()
+      provider: z
+        .enum(providers as [string, ...string[]])
+        .optional()
+        .describe(
+          'The DEX provider to use for the swap. If not specified, the best rate will be found',
+        ),
+      slippage: z
+        .number()
+        .optional()
         .describe(`Maximum slippage percentage allowed (default: ${this.defaultSlippage})`),
     });
   }
 
-  private async findBestQuote(params: SwapParams & { chain: string }): Promise<{ provider: ISwapProvider; quote: SwapQuote }> {
+  private async findBestQuote(
+    params: SwapParams & { chain: string },
+  ): Promise<{ provider: ISwapProvider; quote: SwapQuote }> {
     // Validate chain is supported
     const providers = this.registry.getProvidersByChain(params.chain);
     if (providers.length === 0) {
@@ -105,7 +116,7 @@ export class SwapTool extends BaseTool {
     const userAddress = await this.agent.getWallet().getAddress(params.chain);
 
     const quotes = await Promise.all(
-      providers.map(async (provider) => {
+      providers.map(async provider => {
         try {
           console.log('🤖 Getting quote from', provider.getName());
           const quote = await provider.getQuote(params, userAddress);
@@ -114,7 +125,7 @@ export class SwapTool extends BaseTool {
           console.warn(`Failed to get quote from ${provider.getName()}:`, error);
           return null;
         }
-      })
+      }),
     );
 
     const validQuotes = quotes.filter((q): q is NonNullable<typeof q> => q !== null);
@@ -165,7 +176,9 @@ export class SwapTool extends BaseTool {
           // Validate chain is supported
           const supportedChains = this.getSupportedChains();
           if (!supportedChains.includes(chain)) {
-            throw new Error(`Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`);
+            throw new Error(
+              `Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`,
+            );
           }
 
           const swapParams: SwapParams = {
@@ -204,7 +217,7 @@ export class SwapTool extends BaseTool {
           const allowance = await selectedProvider.checkAllowance(
             quote.fromToken,
             userAddress,
-            swapTx.to
+            swapTx.to,
           );
           const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromTokenDecimals);
 
@@ -215,7 +228,7 @@ export class SwapTool extends BaseTool {
               quote.fromToken,
               swapTx.to,
               quote.fromAmount,
-              userAddress
+              userAddress,
             );
 
             console.log('🤖 Approving...');
@@ -267,4 +280,4 @@ export class SwapTool extends BaseTool {
       },
     });
   }
-} 
+}

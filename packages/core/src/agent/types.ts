@@ -41,4 +41,4 @@ export interface IAgent {
   execute(params: AgentExecuteParams): Promise<string>;
   getWallet(): IWallet;
   getNetworks(): NetworksConfig['networks'];
-} 
+}
