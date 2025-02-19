@@ -46,12 +46,12 @@ export class SwapTool extends BaseTool {
   private getSupportedChains(): string[] {
     // Get networks from agent's wallet
     const agentNetworks = Object.keys(this.agent.getNetworks());
-    
+
     // Intersect with supported chains from providers
     const providerChains = Array.from(this.supportedChains);
-    
+
     // Return intersection of agent networks and provider supported chains
-    return agentNetworks.filter(network => 
+    return agentNetworks.filter(network =>
       providerChains.includes(network)
     );
   }
@@ -128,112 +128,119 @@ export class SwapTool extends BaseTool {
       description: this.getDescription(),
       schema: this.getSchema(),
       func: async (args: any) => {
-        const {
-          fromToken,
-          toToken,
-          amount,
-          amountType,
-          chain = this.defaultChain,
-          provider: preferredProvider,
-          slippage = this.defaultSlippage,
-        } = args;
+        try {
+          const {
+            fromToken,
+            toToken,
+            amount,
+            amountType,
+            chain = this.defaultChain,
+            provider: preferredProvider,
+            slippage = this.defaultSlippage,
+          } = args;
 
-        // Get agent's wallet and address
-        const wallet = this.agent.getWallet();
-        const userAddress = await wallet.getAddress(chain);
+          // Get agent's wallet and address
+          const wallet = this.agent.getWallet();
+          const userAddress = await wallet.getAddress(chain);
 
-        // Validate chain is supported
-        const supportedChains = this.getSupportedChains();
-        if (!supportedChains.includes(chain)) {
-          throw new Error(`Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`);
-        }
-
-        const swapParams: SwapParams = {
-          fromToken,
-          toToken,
-          amount,
-          type: amountType,
-          slippage,
-        };
-
-        let selectedProvider: ISwapProvider;
-        let quote: SwapQuote;
-
-        if (preferredProvider) {
-          selectedProvider = this.registry.getProvider(preferredProvider);
-          // Validate provider supports the chain
-          if (!selectedProvider.getSupportedChains().includes(chain)) {
-            throw new Error(`Provider ${preferredProvider} does not support chain ${chain}`);
+          // Validate chain is supported
+          const supportedChains = this.getSupportedChains();
+          if (!supportedChains.includes(chain)) {
+            throw new Error(`Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`);
           }
-          quote = await selectedProvider.getQuote(swapParams);
-        } else {
-          const bestQuote = await this.findBestQuote({
-            ...swapParams,
+
+          const swapParams: SwapParams = {
+            fromToken,
+            toToken,
+            amount,
+            type: amountType,
+            slippage,
+          };
+
+          let selectedProvider: ISwapProvider;
+          let quote: SwapQuote;
+
+          if (preferredProvider) {
+            selectedProvider = this.registry.getProvider(preferredProvider);
+            // Validate provider supports the chain
+            if (!selectedProvider.getSupportedChains().includes(chain)) {
+              throw new Error(`Provider ${preferredProvider} does not support chain ${chain}`);
+            }
+            quote = await selectedProvider.getQuote(swapParams);
+          } else {
+            const bestQuote = await this.findBestQuote({
+              ...swapParams,
+              chain,
+            });
+            selectedProvider = bestQuote.provider;
+            quote = bestQuote.quote;
+          }
+
+          // Build swap transaction
+          const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
+
+          // Check if approval is needed and handle it
+          const allowance = await selectedProvider.checkAllowance(
+            quote.fromToken,
+            userAddress,
+            swapTx.to
+          );
+          const requiredAmount = BigInt(quote.fromAmount);
+
+
+          if (allowance < requiredAmount) {
+            const approveTx = await selectedProvider.buildApproveTransaction(
+              quote.fromToken,
+              swapTx.to,
+              quote.fromAmount,
+              userAddress
+            );
+
+            console.log('🤖 Approving...');
+            // Sign and send approval transaction
+            const approveReceipt = await wallet.signAndSendTransaction(chain, {
+              to: approveTx.to,
+              data: approveTx.data,
+              value: BigInt(approveTx.value),
+              gasLimit: BigInt(approveTx.gasLimit),
+            });
+
+            console.log('🤖 ApproveReceipt:', approveReceipt);
+
+            // Wait for approval to be mined
+            await approveReceipt.wait();
+          }
+          console.log('🤖 Swapping...');
+
+          // Sign and send swap transaction
+          const receipt = await wallet.signAndSendTransaction(chain, {
+            to: swapTx.to,
+            data: swapTx.data,
+            value: BigInt(swapTx.value),
+            gasLimit: BigInt(swapTx.gasLimit),
+          });
+
+          // Wait for transaction to be mined
+          const finalReceipt = await receipt.wait();
+
+          // Return result as JSON string
+          return JSON.stringify({
+            provider: selectedProvider.getName(),
+            fromToken: quote.fromToken,
+            toToken: quote.toToken,
+            fromAmount: quote.fromAmount.toString(),
+            toAmount: quote.toAmount.toString(),
+            transactionHash: finalReceipt.hash,
+            priceImpact: quote.priceImpact,
+            type: quote.type,
             chain,
           });
-          selectedProvider = bestQuote.provider;
-          quote = bestQuote.quote;
-        }
-
-        // Build swap transaction
-        const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
-
-        // Check if approval is needed and handle it
-        const allowance = await selectedProvider.checkAllowance(
-          quote.fromToken,
-          userAddress,
-          swapTx.to
-        );
-        const requiredAmount = BigInt(quote.fromAmount);
-
-
-        if (allowance < requiredAmount) {
-          const approveTx = await selectedProvider.buildApproveTransaction(
-            quote.fromToken,
-            swapTx.to,
-            quote.fromAmount,
-            userAddress
-          );
-
-          console.log('🤖 Approving...');
-          // Sign and send approval transaction
-          const approveReceipt = await wallet.signAndSendTransaction(chain, {
-            to: approveTx.to,
-            data: approveTx.data,
-            value: BigInt(approveTx.value),
-            gasLimit: BigInt(approveTx.gasLimit),
+        } catch (error) {
+          return JSON.stringify({
+            status: 'error',
+            message: error,
           });
-
-          console.log('🤖 ApproveReceipt:', approveReceipt);
-
-          // Wait for approval to be mined
-          await approveReceipt.wait();
         }
-        console.log('🤖 Swapping...');
-
-        // Sign and send swap transaction
-        const receipt = await wallet.signAndSendTransaction(chain, {
-          to: swapTx.to,
-          data: swapTx.data,
-          value: BigInt(swapTx.value),
-          gasLimit: BigInt(swapTx.gasLimit),
-        });
-
-        // Wait for transaction to be mined
-        const finalReceipt = await receipt.wait();
-
-        // Return result as JSON string
-        return JSON.stringify({
-          provider: selectedProvider.getName(),
-          fromToken: quote.fromToken,
-          toToken: quote.toToken,
-          fromAmount: quote.fromAmount.toString(),
-          toAmount: quote.toAmount.toString(),
-          transactionHash: finalReceipt.hash,
-          priceImpact: quote.priceImpact,
-          type: quote.type,
-          chain,
-        });
       },
     });
   }
