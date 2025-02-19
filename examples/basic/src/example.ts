@@ -2,7 +2,9 @@ import { ethers } from 'ethers';
 import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
-import { ChainId } from '@pancakeswap/sdk';
+import { OkxProvider } from '@binkai/okx-provider';
+import { TokenPlugin } from '@binkai/token-plugin';
+import { BirdeyeProvider } from '@binkai/birdeye-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -76,15 +78,34 @@ async function main() {
   const agent = new Agent({
     model: 'gpt-4o',
     temperature: 0,
+    systemPrompt: 'You are a BINK AI agent. You are able to perform swaps and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a swap.'
   }, wallet, networks);
   console.log('✓ Agent initialized\n');
 
   // Create and configure the swap plugin
   console.log('🔄 Initializing swap plugin...');
   const swapPlugin = new SwapPlugin();
+
+  console.log('🔍 Initializing token plugin...');
+  const tokenPlugin = new TokenPlugin();
+
+    // Create Birdeye provider with API key
+    const birdeye = new BirdeyeProvider({
+      apiKey: settings.get('BIRDEYE_API_KEY'),
+    });
+  
+    // Configure the plugin with supported chains
+    await tokenPlugin.initialize({
+      defaultChain: 'bnb',
+      providers: [birdeye],
+      supportedChains: ['solana', 'bnb'],
+    });
+    console.log('✓ Token plugin initialized\n');
   
   // Create providers with proper chain IDs
-  const pancakeswap = new PancakeSwapProvider(provider, ChainId.BSC);
+  const pancakeswap = new PancakeSwapProvider(provider, 56);
+
+  const okx = new OkxProvider(provider, 56);
 
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
@@ -99,27 +120,26 @@ async function main() {
   console.log('🔌 Registering swap plugin with agent...');
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
-  
+
+  console.log('🔌 Registering token plugin with agent...');
+  await agent.registerPlugin(tokenPlugin);
+  console.log('✓ Plugin registered\n');
 
   // Example 1: Buy with exact input amount on BNB Chain
-  console.log('💱 Example 1: Buy with exact input amount on BNB Chain');
+  console.log('💱 Example 1: Buy BINK from exactly 0.0001 BNB on PancakeSwap with 0.5% slippage on bnb chain.');
   const result1 = await agent.execute({
     input: `
       Buy BINK from exactly 0.0001 BNB on PancakeSwap with 0.5% slippage on bnb chain.
-      Use the following token addresses:
-      BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
     `
   });
   console.log('✓ Swap result:', result1, '\n');
 
 
   // Example 2: Sell with exact output amount on BNB Chain
-  console.log('💱 Example 2: Sell with exact output amount on BNB Chain');
+  console.log('💱 Example 2: Sell exactly 20 BINK to BNB on PancakeSwap with 0.5% slippage on bnb chain.');
   const result2 = await agent.execute({
     input: `
       Sell exactly 20 BINK to BNB on PancakeSwap with 0.5% slippage on bnb chain.
-      Use the following token addresses:
-      BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
     `
   });
   

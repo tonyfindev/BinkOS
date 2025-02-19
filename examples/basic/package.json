@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "start": "ts-node src/example.ts",
     "swap": "ts-node src/swap-example.ts",
     "swap-okx": "ts-node src/swap-example-okx.ts",
     "token": "ts-node src/token-example.ts",

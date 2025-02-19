@@ -166,7 +166,7 @@ export class PancakeSwapProvider implements ISwapProvider {
       }
       
       // Calculate output amounts based on trade type
-      const slippageTolerance = new Percent(Math.floor(params.slippage * 100), 10000);
+      const slippage = new Percent(Math.floor(params.slippage * 100), 10000);
       const { inputAmount, outputAmount } = trade;
 
       // Generate a unique quote ID
@@ -188,6 +188,7 @@ export class PancakeSwapProvider implements ISwapProvider {
         route: trade.routes.map(route => (route as any).path[0].address),
         estimatedGas: '350000', // TODO: get gas limit from trade
         type: params.type,
+        slippage: slippage,
       };
 
       // Store the quote and trade for later use
@@ -221,7 +222,7 @@ export class PancakeSwapProvider implements ISwapProvider {
     try {
       const { value, calldata } = SwapRouter.swapCallParameters(trade as any, {
         recipient: userAddress as `0x${string}`,
-        slippageTolerance: new Percent(Math.floor(0.5 * 100), 10000), // 0.5% slippage
+        slippageTolerance: new Percent(Math.floor(quote.slippage * 100), 10000),
       })
 
       return {

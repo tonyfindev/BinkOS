@@ -107,6 +107,7 @@ export class SwapTool extends BaseTool {
     const quotes = await Promise.all(
       providers.map(async (provider) => {
         try {
+          console.log('🤖 Getting quote from', provider.getName());
           const quote = await provider.getQuote(params, userAddress);
           return { provider, quote };
         } catch (error) {
@@ -155,6 +156,8 @@ export class SwapTool extends BaseTool {
             slippage = this.defaultSlippage,
           } = args;
 
+          console.log('🤖 Swap Args:', args);
+
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();
           const userAddress = await wallet.getAddress(chain);
@@ -191,6 +194,8 @@ export class SwapTool extends BaseTool {
             selectedProvider = bestQuote.provider;
             quote = bestQuote.quote;
           }
+
+          console.log('🤖 The selected provider is:', selectedProvider.getName());
 
           // Build swap transaction
           const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
