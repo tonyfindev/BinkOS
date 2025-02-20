@@ -3,7 +3,7 @@ export interface RetrievalResponse {
 }
 
 export interface RetrievalQueryParams {
-  query: string;
+  question: string;
   context?: string;
 }
 

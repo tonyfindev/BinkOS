@@ -1,7 +1,7 @@
-import { BaseTool, IToolConfig } from "@binkai/core";
-import { z } from "zod";
-import { DynamicStructuredTool } from "@langchain/core/tools";
-import { IRetrievalProvider } from "./types";
+import { BaseTool, IToolConfig } from '@binkai/core';
+import { z } from 'zod';
+import { DynamicStructuredTool } from '@langchain/core/tools';
+import { IRetrievalProvider } from './types';
 
 export class RetrievalTool extends BaseTool {
   private providers: Map<string, IRetrievalProvider> = new Map();
@@ -11,11 +11,11 @@ export class RetrievalTool extends BaseTool {
   }
 
   getName(): string {
-    return "retrieval";
+    return 'retrieval';
   }
 
   getDescription(): string {
-    const providers = Array.from(this.providers.keys()).join(", ");
+    const providers = Array.from(this.providers.keys()).join(', ');
     return `Query knowledge base using various providers (${providers}). Use this when other tools cannot answer the question.`;
   }
 
@@ -26,21 +26,18 @@ export class RetrievalTool extends BaseTool {
   getSchema(): z.ZodObject<any> {
     const providers = Array.from(this.providers.keys());
     if (providers.length === 0) {
-      throw new Error("No retrieval providers registered");
+      throw new Error('No retrieval providers registered');
     }
 
     return z.object({
-      query: z.string().describe("The question to ask"),
+      question: z.string().describe('The question to ask'),
       provider: z
         .enum(providers as [string, ...string[]])
         .optional()
         .describe(
-          "The provider to use for querying. If not specified, the default provider will be used"
+          'The provider to use for question. If not specified, the default provider will be used',
         ),
-      context: z
-        .string()
-        .optional()
-        .describe("Additional context to help answer the question"),
+      context: z.string().optional().describe('Additional context to help answer the question'),
     });
   }
 
@@ -51,7 +48,7 @@ export class RetrievalTool extends BaseTool {
       schema: this.getSchema(),
       func: async (args: any) => {
         try {
-          const { query, provider: providerName, context } = args;
+          const { question, provider: providerName, context } = args;
 
           let provider: IRetrievalProvider;
           if (providerName) {
@@ -64,21 +61,21 @@ export class RetrievalTool extends BaseTool {
             // Get first provider or throw error if none exists
             const firstProvider = this.providers.values().next().value;
             if (!firstProvider) {
-              throw new Error("No provider available");
+              throw new Error('No provider available');
             }
             provider = firstProvider;
           }
 
-          const response = await provider.query({ query, context });
+          const response = await provider.query({ question, context });
 
           return JSON.stringify({
-            status: "success",
+            status: 'success',
             provider: provider.getName(),
             sources: response.sources,
           });
         } catch (error) {
           return JSON.stringify({
-            status: "error",
+            status: 'error',
             message: error instanceof Error ? error.message : String(error),
           });
         }
