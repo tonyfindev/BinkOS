@@ -64,6 +64,10 @@ export class FourMemeProvider implements ISwapProvider {
     return ['bnb', 'ethereum'];
   }
 
+  getPrompt(): string {
+    return `If you are using FourMeme, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
+  }
+
   private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
     const erc20Interface = new Interface([
       'function decimals() view returns (uint8)',
@@ -71,10 +75,7 @@ export class FourMemeProvider implements ISwapProvider {
     ]);
 
     const contract = new Contract(tokenAddress, erc20Interface, this.provider);
-    const [decimals, symbol] = await Promise.all([
-      contract.decimals(),
-      contract.symbol(),
-    ]);
+    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
 
     return {
       address: tokenAddress.toLowerCase() as `0x${string}`,
@@ -93,17 +94,17 @@ export class FourMemeProvider implements ISwapProvider {
     const now = Date.now();
     const cached = this.tokenCache.get(tokenAddress);
 
-    if (cached && (now - cached.timestamp) < this.CACHE_TTL) {
+    if (cached && now - cached.timestamp < this.CACHE_TTL) {
       return cached.token;
     }
 
     const info = await this.getTokenInfo(tokenAddress);
-    console.log("🤖 Token info", info)
+    console.log('🤖 Token info', info);
     const token = {
       chainId: info.chainId,
       address: info.address.toLowerCase() as `0x${string}`,
       decimals: info.decimals,
-      symbol: info.symbol
+      symbol: info.symbol,
     };
 
     this.tokenCache.set(tokenAddress, { token, timestamp: now });
@@ -117,19 +118,17 @@ export class FourMemeProvider implements ISwapProvider {
         this.getToken(params.toToken),
       ]);
 
-      const amountIn = params.type === 'input'
-        ? ethers.parseUnits(params.amount, tokenIn.decimals)
-        : undefined;
+      const amountIn =
+        params.type === 'input' ? ethers.parseUnits(params.amount, tokenIn.decimals) : undefined;
 
-      const amountOut = params.type === 'input'
-        ? undefined
-        : ethers.parseUnits(params.amount, tokenOut.decimals);
+      const amountOut =
+        params.type === 'input' ? undefined : ethers.parseUnits(params.amount, tokenOut.decimals);
 
       // TokenManager2 interface according to the API documentation
       const tokenManagerInterface = new Interface([
         'function buyTokenAMAP(address token, uint256 funds, uint256 minAmount) payable',
         'function buyToken(address token, uint256 amount, uint256 maxFunds) payable',
-        'function sellToken(address token, uint256 amount)'
+        'function sellToken(address token, uint256 amount)',
       ]);
 
       let txData;
@@ -141,19 +140,18 @@ export class FourMemeProvider implements ISwapProvider {
         // For input type, we're spending a fixed amount to buy tokens
         // Using buyTokenAMAP since we're spending a fixed amount
         txData = tokenManagerInterface.encodeFunctionData('buyTokenAMAP', [
-          params.toToken,    // token to buy
-          amountIn || 0n,   // funds to spend
-          0n                // minAmount (set to 0 for now - could add slippage protection)
+          params.toToken, // token to buy
+          amountIn || 0n, // funds to spend
+          0n, // minAmount (set to 0 for now - could add slippage protection)
         ]);
         value = amountIn?.toString() || '0';
         estimatedAmount = '0'; // We can't estimate exact amount without price impact info
         estimatedCost = amountIn?.toString() || '0';
-      }
-      else {
+      } else {
         // For output type, we're selling a specific amount
         txData = tokenManagerInterface.encodeFunctionData('sellToken', [
           params.fromToken,
-          amountIn || 0n
+          amountIn || 0n,
         ]);
         estimatedAmount = amountIn?.toString() || '0';
         estimatedCost = '0'; // We can't estimate exact cost without price impact info
@@ -165,10 +163,13 @@ export class FourMemeProvider implements ISwapProvider {
         quoteId,
         fromToken: params.fromToken,
         toToken: params.toToken,
+        fromTokenDecimals: tokenIn.decimals,
+        toTokenDecimals: tokenOut.decimals,
+        slippage: 10,
         fromAmount: params.type === 'input' ? amountIn?.toString() || '0' : estimatedCost,
         toAmount: params.type === 'input' ? estimatedAmount : amountOut?.toString() || '0',
         priceImpact: 0,
-        route: ["four-meme"],
+        route: ['four-meme'],
         estimatedGas: CONSTANTS.DEFAULT_GAS_LIMIT,
         type: params.type,
         tx: {
@@ -176,7 +177,7 @@ export class FourMemeProvider implements ISwapProvider {
           data: txData,
           value,
           gasLimit: CONSTANTS.DEFAULT_GAS_LIMIT,
-        }
+        },
       };
 
       this.quotes.set(quoteId, { quote, expiresAt: Date.now() + CONSTANTS.QUOTE_EXPIRY });
@@ -184,7 +185,9 @@ export class FourMemeProvider implements ISwapProvider {
       return quote;
     } catch (error: unknown) {
       console.error('Error getting quote:', error);
-      throw new Error(`Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -205,11 +208,18 @@ export class FourMemeProvider implements ISwapProvider {
       };
     } catch (error: unknown) {
       console.error('Error building swap transaction:', error);
-      throw new Error(`Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
-  async buildApproveTransaction(token: string, spender: string, amount: string, userAddress: string): Promise<SwapTransaction> {
+  async buildApproveTransaction(
+    token: string,
+    spender: string,
+    amount: string,
+    userAddress: string,
+  ): Promise<SwapTransaction> {
     const tokenInfo = await this.getToken(token);
     const erc20Interface = new Interface([
       'function approve(address spender, uint256 amount) returns (bool)',
@@ -232,8 +242,8 @@ export class FourMemeProvider implements ISwapProvider {
     const erc20 = new Contract(
       token,
       ['function allowance(address owner, address spender) view returns (uint256)'],
-      this.provider
+      this.provider,
     );
     return await erc20.allowance(owner, spender);
   }
-} 
+}

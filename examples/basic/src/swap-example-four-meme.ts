@@ -62,10 +62,15 @@ async function main() {
 
   // Initialize a new wallet
   console.log('👛 Creating wallet...');
-  const wallet = new Wallet({
-    seedPhrase: settings.get('WALLET_MNEMONIC') || 'test test test test test test test test test test test junk',
-    index: 0
-  }, network);
+  const wallet = new Wallet(
+    {
+      seedPhrase:
+        settings.get('WALLET_MNEMONIC') ||
+        'test test test test test test test test test test test junk',
+      index: 0,
+    },
+    network,
+  );
 
   console.log('✓ Wallet created\n');
 
@@ -73,10 +78,14 @@ async function main() {
   console.log('🤖 Wallet ETH:', await wallet.getAddress('ethereum'));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
-  const agent = new Agent({
-    model: 'gpt-4o',
-    temperature: 0,
-  }, wallet, networks);
+  const agent = new Agent(
+    {
+      model: 'gpt-4o',
+      temperature: 0,
+    },
+    wallet,
+    networks,
+  );
   console.log('✓ Agent initialized\n');
 
   // Create and configure the swap plugin
@@ -105,64 +114,20 @@ async function main() {
     input: `
       Buy 0.001 BNB to SAFUFOUR on bnb chain with 10 % slippage.
       Use the following token addresses:
-      BNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
       SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
-    `
+    `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');
 
-  const needReview = true;
-
-  if (needReview) {
-    console.log('🔍 Need review:', inputResult, '\n');
-    const approveResult = await agent.execute({
-      input: `I approve the swap`,
-    });
-    console.log('✓ Approve result:', approveResult, '\n');
-  }
-
-  // console.log('💱 Example 2: Sell SAFUFOUR');
-  // const inputResult = await agent.execute({
-  //   input: `
-  //     Sell 1000 SAFUFOUR on bnb chain with 10 % slippage.
-  //     Use the following token addresses:
-  //     BNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
-  //     SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
-  //   `
-  // });
-  // console.log('✓ Swap result (input):', inputResult, '\n');
-
-  // const needReview = true;
-
-  // if (needReview) {
-  //   console.log('🔍 Need review:', inputResult, '\n');
-  //   const approveResult = await agent.execute({
-  //     input: `I approve the swap`,
-  //   });
-  //   console.log('✓ Approve result:', approveResult, '\n');
-  // }
-
-  // console.log('💱 Example 3: Buy SAFUFOUR');
-  // const inputResult = await agent.execute({
-  //   input: `
-  //     Buy SAFUFOUR with 0.001 BNB on bnb chain with 10 % slippage.
-  //     Use the following token addresses:
-  //     BNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
-  //     SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
-  //   `
-  // });
-  // console.log('✓ Swap result (input):', inputResult, '\n');
-
-  // const needReview = true;
-
-  // if (needReview) {
-  //   console.log('🔍 Need review:', inputResult, '\n');
-  //   const approveResult = await agent.execute({
-  //     input: `I approve the swap`,
-  //   });
-  //   console.log('✓ Approve result:', approveResult, '\n');
-  // }
-
+  console.log('💱 Example 2: Sell SAFUFOUR');
+  const outputResult = await agent.execute({
+    input: `
+      Sell 1000 SAFUFOUR on bnb chain with 10 % slippage.
+      Use the following token addresses:
+      SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
+    `,
+  });
+  console.log('✓ Swap result (input):', outputResult, '\n');
 
   // Get plugin information
   const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
@@ -180,4 +145,4 @@ async function main() {
 main().catch(error => {
   console.error('❌ Error:', error.message);
   process.exit(1);
-}); 
+});
