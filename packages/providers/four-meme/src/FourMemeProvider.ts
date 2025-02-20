@@ -129,12 +129,29 @@ export class FourMemeProvider implements ISwapProvider {
       const amountOut =
         params.type === 'input' ? undefined : ethers.parseUnits(params.amount, tokenOut.decimals);
 
-      // TokenManager2 interface according to the API documentation
-      const tokenManagerInterface = new Interface([
-        'function buyTokenAMAP(address token, uint256 funds, uint256 minAmount) payable',
-        'function buyToken(address token, uint256 amount, uint256 maxFunds) payable',
-        'function sellToken(address token, uint256 amount)',
-      ]);
+      const needToken =
+        params.type === 'input' && params.fromToken === CONSTANTS.BNB_ADDRESS
+          ? params.toToken
+          : params.fromToken;
+
+      // Get token info from contract and convert to proper format
+      const rawTokenInfo = await this.factory._tokenInfos(needToken);
+
+      const tokenInfo = {
+        base: rawTokenInfo.base,
+        quote: rawTokenInfo.quote,
+        template: rawTokenInfo.template,
+        totalSupply: rawTokenInfo.totalSupply,
+        maxOffers: rawTokenInfo.maxOffers,
+        maxRaising: rawTokenInfo.maxRaising,
+        launchTime: rawTokenInfo.launchTime,
+        offers: rawTokenInfo.offers,
+        funds: rawTokenInfo.funds,
+        lastPrice: rawTokenInfo.lastPrice,
+        K: rawTokenInfo.K,
+        T: rawTokenInfo.T,
+        status: rawTokenInfo.status,
+      };
 
       let txData;
       let value = '0';
@@ -142,24 +159,45 @@ export class FourMemeProvider implements ISwapProvider {
       let estimatedCost = '0';
 
       if (params.type === 'input' && params.fromToken === CONSTANTS.BNB_ADDRESS) {
-        // For input type, we're spending a fixed amount to buy tokens
-        // Using buyTokenAMAP since we're spending a fixed amount
-        txData = tokenManagerInterface.encodeFunctionData('buyTokenAMAP', [
-          params.toToken, // token to buy
-          amountIn || 0n, // funds to spend
-          0n, // minAmount (set to 0 for now - could add slippage protection)
-        ]);
+        // Calculate estimated output amount using calcBuyAmount
+        const estimatedTokens = await this.factory.calcBuyAmount(tokenInfo, amountIn || 0n);
+        estimatedAmount = estimatedTokens.toString();
+
+        // Use the specific function signature for buyTokenAMAP with 3 parameters
+        txData = this.factory.interface.encodeFunctionData(
+          'buyTokenAMAP(address,uint256,uint256)',
+          [
+            params.toToken, // token to buy
+            amountIn || 0n, // funds to spend
+            0n, // minAmount (set to 0 for now - could add slippage protection)
+          ],
+        );
         value = amountIn?.toString() || '0';
-        estimatedAmount = '0'; // We can't estimate exact amount without price impact info
         estimatedCost = amountIn?.toString() || '0';
-      } else {
-        // For output type, we're selling a specific amount
-        txData = tokenManagerInterface.encodeFunctionData('sellToken', [
-          params.fromToken,
-          amountIn || 0n,
-        ]);
-        estimatedAmount = amountIn?.toString() || '0';
-        estimatedCost = '0'; // We can't estimate exact cost without price impact info
+      } else if (params.type === 'input' && params.toToken === CONSTANTS.BNB_ADDRESS) {
+        try {
+          // For selling tokens, calculate estimated BNB output
+          const estimatedBnb = await this.factory.calcSellCost(tokenInfo, amountIn || 0n);
+          estimatedAmount = estimatedBnb.toString();
+
+          // Use the specific function signature for sellToken with 2 parameters
+          txData = this.factory.interface.encodeFunctionData('sellToken(address,uint256)', [
+            params.fromToken,
+            amountIn || 0n,
+          ]);
+          estimatedCost = '0';
+        } catch (error) {
+          console.error('Error calculating sell cost:', error);
+          // Provide a fallback estimation based on current price
+          if (tokenInfo.lastPrice && tokenInfo.lastPrice > 0n) {
+            estimatedAmount = (
+              ((amountIn || 0n) * tokenInfo.lastPrice) /
+              ethers.parseUnits('1', 18)
+            ).toString();
+          } else {
+            throw new Error('Unable to calculate sell price - insufficient liquidity');
+          }
+        }
       }
 
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
