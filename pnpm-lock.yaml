@@ -32,12 +32,18 @@ importers:
 
   examples/basic:
     dependencies:
+      '@binkai/bink-provider':
+        specifier: workspace:*
+        version: link:../../packages/providers/bink
       '@binkai/birdeye-provider':
         specifier: workspace:*
         version: link:../../packages/providers/birdeye
       '@binkai/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@binkai/knowledge-plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugins/knowledge
       '@binkai/okx-provider':
         specifier: workspace:*
         version: link:../../packages/providers/okx
@@ -171,6 +177,28 @@ importers:
         specifier: ^5.7.3
         version: 5.7.3
 
+  packages/plugins/knowledge:
+    dependencies:
+      '@binkai/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@langchain/core':
+        specifier: ^0.3.32
+        version: 0.3.32(openai@4.79.3(encoding@0.1.13)(ws@8.18.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.1))
+      zod:
+        specifier: ^3.22.4
+        version: 3.24.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.17.14
+      rimraf:
+        specifier: ^5.0.0
+        version: 5.0.10
+      typescript:
+        specifier: ^5.0.0
+        version: 5.7.3
+
   packages/plugins/swap:
     dependencies:
       '@binkai/core':
@@ -204,6 +232,28 @@ importers:
       '@langchain/core':
         specifier: ^0.3.32
         version: 0.3.32(openai@4.79.3(encoding@0.1.13)(ws@8.18.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.1))
+      zod:
+        specifier: ^3.22.4
+        version: 3.24.1
+    devDependencies:
+      rimraf:
+        specifier: ^5.0.0
+        version: 5.0.10
+      typescript:
+        specifier: ^5.0.0
+        version: 5.7.3
+
+  packages/providers/bink:
+    dependencies:
+      '@binkai/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@binkai/knowledge-plugin':
+        specifier: workspace:*
+        version: link:../../plugins/knowledge
+      axios:
+        specifier: ^1.6.7
+        version: 1.7.9(debug@4.4.0)
       zod:
         specifier: ^3.22.4
         version: 3.24.1

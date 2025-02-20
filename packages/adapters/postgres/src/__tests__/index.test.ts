@@ -1,10 +1,10 @@
-import { PostgresDatabaseAdapter } from "../index";
-import pg from "pg";
-describe("PostgresDatabaseAdapter", () => {
+import { PostgresDatabaseAdapter } from '../index';
+import pg from 'pg';
+describe('PostgresDatabaseAdapter', () => {
   let adapter: PostgresDatabaseAdapter;
   beforeEach(async () => {
     adapter = new PostgresDatabaseAdapter({
-      connectionString: "postgresql://root:123456@localhost:5432/binkai_db",
+      connectionString: 'postgresql://root:123456@localhost:5432/binkai_db',
     });
     // await adapter.init();
   });
@@ -13,8 +13,8 @@ describe("PostgresDatabaseAdapter", () => {
     await adapter.cleanup();
   });
 
-  describe("hello", () => {
-    it("should be true", () => {
+  describe('hello', () => {
+    it('should be true', () => {
       expect(true).toBe(true);
     });
   });

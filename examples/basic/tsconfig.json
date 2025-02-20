@@ -9,7 +9,9 @@
     { "path": "../../packages/core" },
     { "path": "../../packages/plugins/swap" },
     { "path": "../../packages/adapters/postgres" },
-    { "path": "../../packages/providers/pancakeswap" }
+    { "path": "../../packages/plugins/knowledge" },
+    { "path": "../../packages/providers/pancakeswap" },
+    { "path": "../../packages/providers/bink" }
   ],
   "include": ["src/**/*"]
 }
