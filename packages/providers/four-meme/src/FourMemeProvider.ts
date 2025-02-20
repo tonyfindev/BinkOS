@@ -113,6 +113,11 @@ export class FourMemeProvider implements ISwapProvider {
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      // Check if either fromToken or toToken is BNB
+      if (params.fromToken !== CONSTANTS.BNB_ADDRESS && params.toToken !== CONSTANTS.BNB_ADDRESS) {
+        throw new Error('One of the tokens must be BNB for FourMeme swaps');
+      }
+
       const [tokenIn, tokenOut] = await Promise.all([
         this.getToken(params.fromToken),
         this.getToken(params.toToken),
