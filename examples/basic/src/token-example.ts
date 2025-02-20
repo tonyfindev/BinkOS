@@ -60,10 +60,15 @@ async function main() {
 
   // Initialize a new wallet
   console.log('👛 Creating wallet...');
-  const wallet = new Wallet({
-    seedPhrase: settings.get('WALLET_MNEMONIC') || 'test test test test test test test test test test test junk',
-    index: 0
-  }, network);
+  const wallet = new Wallet(
+    {
+      seedPhrase:
+        settings.get('WALLET_MNEMONIC') ||
+        'test test test test test test test test test test test junk',
+      index: 0,
+    },
+    network,
+  );
   console.log('✓ Wallet created\n');
 
   console.log('🤖 Wallet Solana:', await wallet.getAddress('solana'));
@@ -71,16 +76,20 @@ async function main() {
 
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
-  const agent = new Agent({
-    model: 'gpt-4',
-    temperature: 0,
-  }, wallet, networks);
+  const agent = new Agent(
+    {
+      model: 'gpt-4',
+      temperature: 0,
+    },
+    wallet,
+    networks,
+  );
   console.log('✓ Agent initialized\n');
 
   // Create and configure the token plugin
   console.log('🔍 Initializing token plugin...');
   const tokenPlugin = new TokenPlugin();
-  
+
   // Create Birdeye provider with API key
   const birdeye = new BirdeyeProvider({
     apiKey: settings.get('BIRDEYE_API_KEY'),
@@ -102,34 +111,35 @@ async function main() {
   // Example 1: Get token info by symbol on BSC
   console.log('💎 Example 1: Get token info by symbol on BSC');
   const bscSymbolResult = await agent.execute({
-    input: 'Get information about the BINK token on BNB chain'
+    input: 'Get information about the BINK token on BNB chain',
   });
   console.log('✓ Token info (BSC symbol):', bscSymbolResult, '\n');
 
   // Example 2: Get token info by address on BSC
   console.log('💎 Example 2: Get token info by address on BSC');
   const bscAddressResult = await agent.execute({
-    input: 'Get information about the token with address "0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1" on BNB chain'
+    input:
+      'Get information about the token with address "0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1" on BNB chain',
   });
   console.log('✓ Token info (BSC address):', bscAddressResult, '\n');
 
   // Example 3: Get token info by symbol on Solana
   console.log('💎 Example 3: Get token info by symbol on Solana');
   const solanaSymbolResult = await agent.execute({
-    input: 'Get information about the BONK token on Solana chain'
+    input: 'Get information about the BONK token on Solana chain',
   });
   console.log('✓ Token info (Solana symbol):', solanaSymbolResult, '\n');
 
   // Example 4: Search tokens on BSC
   console.log('🔍 Example 4: Search tokens on BSC');
   const bscSearchResult = await agent.execute({
-    input: 'Search for tokens containing "BINK" in their name on BNB chain'
+    input: 'Search for tokens containing "BINK" in their name on BNB chain',
   });
   console.log('✓ Search results (BSC):', bscSearchResult, '\n');
 
   // Get plugin information
   const registeredPlugin = agent.getPlugin('token') as TokenPlugin;
-  
+
   // Check available providers for each chain
   console.log('📊 Available providers by chain:');
   const chains = registeredPlugin.getSupportedChains();
@@ -143,4 +153,4 @@ async function main() {
 main().catch(error => {
   console.error('❌ Error:', error.message);
   process.exit(1);
-}); 
+});

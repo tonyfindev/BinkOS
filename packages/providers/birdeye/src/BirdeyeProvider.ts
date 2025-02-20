@@ -1,6 +1,12 @@
 import axios from 'axios';
 import { ITokenProvider, TokenInfo, TokenQueryParams } from '@binkai/token-plugin';
-import { BirdeyeConfig, BirdeyeTokenResponse, TokenOverviewResponse, CHAIN_MAPPING, SupportedChain } from './types';
+import {
+  BirdeyeConfig,
+  BirdeyeTokenResponse,
+  TokenOverviewResponse,
+  CHAIN_MAPPING,
+  SupportedChain,
+} from './types';
 
 export class BirdeyeProvider implements ITokenProvider {
   private readonly baseUrl: string;
@@ -65,7 +71,9 @@ export class BirdeyeProvider implements ITokenProvider {
     return response.data;
   }
 
-  private mapTokenInfo(tokenData: BirdeyeTokenResponse['data']['items'][0]['result'][0]): TokenInfo {
+  private mapTokenInfo(
+    tokenData: BirdeyeTokenResponse['data']['items'][0]['result'][0],
+  ): TokenInfo {
     return {
       address: tokenData.address,
       symbol: tokenData.symbol,
@@ -159,4 +167,4 @@ export class BirdeyeProvider implements ITokenProvider {
       return false;
     }
   }
-} 
+}
