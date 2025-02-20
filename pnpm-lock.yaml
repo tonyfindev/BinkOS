@@ -41,6 +41,9 @@ importers:
       '@binkai/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@binkai/knowledge-plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugins/knowledge
       '@binkai/okx-provider':
         specifier: workspace:*
         version: link:../../packages/providers/okx
@@ -50,9 +53,6 @@ importers:
       '@binkai/postgres-adapter':
         specifier: workspace:*
         version: link:../../packages/adapters/postgres
-      '@binkai/retrieval-plugin':
-        specifier: workspace:*
-        version: link:../../packages/plugins/retrieval
       '@binkai/swap-plugin':
         specifier: workspace:*
         version: link:../../packages/plugins/swap
@@ -177,7 +177,7 @@ importers:
         specifier: ^5.7.3
         version: 5.7.3
 
-  packages/plugins/retrieval:
+  packages/plugins/knowledge:
     dependencies:
       '@binkai/core':
         specifier: workspace:*
@@ -248,9 +248,9 @@ importers:
       '@binkai/core':
         specifier: workspace:*
         version: link:../../core
-      '@binkai/retrieval-plugin':
+      '@binkai/knowledge-plugin':
         specifier: workspace:*
-        version: link:../../plugins/retrieval
+        version: link:../../plugins/knowledge
       axios:
         specifier: ^1.6.7
         version: 1.7.9(debug@4.4.0)

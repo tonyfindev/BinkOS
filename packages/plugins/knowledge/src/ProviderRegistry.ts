@@ -1,13 +1,13 @@
-import { IRetrievalProvider } from "./types";
+import { IKnowledgeProvider } from './types';
 
 export class ProviderRegistry {
-  private providers: Map<string, IRetrievalProvider> = new Map();
+  private providers: Map<string, IKnowledgeProvider> = new Map();
 
-  registerProvider(provider: IRetrievalProvider): void {
+  registerProvider(provider: IKnowledgeProvider): void {
     this.providers.set(provider.getName(), provider);
   }
 
-  getProvider(name: string): IRetrievalProvider {
+  getProvider(name: string): IKnowledgeProvider {
     const provider = this.providers.get(name);
     if (!provider) {
       throw new Error(`Provider ${name} not found`);

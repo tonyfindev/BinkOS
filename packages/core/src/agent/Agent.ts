@@ -161,49 +161,40 @@ export class Agent extends BaseAgent {
         input: commandOrParams,
         chat_history: history,
       });
-      this.db
-        ?.createMessages([
-          {
-            content: commandOrParams,
-            userId: user?.id,
-            messageType: 'human',
-          },
-          {
-            content: result.output,
-            userId: user?.id,
-            messageType: 'ai',
-          },
-        ])
-        .then(() => {
-          console.log('✓ Messages persisted');
-        });
+      this.db?.createMessage({
+        content: commandOrParams,
+        userId: user?.id,
+        messageType: 'human',
+      });
+      this.db?.createMessage({
+        content: result.output,
+        userId: user?.id,
+        messageType: 'ai',
+      });
       return result.output;
     } else {
-      let messages: BaseMessage[] = commandOrParams.history ?? [];
-      messages = [new HumanMessage(commandOrParams.input), ...messages, ...history];
+      const messages: BaseMessage[] = commandOrParams.history ?? [];
       const result = await this.executor.invoke({
         input: commandOrParams.input,
-        chat_history: messages,
+        chat_history: history,
       });
-      this.db
-        ?.createMessages(
-          [
-            {
-              content: commandOrParams.input,
-              userId: user?.id,
-              messageType: 'human',
-            },
-            {
-              content: result.output,
-              userId: user?.id,
-              messageType: 'ai',
-            },
-          ],
-          commandOrParams.threadId,
-        )
-        .then(() => {
-          console.log('✓ Messages persisted');
-        });
+      this.db?.createMessage(
+        {
+          content: commandOrParams.input,
+          userId: user?.id,
+          messageType: 'human',
+        },
+        commandOrParams.threadId,
+      );
+      this.db?.createMessage(
+        {
+          content: result.output,
+          userId: user?.id,
+          messageType: 'ai',
+        },
+        commandOrParams.threadId,
+      );
+      return result.output;
     }
   }
 

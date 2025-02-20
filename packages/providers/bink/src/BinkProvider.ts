@@ -1,16 +1,16 @@
 import axios from 'axios';
 import {
-  IRetrievalProvider,
-  RetrievalQueryParams,
-  RetrievalResponse,
-} from '@binkai/retrieval-plugin';
+  IKnowledgeProvider,
+  KnowledgeQueryParams,
+  KnowledgeResponse,
+} from '@binkai/knowledge-plugin';
 
 export interface BinkProviderConfig {
   apiKey: string;
   baseUrl: string;
 }
 
-export class BinkProvider implements IRetrievalProvider {
+export class BinkProvider implements IKnowledgeProvider {
   private readonly baseUrl: string;
   private readonly apiKey: string;
 
@@ -26,7 +26,7 @@ export class BinkProvider implements IRetrievalProvider {
     return 'bink';
   }
 
-  async query(params: RetrievalQueryParams): Promise<RetrievalResponse> {
+  async query(params: KnowledgeQueryParams): Promise<KnowledgeResponse> {
     try {
       const response = await axios.post(`${this.baseUrl}`, params, {
         headers: {

@@ -1,17 +1,17 @@
 import { BaseTool, IToolConfig } from '@binkai/core';
 import { z } from 'zod';
 import { DynamicStructuredTool } from '@langchain/core/tools';
-import { IRetrievalProvider } from './types';
+import { IKnowledgeProvider } from './types';
 
-export class RetrievalTool extends BaseTool {
-  private providers: Map<string, IRetrievalProvider> = new Map();
+export class KnowledgeTool extends BaseTool {
+  private providers: Map<string, IKnowledgeProvider> = new Map();
 
   constructor(config: IToolConfig) {
     super(config);
   }
 
   getName(): string {
-    return 'retrieval';
+    return 'knowledge';
   }
 
   getDescription(): string {
@@ -19,14 +19,14 @@ export class RetrievalTool extends BaseTool {
     return `Query knowledge base using various providers (${providers}). Use this when other tools cannot answer the question.`;
   }
 
-  registerProvider(provider: IRetrievalProvider): void {
+  registerProvider(provider: IKnowledgeProvider): void {
     this.providers.set(provider.getName(), provider);
   }
 
   getSchema(): z.ZodObject<any> {
     const providers = Array.from(this.providers.keys());
     if (providers.length === 0) {
-      throw new Error('No retrieval providers registered');
+      throw new Error('No knowledge providers registered');
     }
 
     return z.object({
@@ -50,7 +50,7 @@ export class RetrievalTool extends BaseTool {
         try {
           const { question, provider: providerName, context } = args;
 
-          let provider: IRetrievalProvider;
+          let provider: IKnowledgeProvider;
           if (providerName) {
             const selectedProvider = this.providers.get(providerName);
             if (!selectedProvider) {

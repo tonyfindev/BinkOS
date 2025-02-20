@@ -352,7 +352,7 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
   async getMessagesByUserId(userId: UUID, take?: number): Promise<MessageEntity[]> {
     return this.wrapDatabase(async () => {
       const { rows } = await this.pool.query(
-        'SELECT * FROM messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+        'SELECT * FROM messages WHERE user_id = $1 ORDER BY created_at ASC LIMIT $2',
         [userId, take || 10],
       );
       return rows;
