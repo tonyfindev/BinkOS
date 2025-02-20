@@ -261,7 +261,6 @@ export class OkxProvider implements ISwapProvider {
     const data = erc20Interface.encodeFunctionData('approve', [
       spender,
       ethers.parseUnits(amount, tokenInfo.decimals),
-      ,
     ]);
 
     return {
