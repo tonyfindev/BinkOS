@@ -61,7 +61,7 @@ export class FourMemeProvider implements ISwapProvider {
   }
 
   getSupportedChains(): string[] {
-    return ['bnb', 'ethereum'];
+    return ['bnb'];
   }
 
   getPrompt(): string {
