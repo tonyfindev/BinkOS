@@ -1,10 +1,7 @@
 import { ethers } from 'ethers';
 import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
-import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
 import { FourMemeProvider } from '@binkai/four-meme-provider';
-import { ChainId } from '@pancakeswap/sdk';
-import { PostgresDatabaseAdapter } from '@binkai/postgres-adapter';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -74,6 +71,7 @@ async function main() {
     },
     network,
   );
+
   console.log('✓ Wallet created\n');
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
@@ -90,29 +88,18 @@ async function main() {
   );
   console.log('✓ Agent initialized\n');
 
-  // Initialize database
-  console.log('🗄️ Initializing database...');
-  let db: PostgresDatabaseAdapter | undefined;
-  if (settings.get('POSTGRES_URL')) {
-    db = new PostgresDatabaseAdapter({
-      connectionString: settings.get('POSTGRES_URL'),
-    });
-    await agent.registerDatabase(db);
-  }
-
   // Create and configure the swap plugin
   console.log('🔄 Initializing swap plugin...');
   const swapPlugin = new SwapPlugin();
 
   // Create providers with proper chain IDs
-  const pancakeswap = new PancakeSwapProvider(provider, ChainId.BSC);
   const fourMeme = new FourMemeProvider(provider, 56);
 
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [pancakeswap, fourMeme],
+    providers: [fourMeme],
     supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
@@ -122,28 +109,25 @@ async function main() {
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
 
-  // Example 1: Buy with exact input amount on BNB Chain
-  console.log('💱 Example 1: Buy with exact input amount on BNB Chain');
-  const result1 = await agent.execute({
+  console.log('💱 Example 1: Buy SAFUFOUR');
+  const inputResult = await agent.execute({
     input: `
-      Buy SAFUFOUR from exactly 0.0001 BNB with 0.5% slippage on bnb chain.
+      Buy 0.001 BNB to SAFUFOUR on bnb chain with 10 % slippage.
       Use the following token addresses:
-       SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
+      SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
     `,
   });
-  console.log('✓ Swap result:', result1, '\n');
+  console.log('✓ Swap result (input):', inputResult, '\n');
 
-  // Example 2: Sell with exact output amount on BNB Chain
-  console.log('💱 Example 2: Sell with exact output amount on BNB Chain');
-  const result2 = await agent.execute({
+  console.log('💱 Example 2: Sell SAFUFOUR');
+  const outputResult = await agent.execute({
     input: `
-      Sell exactly 20 SAFUFOUR to BNB with 0.5% slippage on bnb chain.
+      Sell 10000 SAFUFOUR on bnb chain with 10 % slippage.
       Use the following token addresses:
-       SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
+      SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
     `,
   });
-
-  console.log('✓ Swap result:', result2, '\n');
+  console.log('✓ Swap result (input):', outputResult, '\n');
 
   // Get plugin information
   const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
