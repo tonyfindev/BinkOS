@@ -8,6 +8,7 @@
     "swap-okx": "ts-node src/swap-example-okx.ts",
     "swap-four-meme": "ts-node src/swap-example-four-meme.ts",
     "token": "ts-node src/token-example.ts",
+    "knowledge": "ts-node src/knowledge-example.ts",
     "build": "tsc"
   },
   "dependencies": {
@@ -18,6 +19,8 @@
     "@binkai/swap-plugin": "workspace:*",
     "@binkai/token-plugin": "workspace:*",
     "@binkai/birdeye-provider": "workspace:*",
+    "@binkai/bink-provider": "workspace:*",
+    "@binkai/knowledge-plugin": "workspace:*",
     "@binkai/postgres-adapter": "workspace:*",
     "@pancakeswap/sdk": "^5.7.7",
     "@langchain/core": "^0.3.32",
