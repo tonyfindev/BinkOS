@@ -1,1 +1,1 @@
-export * from "./BinkProvider";
+export * from './BinkProvider';
