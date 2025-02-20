@@ -12,7 +12,6 @@
     "moduleResolution": "node",
     "resolveJsonModule": true
   },
-  "references": [
-  ],
+  "references": [{ "path": "./packages/adapters/postgres" }],
   "exclude": ["node_modules", "dist"]
-} 
+}

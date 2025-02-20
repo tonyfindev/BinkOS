@@ -48,9 +48,7 @@ export class GetTokenInfoTool extends BaseTool {
     const providerChains = Array.from(this.supportedChains);
 
     // Return intersection of agent networks and provider supported chains
-    return agentNetworks.filter(network =>
-      providerChains.includes(network)
-    );
+    return agentNetworks.filter(network => providerChains.includes(network));
   }
 
   getSchema(): z.ZodObject<any> {
@@ -66,11 +64,20 @@ export class GetTokenInfoTool extends BaseTool {
 
     return z.object({
       query: z.string().describe('The token address or symbol to query'),
-      chain: z.enum(supportedChains as [string, ...string[]]).default(this.defaultChain)
+      chain: z
+        .enum(supportedChains as [string, ...string[]])
+        .default(this.defaultChain)
         .describe('The blockchain to query the token on'),
-      provider: z.enum(providers as [string, ...string[]]).optional()
-        .describe('The provider to use for querying. If not specified, all available providers will be tried'),
-      includePrice: z.boolean().optional().default(true)
+      provider: z
+        .enum(providers as [string, ...string[]])
+        .optional()
+        .describe(
+          'The provider to use for querying. If not specified, all available providers will be tried',
+        ),
+      includePrice: z
+        .boolean()
+        .optional()
+        .default(true)
         .describe('Whether to include price information in the response'),
     });
   }
@@ -96,7 +103,9 @@ export class GetTokenInfoTool extends BaseTool {
       }
     }
 
-    throw new Error(`No provider could find information for token ${params.query} on chain ${params.chain}. Last error: ${lastError?.message}`);
+    throw new Error(
+      `No provider could find information for token ${params.query} on chain ${params.chain}. Last error: ${lastError?.message}`,
+    );
   }
 
   createTool(): DynamicStructuredTool<z.ZodObject<any>> {
@@ -114,10 +123,14 @@ export class GetTokenInfoTool extends BaseTool {
             includePrice = true,
           } = args;
 
+          console.log('🤖 Token Tool Args:', args);
+
           // Validate chain is supported
           const supportedChains = this.getSupportedChains();
           if (!supportedChains.includes(chain)) {
-            throw new Error(`Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`);
+            throw new Error(
+              `Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`,
+            );
           }
 
           let tokenInfo: TokenInfo;
@@ -137,6 +150,8 @@ export class GetTokenInfoTool extends BaseTool {
             });
           }
 
+          console.log('🤖 Token info:', tokenInfo);
+
           // Return result as JSON string
           return JSON.stringify({
             status: 'success',
@@ -155,4 +170,4 @@ export class GetTokenInfoTool extends BaseTool {
       },
     });
   }
-} 
+}

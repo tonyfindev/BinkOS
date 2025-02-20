@@ -26,4 +26,4 @@ export interface NetworkConfig {
 
 export interface NetworksConfig {
   networks: Record<NetworkName, NetworkConfig>;
-} 
+}

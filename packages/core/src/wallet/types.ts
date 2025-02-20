@@ -37,18 +37,24 @@ export interface IWallet {
   signTransaction(params: SignTransactionParams): Promise<string>;
   getPublicKey(network: NetworkName): string;
   getPrivateKey(network: NetworkName): string;
-  
+
   /**
    * Send a transaction to the network
    * @param network The network to send the transaction on
    * @param transaction The transaction request to send
    */
-  sendTransaction(network: NetworkName, transaction: TransactionRequest): Promise<TransactionReceipt>;
+  sendTransaction(
+    network: NetworkName,
+    transaction: TransactionRequest,
+  ): Promise<TransactionReceipt>;
 
   /**
    * Sign and send a transaction to the network
    * @param network The network to send the transaction on
    * @param transaction The transaction request to sign and send
    */
-  signAndSendTransaction(network: NetworkName, transaction: TransactionRequest): Promise<TransactionReceipt>;
-} 
+  signAndSendTransaction(
+    network: NetworkName,
+    transaction: TransactionRequest,
+  ): Promise<TransactionReceipt>;
+}

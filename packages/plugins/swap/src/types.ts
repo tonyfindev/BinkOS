@@ -4,6 +4,8 @@ export interface SwapQuote {
   toToken: string;
   fromAmount: string;
   toAmount: string;
+  fromTokenDecimals: number;
+  toTokenDecimals: number;
   priceImpact: number;
   route: string[];
   estimatedGas: string;
@@ -14,6 +16,7 @@ export interface SwapQuote {
     value: string;
     gasLimit: string;
   };
+  slippage: number;
 }
 
 export interface SwapResult extends SwapQuote {
@@ -49,6 +52,12 @@ export interface ISwapProvider {
   getSupportedChains(): string[];
 
   /**
+   * Get the provider-specific prompt that helps guide the AI in using this provider effectively
+   * This is optional - if not implemented, no special prompt will be used
+   */
+  getPrompt?(): string;
+
+  /**
    * Get a quote for swapping tokens
    */
   getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote>;
@@ -67,7 +76,12 @@ export interface ISwapProvider {
    * @param amount The amount to approve
    * @param userAddress The address of the user who will approve
    */
-  buildApproveTransaction(token: string, spender: string, amount: string, userAddress: string): Promise<SwapTransaction>;
+  buildApproveTransaction(
+    token: string,
+    spender: string,
+    amount: string,
+    userAddress: string,
+  ): Promise<SwapTransaction>;
 
   /**
    * Check the allowance of a token for a spender
@@ -76,4 +90,4 @@ export interface ISwapProvider {
    * @param spender The address to check allowance for
    */
   checkAllowance(token: string, owner: string, spender: string): Promise<bigint>;
-} 
+}
