@@ -114,7 +114,10 @@ export class FourMemeProvider implements ISwapProvider {
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       // Check if either fromToken or toToken is BNB
-      if (params.fromToken !== CONSTANTS.BNB_ADDRESS && params.toToken !== CONSTANTS.BNB_ADDRESS) {
+      if (
+        params.fromToken.toLowerCase() !== CONSTANTS.BNB_ADDRESS.toLowerCase() &&
+        params.toToken.toLowerCase() !== CONSTANTS.BNB_ADDRESS.toLowerCase()
+      ) {
         throw new Error('One of the tokens must be BNB for FourMeme swaps');
       }
 
@@ -129,7 +132,9 @@ export class FourMemeProvider implements ISwapProvider {
           : ethers.parseUnits(params.amount, tokenOut.decimals);
 
       const needToken =
-        tokenIn.address === CONSTANTS.BNB_ADDRESS ? tokenOut.address : tokenIn.address;
+        tokenIn.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
+          ? tokenOut.address
+          : tokenIn.address;
 
       // Get token info from contract and convert to proper format
       const rawTokenInfo = await this.factory._tokenInfos(needToken);
@@ -159,7 +164,10 @@ export class FourMemeProvider implements ISwapProvider {
       let estimatedAmount = '0';
       let estimatedCost = '0';
 
-      if (params.type === 'input' && params.fromToken === CONSTANTS.BNB_ADDRESS) {
+      if (
+        params.type === 'input' &&
+        params.fromToken.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
+      ) {
         // Calculate estimated output amount using calcBuyAmount
         const estimatedTokens = await this.factory.calcBuyAmount(tokenInfo, amountIn || 0n);
         estimatedAmount = estimatedTokens.toString();
@@ -175,7 +183,10 @@ export class FourMemeProvider implements ISwapProvider {
         );
         value = amountIn?.toString() || '0';
         estimatedCost = amountIn?.toString() || '0';
-      } else if (params.type === 'input' && params.toToken === CONSTANTS.BNB_ADDRESS) {
+      } else if (
+        params.type === 'input' &&
+        params.toToken.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
+      ) {
         try {
           // For selling tokens, calculate estimated BNB output
           const estimatedBnb = await this.factory.calcSellCost(tokenInfo, amountIn || 0n);

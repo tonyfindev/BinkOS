@@ -148,9 +148,13 @@ export class OkxProvider implements ISwapProvider {
 
       // Convert BNB addresses to OKX format
       const tokenInAddress =
-        tokenIn.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKX_BNB_ADDRESS : tokenIn.address;
+        tokenIn.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
+          ? CONSTANTS.OKX_BNB_ADDRESS
+          : tokenIn.address;
       const tokenOutAddress =
-        tokenOut.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKX_BNB_ADDRESS : tokenOut.address;
+        tokenOut.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
+          ? CONSTANTS.OKX_BNB_ADDRESS
+          : tokenOut.address;
 
       const now = new Date();
 
