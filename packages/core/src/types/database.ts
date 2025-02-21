@@ -25,7 +25,7 @@ export interface UserEntity {
 export interface MessageEntity {
   id?: UUID;
   content: string;
-  messageType?: "human" | "ai";
+  messageType?: 'human' | 'ai';
   userId?: UUID;
   threadId?: UUID;
   metadata?: { [key: string]: any };

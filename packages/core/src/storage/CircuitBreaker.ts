@@ -1,7 +1,7 @@
-export type CircuitBreakerState = "CLOSED" | "OPEN" | "HALF_OPEN";
+export type CircuitBreakerState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
 
 export class CircuitBreaker {
-  private state: CircuitBreakerState = "CLOSED";
+  private state: CircuitBreakerState = 'CLOSED';
   private failureCount = 0;
   private lastFailureTime?: number;
   private halfOpenSuccesses = 0;
@@ -15,7 +15,7 @@ export class CircuitBreaker {
       failureThreshold?: number;
       resetTimeout?: number;
       halfOpenMaxAttempts?: number;
-    } = {}
+    } = {},
   ) {
     this.failureThreshold = config.failureThreshold ?? 5;
     this.resetTimeout = config.resetTimeout ?? 60000;
@@ -23,19 +23,19 @@ export class CircuitBreaker {
   }
 
   async execute<T>(operation: () => Promise<T>): Promise<T> {
-    if (this.state === "OPEN") {
+    if (this.state === 'OPEN') {
       if (Date.now() - (this.lastFailureTime || 0) > this.resetTimeout) {
-        this.state = "HALF_OPEN";
+        this.state = 'HALF_OPEN';
         this.halfOpenSuccesses = 0;
       } else {
-        throw new Error("Circuit breaker is OPEN");
+        throw new Error('Circuit breaker is OPEN');
       }
     }
 
     try {
       const result = await operation();
 
-      if (this.state === "HALF_OPEN") {
+      if (this.state === 'HALF_OPEN') {
         this.halfOpenSuccesses++;
         if (this.halfOpenSuccesses >= this.halfOpenMaxAttempts) {
           this.reset();
@@ -53,18 +53,18 @@ export class CircuitBreaker {
     this.failureCount++;
     this.lastFailureTime = Date.now();
 
-    if (this.state !== "OPEN" && this.failureCount >= this.failureThreshold) {
-      this.state = "OPEN";
+    if (this.state !== 'OPEN' && this.failureCount >= this.failureThreshold) {
+      this.state = 'OPEN';
     }
   }
 
   private reset(): void {
-    this.state = "CLOSED";
+    this.state = 'CLOSED';
     this.failureCount = 0;
     this.lastFailureTime = undefined;
   }
 
-  getState(): "CLOSED" | "OPEN" | "HALF_OPEN" {
+  getState(): 'CLOSED' | 'OPEN' | 'HALF_OPEN' {
     return this.state;
   }
 }

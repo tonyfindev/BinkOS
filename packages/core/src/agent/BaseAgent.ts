@@ -65,4 +65,4 @@ export abstract class BaseAgent implements IAgent {
   abstract getWallet(): IWallet;
   abstract getNetworks(): NetworksConfig['networks'];
   abstract registerDatabase(db: DatabaseAdapter): Promise<void>;
-} 
+}

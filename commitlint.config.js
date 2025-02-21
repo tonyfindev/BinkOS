@@ -28,5 +28,21 @@ module.exports = {
         'test',
       ],
     ],
+    'scope-enum': [
+      2,
+      'always',
+      [
+        'core',
+        'providers',
+        'plugins',
+        'examples',
+        'pancakeswap',
+        'okx',
+        'birdeye',
+        'token',
+        'swap',
+        'conflict',
+      ],
+    ],
   },
 };
