@@ -136,6 +136,10 @@ export class OkxProvider implements ISwapProvider {
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      if (params.type === 'output') {
+        throw new Error('OKX does not support output swaps');
+      }
+
       const [tokenIn, tokenOut] = await Promise.all([
         this.getToken(params.fromToken),
         this.getToken(params.toToken),
@@ -163,6 +167,8 @@ export class OkxProvider implements ISwapProvider {
       const slippageOKX = Number(params.slippage) / 100 || 0.1;
 
       const path = `/api/v5/dex/aggregator/swap?amount=${amountIn}&chainId=${this.chainId}&fromTokenAddress=${tokenInAddress}&toTokenAddress=${tokenOutAddress}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
+
+      console.log('🤖 OKX Path', path);
 
       const headers = this.generateApiHeaders(path, isoString);
 
