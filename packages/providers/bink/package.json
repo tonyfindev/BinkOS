@@ -1,5 +1,5 @@
 {
-  "name": "@binkai/birdeye-provider",
+  "name": "@binkai/bink-provider",
   "version": "0.0.11",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@binkai/core": "workspace:*",
-    "@binkai/token-plugin": "workspace:*",
+    "@binkai/knowledge-plugin": "workspace:*",
     "axios": "^1.6.7",
     "zod": "^3.22.4"
   },

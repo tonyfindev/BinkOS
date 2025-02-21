@@ -1,10 +1,7 @@
 import { ethers } from 'ethers';
 import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
-import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
-import { OkxProvider } from '@binkai/okx-provider';
-import { TokenPlugin } from '@binkai/token-plugin';
-import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { FourMemeProvider } from '@binkai/four-meme-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -74,6 +71,7 @@ async function main() {
     },
     network,
   );
+
   console.log('✓ Wallet created\n');
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
@@ -84,8 +82,6 @@ async function main() {
     {
       model: 'gpt-4o',
       temperature: 0,
-      systemPrompt:
-        'You are a BINK AI agent. You are able to perform swaps and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a swap.',
     },
     wallet,
     networks,
@@ -96,32 +92,14 @@ async function main() {
   console.log('🔄 Initializing swap plugin...');
   const swapPlugin = new SwapPlugin();
 
-  console.log('🔍 Initializing token plugin...');
-  const tokenPlugin = new TokenPlugin();
-
-  // Create Birdeye provider with API key
-  const birdeye = new BirdeyeProvider({
-    apiKey: settings.get('BIRDEYE_API_KEY'),
-  });
-
-  // Configure the plugin with supported chains
-  await tokenPlugin.initialize({
-    defaultChain: 'bnb',
-    providers: [birdeye],
-    supportedChains: ['solana', 'bnb'],
-  });
-  console.log('✓ Token plugin initialized\n');
-
   // Create providers with proper chain IDs
-  const pancakeswap = new PancakeSwapProvider(provider, 56);
-
-  const okx = new OkxProvider(provider, 56);
+  const fourMeme = new FourMemeProvider(provider, 56);
 
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [okx],
+    providers: [fourMeme],
     supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
@@ -131,32 +109,25 @@ async function main() {
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
 
-  console.log('🔌 Registering token plugin with agent...');
-  await agent.registerPlugin(tokenPlugin);
-  console.log('✓ Plugin registered\n');
-
-  // Example 1: Buy with exact input amount on BNB Chain
-  console.log(
-    '💱 Example 1: Buy BINK from exactly 0.0001 BNB on PancakeSwap with 0.5% slippage on bnb chain.',
-  );
-  const result1 = await agent.execute({
+  console.log('💱 Example 1: Buy SAFUFOUR');
+  const inputResult = await agent.execute({
     input: `
-      Buy BINK from exactly 0.0001 BNB on PancakeSwap with 0.5% slippage on bnb chain.
+      Buy 0.0001 BNB to SAFUFOUR on FourMeme bnb chain with 10 % slippage.
+      Use the following token addresses:
+      SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
     `,
   });
-  console.log('✓ Swap result:', result1, '\n');
+  console.log('✓ Swap result (input):', inputResult, '\n');
 
-  // Example 2: Sell with exact output amount on BNB Chain
-  console.log(
-    '💱 Example 2: Sell exactly 20 BINK to BNB on PancakeSwap with 0.5% slippage on bnb chain.',
-  );
-  const result2 = await agent.execute({
+  console.log('💱 Example 2: Sell SAFUFOUR');
+  const outputResult = await agent.execute({
     input: `
-      Sell exactly 20 BINK to BNB on PancakeSwap with 0.5% slippage on bnb chain.
+      Sell 100 SAFUFOUR on FourMeme bnb chain with 10 % slippage.
+      Use the following token addresses:
+      SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
     `,
   });
-
-  console.log('✓ Swap result:', result2, '\n');
+  console.log('✓ Swap result (input):', outputResult, '\n');
 
   // Get plugin information
   const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
