@@ -1,5 +1,5 @@
 {
-  "name": "@binkai/four-meme-provider",
+  "name": "@binkai/debridge-provider",
   "version": "0.0.15",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,8 +16,12 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@binkai/swap-plugin": "workspace:*",
-    "ethers": "^6.0.0"
+    "@binkai/bridge-plugin": "workspace:*",
+    "@solana/web3.js": "^1.98.0",
+    "axios": "^1.7.9",
+    "ethers": "^6.0.0",
+    "graphql-request": "5.0.0",
+    "viem": "1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

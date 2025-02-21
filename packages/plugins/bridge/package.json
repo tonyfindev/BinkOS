@@ -1,5 +1,5 @@
 {
-  "name": "@binkai/four-meme-provider",
+  "name": "@binkai/bridge-plugin",
   "version": "0.0.15",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,8 +16,11 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@binkai/swap-plugin": "workspace:*",
-    "ethers": "^6.0.0"
+    "@binkai/core": "workspace:*",
+    "@langchain/core": "^0.3.32",
+    "@solana/web3.js": "^1.98.0",
+    "ethers": "^6.0.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
