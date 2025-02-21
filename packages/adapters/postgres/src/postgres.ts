@@ -357,10 +357,10 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
       const { rows } = await this.pool.query(
         `SELECT * FROM messages 
          WHERE user_id = $1 AND ${this.getSoftDeleteCondition()}
-         ORDER BY created_at ASC LIMIT $2`,
+         ORDER BY created_at DESC LIMIT $2`,
         [userId, take || 10],
       );
-      return rows;
+      return rows.reverse();
     }, 'getMessagesByUserId');
   }
 
@@ -401,10 +401,10 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
       const { rows } = await this.pool.query(
         `SELECT * FROM messages 
          WHERE thread_id = $1 AND ${this.getSoftDeleteCondition()}
-         ORDER BY created_at ASC LIMIT $2`,
+         ORDER BY created_at DESC LIMIT $2`,
         [threadId, take || 10],
       );
-      return rows;
+      return rows.reverse();
     }, 'getMessagesByThreadId');
   }
 
