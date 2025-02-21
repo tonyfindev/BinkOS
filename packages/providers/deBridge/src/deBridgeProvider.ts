@@ -102,7 +102,7 @@ export class deBridgeProvider implements IBridgeProvider {
     return {
       to: quote.fromChain === 'solana' ? dstChainTokenOutRecipient : data.tx.to,
       data: dataTx,
-      value: BigInt(data.tx.value),
+      value: quote.fromChain === 'solana' ? BigInt(srcChainTokenInAmount) : BigInt(data.tx.value),
       gasLimit: BigInt(700000), // solana not needed gas limit
     };
   }
