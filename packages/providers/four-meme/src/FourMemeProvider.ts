@@ -126,9 +126,6 @@ export class FourMemeProvider implements ISwapProvider {
       const amountIn =
         params.type === 'input' ? ethers.parseUnits(params.amount, tokenIn.decimals) : undefined;
 
-      const amountOut =
-        params.type === 'input' ? undefined : ethers.parseUnits(params.amount, tokenOut.decimals);
-
       const needToken =
         params.type === 'input' && params.fromToken === CONSTANTS.BNB_ADDRESS
           ? params.toToken
@@ -136,6 +133,10 @@ export class FourMemeProvider implements ISwapProvider {
 
       // Get token info from contract and convert to proper format
       const rawTokenInfo = await this.factory._tokenInfos(needToken);
+
+      if (rawTokenInfo.status !== 0) {
+        throw new Error('Token is not launched');
+      }
 
       const tokenInfo = {
         base: rawTokenInfo.base,
@@ -209,8 +210,8 @@ export class FourMemeProvider implements ISwapProvider {
         fromTokenDecimals: tokenIn.decimals,
         toTokenDecimals: tokenOut.decimals,
         slippage: 10,
-        fromAmount: params.type === 'input' ? amountIn?.toString() || '0' : estimatedCost,
-        toAmount: params.type === 'input' ? estimatedAmount : amountOut?.toString() || '0',
+        fromAmount: ethers.formatUnits(amountIn?.toString() || '0', tokenIn.decimals),
+        toAmount: ethers.formatUnits(estimatedAmount, tokenOut.decimals),
         priceImpact: 0,
         route: ['four-meme'],
         estimatedGas: CONSTANTS.DEFAULT_GAS_LIMIT,
