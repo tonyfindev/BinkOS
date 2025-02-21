@@ -2,9 +2,6 @@ import { ethers } from 'ethers';
 import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
-import { VersionedTransaction } from '@solana/web3.js';
-import * as anchor from '@coral-xyz/anchor';
-import { NATIVE_MINT } from '@solana/spl-token';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
@@ -73,23 +70,17 @@ async function main() {
     network,
   );
 
-  const walletEvm = new Wallet(
-    {
-      seedPhrase: settings.get('WALLET_MNEMONIC_EVM') || '',
-      index: 0,
-    },
-    network,
-  );
-  console.log('🚀 ~ main ~ walletEvm:', walletEvm);
-
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
     {
       model: 'gpt-4o',
       temperature: 0,
+      // systemPrompt: `
+      // my bnb wallet: ${await wallet.getAddress('bnb')}
+      // my solana wallet : ${await wallet.getAddress('solana')}`
     },
-    walletEvm,
+    wallet,
     networks,
   );
   console.log('✓ Agent initialized\n');
@@ -115,13 +106,12 @@ async function main() {
   await agent.registerPlugin(bridgePlugin);
   console.log('✓ Plugin registered\n');
 
+  console.log('pk ', await wallet.getPrivateKey('bnb'));
+
   console.log('💱 Example 1:Bridge BNB to SOL on DeBridge Finance');
   const inputResult = await agent.execute({
     input: `
-      Bridge 0.1 BNB to SOL
-      Use the following token addresses:
-      wallet: ${await walletEvm.getAddress('bnb')}
-      wallet receive : ${wallet.getPublicKey('solana')}
+      Bridge 0.005 BNB to SOL
     `,
   });
   console.log('✓ Bridge result (input):', inputResult, '\n');

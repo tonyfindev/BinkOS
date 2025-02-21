@@ -80,7 +80,7 @@ export class deBridgeProvider implements IBridgeProvider {
     const srcChainRefundAddress = senderAddress;
     const allowedTaker =
       quote.fromChain === 'solana' ? Addresses.allowedTakerSOL : Addresses.allowedTakerBNB; // default debridge
-    const url = `https://deswap.debridge.finance/v1.0/dln/order/create-tx?srcChainId=${srcChainId}&srcChainTokenIn=${srcChainTokenIn}&srcChainTokenInAmount=${srcChainTokenInAmount}&dstChainId=${dstChainId}&dstChainTokenOut=${dstChainTokenOut}&dstChainTokenOutRecipient=${dstChainTokenOutRecipient}&senderAddress=${senderAddress}&srcChainOrderAuthorityAddress=${srcChainOrderAuthorityAddress}&referralCode=4850&srcChainRefundAddress=${srcChainRefundAddress}&dstChainOrderAuthorityAddress=${dstChainOrderAuthorityAddress}&enableEstimate=false&prependOperatingExpenses=true&additionalTakerRewardBps=0&allowedTaker=${allowedTaker}&deBridgeApp=DESWAP&ptp=false&tab=1739871311714`;
+    const url = `https://deswap.debridge.finance/v1.0/dln/order/create-tx?srcChainId=${srcChainId}&srcChainTokenIn=${srcChainTokenIn}&srcChainTokenInAmount=${srcChainTokenInAmount}&dstChainId=${dstChainId}&dstChainTokenOut=${dstChainTokenOut}&dstChainTokenOutRecipient=${dstChainTokenOutRecipient}&senderAddress=${senderAddress}&srcChainOrderAuthorityAddress=${srcChainOrderAuthorityAddress}&srcChainRefundAddress=${srcChainRefundAddress}&dstChainOrderAuthorityAddress=${dstChainOrderAuthorityAddress}&enableEstimate=false&prependOperatingExpenses=true&additionalTakerRewardBps=0&allowedTaker=${allowedTaker}&deBridgeApp=DESWAP&ptp=false&tab=1739871311714`;
 
     const response = await axios.get(url);
 
@@ -100,10 +100,10 @@ export class deBridgeProvider implements IBridgeProvider {
     }
 
     return {
-      to: quote.fromChain === 'solana' ? dstChainTokenOutRecipient : Addresses.deBridgeContract,
+      to: quote.fromChain === 'solana' ? dstChainTokenOutRecipient : data.tx.to,
       data: dataTx,
-      value: BigInt(srcChainTokenInAmount),
-      gasLimit: BigInt(300000), // solana not needed gas limit
+      value: BigInt(data.tx.value),
+      gasLimit: BigInt(700000), // solana not needed gas limit
     };
   }
 

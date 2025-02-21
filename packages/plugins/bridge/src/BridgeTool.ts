@@ -83,8 +83,8 @@ export class BridgeTool extends BaseTool {
     return z.object({
       fromChain: z.string().describe('The chain to bridge from'),
       toChain: z.string().describe('The chain to bridge to'),
-      wallet: z.string().describe('The wallet address to bridge'),
-      walletReceive: z.string().describe('The wallet receive address'),
+      //   wallet: z.string().describe('The wallet address to bridge'),
+      //   walletReceive: z.string().describe('The wallet receive address'),
       fromToken: z.string().describe('The token address to bridge from'),
       //token: z.string().describe('The token address or symbol to bridge'),
       toToken: z.string().describe('The token address to bridge to on the destination chain'),
@@ -92,16 +92,16 @@ export class BridgeTool extends BaseTool {
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
-      chain: z
-        .enum(supportedChains as [string, ...string[]])
-        .default(this.defaultChain)
-        .describe('The blockchain to execute the bridge on'),
-      provider: z
-        .enum(providers as [string, ...string[]])
-        .optional()
-        .describe(
-          'The DEX provider to use for the bridge. If not specified, the best rate will be found',
-        ),
+      //   chain: z
+      //     .enum(supportedChains as [string, ...string[]])
+      //     .default(this.defaultChain)
+      //     .describe('The blockchain to execute the bridge on'),
+      //   provider: z
+      //     .enum(providers as [string, ...string[]])
+      //     .optional()
+      //     .describe(
+      //       'The DEX provider to use for the bridge. If not specified, the best rate will be found',
+      //     ),
       slippage: z
         .number()
         .optional()
@@ -169,7 +169,6 @@ export class BridgeTool extends BaseTool {
             toToken,
             amount,
             type: amountType,
-            chain = this.defaultChain,
             provider: preferredProvider,
             slippage = this.defaultSlippage,
             //wallet, // wallet
@@ -177,14 +176,14 @@ export class BridgeTool extends BaseTool {
           } = args;
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();
-          const userAddress = await wallet.getAddress(chain);
-          console.log('🚀 ~ BridgeTool ~ func: ~ userAddress:', userAddress);
+          const fromWalletAddress = await wallet.getAddress(fromChain);
+          const toWalletAddress = await wallet.getAddress(toChain);
 
           // Validate chain is supported
           const supportedChains = this.getSupportedChains();
-          if (!supportedChains.includes(chain)) {
+          if (!supportedChains.includes(fromChain)) {
             throw new Error(
-              `Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`,
+              `Chain ${fromChain} is not supported. Supported chains: ${supportedChains.join(', ')}`,
             );
           }
 
@@ -196,8 +195,8 @@ export class BridgeTool extends BaseTool {
             amount, // amount
             type: amountType, // type
             slippage, // slippage
-            wallet: userAddress, // wallet
-            walletReceive, // walletReceive
+            wallet: fromWalletAddress, // wallet
+            walletReceive: toWalletAddress, // walletReceive
           };
           console.log('🚀 ~ BridgeTool ~ func: ~ bridgeParams:', bridgeParams);
 
@@ -207,23 +206,23 @@ export class BridgeTool extends BaseTool {
           if (preferredProvider) {
             selectedProvider = this.registry.getProvider(preferredProvider);
             // Validate provider supports the chain
-            if (!selectedProvider.getSupportedChains().includes(chain)) {
-              throw new Error(`Provider ${preferredProvider} does not support chain ${chain}`);
+            if (!selectedProvider.getSupportedChains().includes(fromChain)) {
+              throw new Error(`Provider ${preferredProvider} does not support chain ${fromChain}`);
             }
             quote = await selectedProvider.getQuote(bridgeParams);
           } else {
             const bestQuote = await this.findBestQuote({
               ...bridgeParams,
-              chain,
+              chain: fromChain,
             });
             selectedProvider = bestQuote.provider;
             quote = bestQuote.quote;
           }
 
           // Build bridge transaction
-          const bridgeTx = await selectedProvider.buildBridgeTransaction(quote, userAddress);
+          const bridgeTx = await selectedProvider.buildBridgeTransaction(quote, fromWalletAddress);
           console.log('🚀 ~ BridgeTool ~ func: ~ bridgeTx:', bridgeTx);
-          const receipt = await wallet.signAndSendTransaction(chain, bridgeTx);
+          const receipt = await wallet.signAndSendTransaction(fromChain, bridgeTx);
 
           // Wait for transaction to be mined
           const finalReceipt = await receipt?.wait();
@@ -237,10 +236,15 @@ export class BridgeTool extends BaseTool {
             transactionHash: finalReceipt?.hash,
             priceImpact: quote.priceImpact,
             type: quote.type,
-            chain,
+            fromChain,
+            toChain,
           });
         } catch (error) {
           console.error('🚀 ~ BridgeTool ~ func: ~ error:', error);
+          return JSON.stringify({
+            status: 'error',
+            message: error,
+          });
         }
       },
     });
