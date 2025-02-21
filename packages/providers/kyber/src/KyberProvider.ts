@@ -12,7 +12,7 @@ const CONSTANTS = {
   APPROVE_GAS_LIMIT: '50000',
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
   BNB_ADDRESS: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-  OKX_BNB_ADDRESS: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  KYBER_BNB_ADDRESS: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
   KYBER_API_BASE: 'https://aggregator-api.kyberswap.com/bsc/',
 } as const;
 
@@ -119,14 +119,14 @@ export class KyberProvider implements ISwapProvider {
           ? Math.floor(Number(params.amount) * 10 ** sourceToken.decimals)
           : undefined;
 
-      // Convert BNB addresses to OKX format if needed
+      // Convert BNB addresses to KYBER format if needed
       const sourceAddress =
         sourceToken.address === CONSTANTS.BNB_ADDRESS
-          ? CONSTANTS.OKX_BNB_ADDRESS
+          ? CONSTANTS.KYBER_BNB_ADDRESS
           : sourceToken.address;
       const destinationAddress =
         destinationToken.address === CONSTANTS.BNB_ADDRESS
-          ? CONSTANTS.OKX_BNB_ADDRESS
+          ? CONSTANTS.KYBER_BNB_ADDRESS
           : destinationToken.address;
 
       // Fetch optimal swap route
