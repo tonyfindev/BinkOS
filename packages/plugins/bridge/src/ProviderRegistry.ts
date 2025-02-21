@@ -15,13 +15,17 @@ export class ProviderRegistry {
     return provider;
   }
 
-  getProviderNames(): string[] { 
+  getProviderNames(): string[] {
     return Array.from(this.providers.keys());
   }
 
+  getProviders(): IBridgeProvider[] {
+    return Array.from(this.providers.values());
+  }
+
   getProvidersByChain(chain: string): IBridgeProvider[] {
-    return Array.from(this.providers.values()).filter(provider => 
-      provider.getSupportedChains().includes(chain)
+    return Array.from(this.providers.values()).filter(provider =>
+      provider.getSupportedChains().includes(chain),
     );
   }
-} 
+}

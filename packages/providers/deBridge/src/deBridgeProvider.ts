@@ -23,16 +23,34 @@ export class deBridgeProvider implements IBridgeProvider {
   }
 
   getPrompt(): string {
-    return `If you are using deBridge, You can use BNB with address ${Tokens.BNB}, and you can use solana with address ${Tokens.SOL}`;
+    return `If you are using deBridge, You can use BNB with address ${Tokens.BNB}, and you can use solana with address ${Tokens.SOL}. Only bridge native token include BNB and SOL.`;
   }
 
   async getQuote(params: BridgeParams): Promise<BridgeQuote> {
+    // Validate fromToken is native token
+    if (
+      (params.fromChain === 'bnb' && params.fromToken !== Tokens.BNB) ||
+      (params.fromChain === 'solana' && params.fromToken !== Tokens.SOL)
+    ) {
+      throw new Error('Only native tokens (BNB and SOL) are supported as source tokens');
+    }
+
+    // Validate toToken is native token
+    if (
+      (params.toChain === 'bnb' && params.toToken !== Tokens.BNB) ||
+      (params.toChain === 'solana' && params.toToken !== Tokens.SOL)
+    ) {
+      throw new Error('Only native tokens (BNB and SOL) are supported as destination tokens');
+    }
+
     return Promise.resolve({
       amount: params.amount,
       fromChain: params.fromChain,
       toChain: params.toChain,
-      fromToken: params.token,
-      toToken: params.token,
+      fromToken: params.fromToken,
+      fromTokenDecimals: params.fromChain === 'solana' ? 9 : 18,
+      toToken: params.toToken,
+      toTokenDecimals: params.toChain === 'solana' ? 9 : 18,
       type: params.type,
       slippage: 0,
       priceImpact: 0,

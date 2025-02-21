@@ -118,7 +118,7 @@ async function main() {
   console.log('💱 Example 1:Bridge BNB to SOL on DeBridge Finance');
   const inputResult = await agent.execute({
     input: `
-      Bridge 0.1 BNB to SOL on DeBridge Finance
+      Bridge 0.1 BNB to SOL
       Use the following token addresses:
       wallet: ${await walletEvm.getAddress('bnb')}
       wallet receive : ${wallet.getPublicKey('solana')}

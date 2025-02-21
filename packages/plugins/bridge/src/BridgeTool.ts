@@ -28,7 +28,7 @@ export class BridgeTool extends BaseTool {
   registerProvider(provider: IBridgeProvider): void {
     this.registry.registerProvider(provider);
     // Add provider's supported chains
-    provider.getSupportedChains().forEach((chain) => {
+    provider.getSupportedChains().forEach(chain => {
       this.supportedChains.add(chain);
     });
   }
@@ -40,7 +40,22 @@ export class BridgeTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const chains = Array.from(this.supportedChains).join(', ');
-    return `Bridge tokens using various DEX providers (${providers}). Supports chains: ${chains}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
+    let description = `Bridge tokens using various DEX providers (${providers}). Supports chains: ${chains}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
+
+    // Add provider-specific prompts if they exist
+    const providerPrompts = this.registry
+      .getProviders()
+      .map((provider: IBridgeProvider) => {
+        const prompt = provider.getPrompt?.();
+        return prompt ? `${provider.getName()}: ${prompt}` : null;
+      })
+      .filter((prompt: unknown): prompt is string => !!prompt);
+
+    if (providerPrompts.length > 0) {
+      description += '\n\nProvider-specific information:\n' + providerPrompts.join('\n');
+    }
+
+    return description;
   }
 
   private getSupportedChains(): string[] {
@@ -51,7 +66,7 @@ export class BridgeTool extends BaseTool {
     const providerChains = Array.from(this.supportedChains);
 
     // Return intersection of agent networks and provider supported chains
-    return agentNetworks.filter((network) => providerChains.includes(network));
+    return agentNetworks.filter(network => providerChains.includes(network));
   }
 
   getSchema(): z.ZodObject<any> {
@@ -70,15 +85,9 @@ export class BridgeTool extends BaseTool {
       toChain: z.string().describe('The chain to bridge to'),
       wallet: z.string().describe('The wallet address to bridge'),
       walletReceive: z.string().describe('The wallet receive address'),
-      fromToken: z
-        .string()
-        .describe('The token address or symbol to bridge from'),
-      token: z.string().describe('The token address or symbol to bridge'),
-      toToken: z
-        .string()
-        .describe(
-          'The token address or symbol to bridge to on the destination chain',
-        ),
+      fromToken: z.string().describe('The token address to bridge from'),
+      //token: z.string().describe('The token address or symbol to bridge'),
+      toToken: z.string().describe('The token address to bridge to on the destination chain'),
       amount: z.string().describe('The amount of tokens to bridge'),
       amountType: z
         .enum(['input', 'output'])
@@ -96,9 +105,7 @@ export class BridgeTool extends BaseTool {
       slippage: z
         .number()
         .optional()
-        .describe(
-          `Maximum slippage percentage allowed (default: ${this.defaultSlippage})`,
-        ),
+        .describe(`Maximum slippage percentage allowed (default: ${this.defaultSlippage})`),
     });
   }
 
@@ -112,23 +119,18 @@ export class BridgeTool extends BaseTool {
     }
 
     const quotes = await Promise.all(
-      providers.map(async (provider) => {
+      providers.map(async provider => {
         try {
           const quote = await provider.getQuote(params);
           return { provider, quote };
         } catch (error) {
-          console.warn(
-            `Failed to get quote from ${provider.getName()}:`,
-            error,
-          );
+          console.warn(`Failed to get quote from ${provider.getName()}:`, error);
           return null;
         }
       }),
     );
 
-    const validQuotes = quotes.filter(
-      (q): q is NonNullable<typeof q> => q !== null,
-    );
+    const validQuotes = quotes.filter((q): q is NonNullable<typeof q> => q !== null);
     if (validQuotes.length === 0) {
       throw new Error('No valid quotes found');
     }
@@ -137,13 +139,17 @@ export class BridgeTool extends BaseTool {
     return validQuotes.reduce((best, current) => {
       if (params.type === 'input') {
         // For input amount, find highest output amount
-        const bestAmount = BigInt(best.quote.amount);
-        const currentAmount = BigInt(current.quote.amount);
+        const bestAmount = BigInt(Number(best.quote.amount) * 10 ** best.quote.fromTokenDecimals);
+        const currentAmount = BigInt(
+          Number(current.quote.amount) * 10 ** current.quote.fromTokenDecimals,
+        );
         return currentAmount > bestAmount ? current : best;
       } else {
         // For output amount, find lowest input amount
-        const bestAmount = BigInt(best.quote.amount);
-        const currentAmount = BigInt(current.quote.amount);
+        const bestAmount = BigInt(Number(best.quote.amount) * 10 ** best.quote.toTokenDecimals);
+        const currentAmount = BigInt(
+          Number(current.quote.amount) * 10 ** current.quote.toTokenDecimals,
+        );
         return currentAmount < bestAmount ? current : best;
       }
     }, validQuotes[0]);
@@ -154,12 +160,13 @@ export class BridgeTool extends BaseTool {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async (args) => {
+      func: async args => {
         try {
           const {
             fromChain,
             toChain,
-            token,
+            fromToken,
+            toToken,
             amount,
             type: amountType,
             chain = this.defaultChain,
@@ -171,29 +178,28 @@ export class BridgeTool extends BaseTool {
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();
           const userAddress = await wallet.getAddress(chain);
-          console.log("🚀 ~ BridgeTool ~ func: ~ userAddress:", userAddress)
+          console.log('🚀 ~ BridgeTool ~ func: ~ userAddress:', userAddress);
 
           // Validate chain is supported
           const supportedChains = this.getSupportedChains();
           if (!supportedChains.includes(chain)) {
             throw new Error(
-              `Chain ${chain} is not supported. Supported chains: ${supportedChains.join(
-                ', ',
-              )}`,
+              `Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`,
             );
           }
 
           const bridgeParams: BridgeParams = {
             fromChain, // fromChain
             toChain, // toChain
-            token, // token
+            fromToken: fromToken, // token
+            toToken: toToken, // token
             amount, // amount
             type: amountType, // type
             slippage, // slippage
             wallet: userAddress, // wallet
             walletReceive, // walletReceive
           };
-          console.log("🚀 ~ BridgeTool ~ func: ~ bridgeParams:", bridgeParams)
+          console.log('🚀 ~ BridgeTool ~ func: ~ bridgeParams:', bridgeParams);
 
           let selectedProvider: IBridgeProvider;
           let quote: BridgeQuote;
@@ -202,9 +208,7 @@ export class BridgeTool extends BaseTool {
             selectedProvider = this.registry.getProvider(preferredProvider);
             // Validate provider supports the chain
             if (!selectedProvider.getSupportedChains().includes(chain)) {
-              throw new Error(
-                `Provider ${preferredProvider} does not support chain ${chain}`,
-              );
+              throw new Error(`Provider ${preferredProvider} does not support chain ${chain}`);
             }
             quote = await selectedProvider.getQuote(bridgeParams);
           } else {
@@ -217,12 +221,9 @@ export class BridgeTool extends BaseTool {
           }
 
           // Build bridge transaction
-          const bridgeTx = await selectedProvider.buildBridgeTransaction(
-            quote,
-            userAddress,
-          );
-          console.log("🚀 ~ BridgeTool ~ func: ~ bridgeTx:", bridgeTx)
-          const receipt = await wallet.signAndSendTransaction(chain, bridgeTx );
+          const bridgeTx = await selectedProvider.buildBridgeTransaction(quote, userAddress);
+          console.log('🚀 ~ BridgeTool ~ func: ~ bridgeTx:', bridgeTx);
+          const receipt = await wallet.signAndSendTransaction(chain, bridgeTx);
 
           // Wait for transaction to be mined
           const finalReceipt = await receipt?.wait();
