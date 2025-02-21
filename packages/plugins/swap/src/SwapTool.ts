@@ -239,7 +239,6 @@ export class SwapTool extends BaseTool {
               quote.fromAmount,
               userAddress,
             );
-
             console.log('🤖 Approving...');
             // Sign and send approval transaction
             const approveReceipt = await wallet.signAndSendTransaction(chain, {
@@ -263,7 +262,6 @@ export class SwapTool extends BaseTool {
             value: BigInt(swapTx.value),
             gasLimit: BigInt(swapTx.gasLimit),
           });
-
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
 

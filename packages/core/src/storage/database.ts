@@ -1,9 +1,5 @@
-import type {
-  UserEntity,
-  MessageEntity,
-  UUID,
-} from "../types/database";
-import { CircuitBreaker } from "./CircuitBreaker";
+import type { UserEntity, MessageEntity, UUID } from '../types/database';
+import { CircuitBreaker } from './CircuitBreaker';
 
 /**
  * An abstract class representing a database adapter for managing various entities
@@ -89,10 +85,7 @@ export abstract class DatabaseAdapter<DB = any> {
   //    * @throws Will throw an error if the circuit breaker is open or if the operation fails
   //    * @protected
   //    */
-  protected async withCircuitBreaker<T>(
-    operation: () => Promise<T>,
-    context: string
-  ): Promise<T> {
+  protected async withCircuitBreaker<T>(operation: () => Promise<T>, context: string): Promise<T> {
     try {
       return await this.circuitBreaker.execute(operation);
     } catch (error) {

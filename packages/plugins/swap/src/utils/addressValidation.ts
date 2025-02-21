@@ -29,4 +29,4 @@ export function validateTokenAddress(address: string, chain: string): boolean {
   }
   // EVM chains (eth, bnb, etc.)
   return isValidEVMAddress(address);
-} 
+}

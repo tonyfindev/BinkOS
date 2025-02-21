@@ -1,7 +1,6 @@
-import { ISwapProvider, SwapQuote, SwapResult, SwapParams } from '@binkai/swap-plugin';
+import { ISwapProvider, SwapQuote, SwapParams } from '@binkai/swap-plugin';
 import { ethers, Contract, Interface, Provider } from 'ethers';
-import CryptoJS from 'crypto-js';
-
+import { TokenManagerHelper2ABI } from './abis/TokenManagerHelper2';
 // Enhanced interface with better type safety
 interface TokenInfo extends Token {
   // Inherits all Token properties and maintains DRY principle
@@ -12,8 +11,9 @@ const CONSTANTS = {
   DEFAULT_GAS_LIMIT: '350000',
   APPROVE_GAS_LIMIT: '50000',
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
-  BNB_ADDRESS: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-  OKX_BNB_ADDRESS: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+  FOUR_MEME_FACTORY_V3: '0xF251F83e40a78868FcfA3FA4599Dad6494E46034',
+  FOUR_MEME_FACTORY_V2: '0x5c952063c7fc8610FFDB798152D69F0B9550762b',
+  BNB_ADDRESS: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
 } as const;
 
 export interface SwapTransaction {
@@ -35,35 +35,37 @@ enum ChainId {
   ETH = 1,
 }
 
-export class OkxProvider implements ISwapProvider {
+export class FourMemeProvider implements ISwapProvider {
   private provider: Provider;
   private chainId: ChainId;
+  private factory: any;
   // Improved token caching with TTL
   private tokenCache: Map<string, { token: Token; timestamp: number }> = new Map();
   private readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
   // Enhanced quote storage with expiration
   private quotes: Map<string, { quote: SwapQuote; expiresAt: number }> = new Map();
-  private readonly apiKey: string;
-  private readonly secretKey: string;
-  private readonly passphrase: string;
-  private readonly projectId: string;
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
     this.provider = provider;
     this.chainId = chainId;
-    this.apiKey = process.env.OKX_API_KEY || '';
-    this.secretKey = process.env.OKX_SECRET_KEY || '';
-    this.passphrase = process.env.OKX_PASSPHRASE || '';
-    this.projectId = process.env.OKX_PROJECT || '';
+    this.factory = new Contract(
+      CONSTANTS.FOUR_MEME_FACTORY_V2,
+      TokenManagerHelper2ABI,
+      this.provider,
+    );
   }
 
   getName(): string {
-    return 'okx';
+    return 'four-meme';
   }
 
   getSupportedChains(): string[] {
-    return ['bnb', 'ethereum'];
+    return ['bnb'];
+  }
+
+  getPrompt(): string {
+    return `If you are using FourMeme, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
   }
 
   private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
@@ -109,75 +111,95 @@ export class OkxProvider implements ISwapProvider {
     return token;
   }
 
-  /**
-   * Generates OKX API signature and headers
-   * @param path API endpoint path
-   * @param timestamp ISO timestamp
-   * @returns Headers for OKX API request
-   */
-  private generateApiHeaders(path: string, timestamp: string): HeadersInit {
-    const signature = CryptoJS.enc.Base64.stringify(
-      CryptoJS.HmacSHA256(timestamp + 'GET' + path, this.secretKey),
-    );
-
-    return {
-      'OK-ACCESS-KEY': this.apiKey,
-      'OK-ACCESS-SIGN': signature,
-      'OK-ACCESS-TIMESTAMP': timestamp,
-      'OK-ACCESS-PASSPHRASE': this.passphrase,
-      'OK-ACCESS-PROJECT': this.projectId,
-    };
-  }
-
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      // Check if either fromToken or toToken is BNB
+      if (params.fromToken !== CONSTANTS.BNB_ADDRESS && params.toToken !== CONSTANTS.BNB_ADDRESS) {
+        throw new Error('One of the tokens must be BNB for FourMeme swaps');
+      }
+
       const [tokenIn, tokenOut] = await Promise.all([
         this.getToken(params.fromToken),
         this.getToken(params.toToken),
       ]);
 
       const amountIn =
-        params.type === 'input'
-          ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
-          : undefined;
+        params.type === 'input' ? ethers.parseUnits(params.amount, tokenIn.decimals) : undefined;
 
-      // Convert BNB addresses to OKX format
-      const tokenInAddress =
-        tokenIn.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKX_BNB_ADDRESS : tokenIn.address;
-      const tokenOutAddress =
-        tokenOut.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKX_BNB_ADDRESS : tokenOut.address;
+      const amountOut =
+        params.type === 'input' ? undefined : ethers.parseUnits(params.amount, tokenOut.decimals);
 
-      const now = new Date();
+      const needToken =
+        params.type === 'input' && params.fromToken === CONSTANTS.BNB_ADDRESS
+          ? params.toToken
+          : params.fromToken;
 
-      const isoString = now.toISOString();
+      // Get token info from contract and convert to proper format
+      const rawTokenInfo = await this.factory._tokenInfos(needToken);
 
-      const slippageOKX = Number(params.slippage) / 100 || 0.1;
+      const tokenInfo = {
+        base: rawTokenInfo.base,
+        quote: rawTokenInfo.quote,
+        template: rawTokenInfo.template,
+        totalSupply: rawTokenInfo.totalSupply,
+        maxOffers: rawTokenInfo.maxOffers,
+        maxRaising: rawTokenInfo.maxRaising,
+        launchTime: rawTokenInfo.launchTime,
+        offers: rawTokenInfo.offers,
+        funds: rawTokenInfo.funds,
+        lastPrice: rawTokenInfo.lastPrice,
+        K: rawTokenInfo.K,
+        T: rawTokenInfo.T,
+        status: rawTokenInfo.status,
+      };
 
-      const chainId = this.chainId;
+      let txData;
+      let value = '0';
+      let estimatedAmount = '0';
+      let estimatedCost = '0';
 
-      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn}&chainId=${chainId}&fromTokenAddress=${tokenInAddress}&toTokenAddress=${tokenOutAddress}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
+      if (params.type === 'input' && params.fromToken === CONSTANTS.BNB_ADDRESS) {
+        // Calculate estimated output amount using calcBuyAmount
+        const estimatedTokens = await this.factory.calcBuyAmount(tokenInfo, amountIn || 0n);
+        estimatedAmount = estimatedTokens.toString();
 
-      const headers = this.generateApiHeaders(path, isoString);
+        // Use the specific function signature for buyTokenAMAP with 3 parameters
+        txData = this.factory.interface.encodeFunctionData(
+          'buyTokenAMAP(address,uint256,uint256)',
+          [
+            params.toToken, // token to buy
+            amountIn || 0n, // funds to spend
+            0n, // minAmount (set to 0 for now - could add slippage protection)
+          ],
+        );
+        value = amountIn?.toString() || '0';
+        estimatedCost = amountIn?.toString() || '0';
+      } else if (params.type === 'input' && params.toToken === CONSTANTS.BNB_ADDRESS) {
+        try {
+          // For selling tokens, calculate estimated BNB output
+          const estimatedBnb = await this.factory.calcSellCost(tokenInfo, amountIn || 0n);
+          estimatedAmount = estimatedBnb.toString();
 
-      const response = await fetch(`https://www.okx.com${path}`, {
-        method: 'GET',
-        headers,
-      });
-
-      const data = await response.json();
-
-      if (!data.data || data.data.length === 0) {
-        throw new Error('No data returned from OKX');
+          // Use the specific function signature for sellToken with 2 parameters
+          txData = this.factory.interface.encodeFunctionData('sellToken(address,uint256)', [
+            params.fromToken,
+            amountIn || 0n,
+          ]);
+          estimatedCost = '0';
+        } catch (error) {
+          console.error('Error calculating sell cost:', error);
+          // Provide a fallback estimation based on current price
+          if (tokenInfo.lastPrice && tokenInfo.lastPrice > 0n) {
+            estimatedAmount = (
+              ((amountIn || 0n) * tokenInfo.lastPrice) /
+              ethers.parseUnits('1', 18)
+            ).toString();
+          } else {
+            throw new Error('Unable to calculate sell price - insufficient liquidity');
+          }
+        }
       }
 
-      const inputAmount = data.data[0].routerResult.fromTokenAmount;
-      const outputAmount = data.data[0].routerResult.toTokenAmount;
-      const route = data.data[0].routerResult.route;
-      const estimatedGas = data.data[0].routerResult.estimatedGas;
-      const priceImpact = Number(data.data[0].routerResult.priceImpactPercentage);
-      const tx = data.data[0].tx;
-
-      // Generate a unique quote ID
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
 
       const quote: SwapQuote = {
@@ -186,34 +208,22 @@ export class OkxProvider implements ISwapProvider {
         toToken: params.toToken,
         fromTokenDecimals: tokenIn.decimals,
         toTokenDecimals: tokenOut.decimals,
-        slippage: params.slippage,
-        // fromAmount: params.type === 'input'
-        //   ? params.amount
-        //   : ethers.formatUnits(inputAmount.toString(), tokenIn.decimals),
-        // toAmount: params.type === 'output'
-        //   ? params.amount
-        //   : ethers.formatUnits(outputAmount.toString(), tokenOut.decimals),
-        fromAmount: inputAmount,
-        toAmount: outputAmount,
-        priceImpact,
-        route: route,
-        estimatedGas: estimatedGas,
+        slippage: 10,
+        fromAmount: params.type === 'input' ? amountIn?.toString() || '0' : estimatedCost,
+        toAmount: params.type === 'input' ? estimatedAmount : amountOut?.toString() || '0',
+        priceImpact: 0,
+        route: ['four-meme'],
+        estimatedGas: CONSTANTS.DEFAULT_GAS_LIMIT,
         type: params.type,
         tx: {
-          to: tx?.to || '',
-          data: tx?.data || '',
-          value: tx?.value || '0',
-          gasLimit: tx?.gas || '350000',
+          to: CONSTANTS.FOUR_MEME_FACTORY_V2,
+          data: txData,
+          value,
+          gasLimit: CONSTANTS.DEFAULT_GAS_LIMIT,
         },
       };
 
-      // Store the quote and trade for later use
       this.quotes.set(quoteId, { quote, expiresAt: Date.now() + CONSTANTS.QUOTE_EXPIRY });
-
-      // Delete quote after 5 minutes
-      setTimeout(() => {
-        this.quotes.delete(quoteId);
-      }, CONSTANTS.QUOTE_EXPIRY);
 
       return quote;
     } catch (error: unknown) {
