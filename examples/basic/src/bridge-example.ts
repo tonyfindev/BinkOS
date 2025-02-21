@@ -106,8 +106,6 @@ async function main() {
   await agent.registerPlugin(bridgePlugin);
   console.log('✓ Plugin registered\n');
 
-  console.log('pk ', await wallet.getPrivateKey('bnb'));
-
   console.log('💱 Example 1:Bridge BNB to SOL on DeBridge Finance');
   const inputResult = await agent.execute({
     input: `
