@@ -124,12 +124,12 @@ export class FourMemeProvider implements ISwapProvider {
       ]);
 
       const amountIn =
-        params.type === 'input' ? ethers.parseUnits(params.amount, tokenIn.decimals) : undefined;
+        params.type === 'input'
+          ? ethers.parseUnits(params.amount, tokenIn.decimals)
+          : ethers.parseUnits(params.amount, tokenOut.decimals);
 
       const needToken =
-        params.type === 'input' && params.fromToken === CONSTANTS.BNB_ADDRESS
-          ? params.toToken
-          : params.fromToken;
+        tokenIn.address === CONSTANTS.BNB_ADDRESS ? tokenOut.address : tokenIn.address;
 
       // Get token info from contract and convert to proper format
       const rawTokenInfo = await this.factory._tokenInfos(needToken);

@@ -144,7 +144,7 @@ export class OkxProvider implements ISwapProvider {
       const amountIn =
         params.type === 'input'
           ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
-          : undefined;
+          : Math.floor(Number(params.amount) * 10 ** tokenOut.decimals);
 
       // Convert BNB addresses to OKX format
       const tokenInAddress =
