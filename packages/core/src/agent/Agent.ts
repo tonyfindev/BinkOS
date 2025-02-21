@@ -37,11 +37,15 @@ export class Agent extends BaseAgent {
     });
 
     this.initializeDefaultTools();
-    this.initializeExecutor();
   }
 
   getContext(): AgentContext {
     return this.context;
+  }
+
+  async initialize() {
+    await this.initializeContext();
+    await this.initializeExecutor();
   }
 
   private initializeDefaultTools(): void {

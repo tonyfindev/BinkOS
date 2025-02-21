@@ -54,6 +54,7 @@ async function main() {
     wallet,
     networks,
   );
+  await agent.initialize();
   console.log('✓ Agent initialized\n');
 
   // Initialize database
