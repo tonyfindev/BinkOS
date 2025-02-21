@@ -134,6 +134,10 @@ export class FourMemeProvider implements ISwapProvider {
       // Get token info from contract and convert to proper format
       const rawTokenInfo = await this.factory._tokenInfos(needToken);
 
+      if (rawTokenInfo.status !== 0) {
+        throw new Error('Token is not launched');
+      }
+
       const tokenInfo = {
         base: rawTokenInfo.base,
         quote: rawTokenInfo.quote,
