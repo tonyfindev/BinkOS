@@ -22,6 +22,10 @@ export class deBridgeProvider implements IBridgeProvider {
     return ['bnb', 'solana'];
   }
 
+  getPrompt(): string {
+    return `If you are using deBridge, You can use BNB with address ${Tokens.BNB}, and you can use solana with address ${Tokens.SOL}`;
+  }
+
   async getQuote(params: BridgeParams): Promise<BridgeQuote> {
     return Promise.resolve({
       amount: params.amount,
@@ -45,7 +49,10 @@ export class deBridgeProvider implements IBridgeProvider {
   ): Promise<BridgeTransaction> {
     const srcChainId = quote.fromChain === 'solana' ? ChainID.SOLANA : ChainID.BNB;
     const srcChainTokenIn = quote.fromChain === 'solana' ? Tokens.SOL : Tokens.BNB; // sol
-    const srcChainTokenInAmount = quote.fromChain === 'solana' ? Number(quote.amount) * 10 ** 9 : Number(quote.amount) * 10 ** 18;
+    const srcChainTokenInAmount =
+      quote.fromChain === 'solana'
+        ? Number(quote.amount) * 10 ** 9
+        : Number(quote.amount) * 10 ** 18;
     const dstChainId = quote.toChain === 'bnb' ? ChainID.BNB : ChainID.SOLANA;
     const dstChainTokenOut = quote.toChain === 'bnb' ? Tokens.BNB : Tokens.SOL; // bnb
     const dstChainTokenOutRecipient = quote.walletReceive;
@@ -53,7 +60,8 @@ export class deBridgeProvider implements IBridgeProvider {
     const srcChainOrderAuthorityAddress = senderAddress;
     const dstChainOrderAuthorityAddress = quote.walletReceive;
     const srcChainRefundAddress = senderAddress;
-    const allowedTaker = quote.fromChain === 'solana' ? Addresses.allowedTakerSOL : Addresses.allowedTakerBNB; // default debridge
+    const allowedTaker =
+      quote.fromChain === 'solana' ? Addresses.allowedTakerSOL : Addresses.allowedTakerBNB; // default debridge
     const url = `https://deswap.debridge.finance/v1.0/dln/order/create-tx?srcChainId=${srcChainId}&srcChainTokenIn=${srcChainTokenIn}&srcChainTokenInAmount=${srcChainTokenInAmount}&dstChainId=${dstChainId}&dstChainTokenOut=${dstChainTokenOut}&dstChainTokenOutRecipient=${dstChainTokenOutRecipient}&senderAddress=${senderAddress}&srcChainOrderAuthorityAddress=${srcChainOrderAuthorityAddress}&referralCode=4850&srcChainRefundAddress=${srcChainRefundAddress}&dstChainOrderAuthorityAddress=${dstChainOrderAuthorityAddress}&enableEstimate=false&prependOperatingExpenses=true&additionalTakerRewardBps=0&allowedTaker=${allowedTaker}&deBridgeApp=DESWAP&ptp=false&tab=1739871311714`;
 
     const response = await axios.get(url);
@@ -66,15 +74,15 @@ export class deBridgeProvider implements IBridgeProvider {
       const versionedTx = VersionedTransaction.deserialize(txBuffer);
       // add blockhash to versionedTx
       const { blockhash } = await connection.getLatestBlockhash();
-      versionedTx.message.recentBlockhash = blockhash; 
+      versionedTx.message.recentBlockhash = blockhash;
       dataTx = Buffer.from(versionedTx.serialize()).toString('base64');
       // Update blockhash!
     } else {
-        dataTx = data.tx.data;
+      dataTx = data.tx.data;
     }
-  
+
     return {
-      to:quote.fromChain === 'solana'? dstChainTokenOutRecipient:Addresses.deBridgeContract,
+      to: quote.fromChain === 'solana' ? dstChainTokenOutRecipient : Addresses.deBridgeContract,
       data: dataTx,
       value: BigInt(srcChainTokenInAmount),
       gasLimit: BigInt(300000), // solana not needed gas limit
@@ -85,4 +93,3 @@ export class deBridgeProvider implements IBridgeProvider {
     return Promise.resolve();
   }
 }
-
