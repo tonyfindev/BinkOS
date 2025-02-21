@@ -1,0 +1,22 @@
+{
+  "name": "@binkai/debridge-provider",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@binkai/bridge-plugin": "workspace:*",
+    "axios": "^1.7.9",
+    "ethers": "^6.0.0",
+    "graphql-request": "5.0.0",
+    "viem": "1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.0.0"
+  }
+}
