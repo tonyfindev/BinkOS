@@ -15,7 +15,6 @@ export interface AgentConfig {
 
 export interface AgentContext {
   user?: UserEntity | null;
-  threadId?: UUID | undefined;
 }
 
 export interface AgentExecuteParams {

@@ -59,12 +59,12 @@ async function main() {
 
   // Initialize database
   console.log('🗄️ Initializing database...');
+  let db: PostgresDatabaseAdapter | undefined;
   if (settings.get('POSTGRES_URL')) {
-    await agent.registerDatabase(
-      new PostgresDatabaseAdapter({
-        connectionString: settings.get('POSTGRES_URL'),
-      }),
-    );
+    db = new PostgresDatabaseAdapter({
+      connectionString: settings.get('POSTGRES_URL'),
+    });
+    await agent.registerDatabase(db);
   }
 
   // Create Bink provider with API key
@@ -94,19 +94,18 @@ async function main() {
 
   // console.log('Query result:', result2);
 
-  // // TEST inject threadId
-  // const threadId = agent.getContext()?.threadId;
-  // const result3 = await agent.execute({
-  //   input: 'compare 9.11 vs 9.9',
-  //   threadId,
-  // });
-  // console.log('Query result:', result3);
+  // // TEST delete threadId
+  // await db?.clearThreadMessages('5083596c-a0d1-4588-8a4f-dddc7ae2137e');
+
+  const result3 = await agent.execute({
+    input: 'compare 9.11 vs 9.9',
+    threadId: '5083596c-a0d1-4588-8a4f-dddc7ae2137e',
+  });
+  console.log('Query result:', result3);
 
   // Test clear user messages
   // await agent.clearUserMessages(await wallet.getAddress('bnb'));
 
-  // TEST reset threadId
-  // const threadId2 = await agent.resetThread();
   const result4 = await agent.execute({
     input: 'compare 10.11 vs 10.9',
     threadId: '5083596c-a0d1-4588-8a4f-dddc7ae2137e',

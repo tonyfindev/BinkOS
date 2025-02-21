@@ -115,33 +115,18 @@ export class Agent extends BaseAgent {
     }
   }
 
-  async initializeContext(): Promise<AgentContext | null> {
-    if (!this.db) return null;
-    const networkNames = Object.keys(this.networks);
-    if (networkNames.length) {
-      const defaultNetwork = networkNames[0];
-      const address = await this.wallet?.getAddress(defaultNetwork);
-      if (!address) throw new Error('Not found wallet address');
-      // Get or create user
-      const user = await this.db.createAndGetUserByAddress({ address });
-      this.context.user = user;
-      if (user?.id) {
-        // Create default thread for this user
-        const threadId = await this.db?.createThreadIfNotExists();
-        this.context.threadId = threadId;
-      }
-      return this.context;
-    }
-    return null;
-  }
-
-  async resetThread(): Promise<UUID | undefined> {
+  async initializeContext(): Promise<AgentContext> {
     if (this.db) {
-      // Create new thread
-      const threadId = await this.db?.createThreadIfNotExists();
-      this.context.threadId = threadId;
-      return threadId;
+      const networkNames = Object.keys(this.networks);
+      if (networkNames.length) {
+        const defaultNetwork = networkNames[0];
+        const address = await this.wallet?.getAddress(defaultNetwork);
+        if (!address) throw new Error('Not found wallet address');
+        const user = await this.db.createAndGetUserByAddress({ address });
+        this.context.user = user;
+      }
     }
+    return this.context;
   }
 
   private async createExecutor(): Promise<AgentExecutor> {
@@ -168,29 +153,6 @@ export class Agent extends BaseAgent {
       agent: await agent,
       tools: this.getTools(),
     });
-  }
-
-  async clearUserMessages(address?: string): Promise<boolean> {
-    if (this.db) {
-      if (address) {
-        // Get user by address and clear their messages
-        const user = await this.db.getUserByAddress(address);
-        if (user?.id) {
-          return await this.db.clearMessagesByUserId(user.id);
-        }
-      } else if (this.context?.user?.id) {
-        // Use context user if no address provided
-        return await this.db.clearMessagesByUserId(this.context.user.id);
-      }
-    }
-    return false;
-  }
-
-  async clearThreadMessages(threadId: UUID): Promise<boolean> {
-    if (this.db) {
-      return await this.db.clearMessagesByThreadId(threadId);
-    }
-    return false;
   }
 
   public async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
@@ -224,30 +186,41 @@ export class Agent extends BaseAgent {
         input: commandOrParams,
         chat_history: history,
       });
+      this.db?.createMessage({
+        content: commandOrParams,
+        userId: this.context?.user?.id,
+        messageType: 'human',
+      });
+      this.db?.createMessage({
+        content: result.output,
+        userId: this.context?.user?.id,
+        messageType: 'ai',
+      });
+      return result.output;
     } else {
       const messages: BaseMessage[] = commandOrParams.history ?? [];
       result = await this.executor.invoke({
         input: commandOrParams.input,
         chat_history: history,
       });
+      this.db?.createMessage(
+        {
+          content: commandOrParams.input,
+          userId: this.context?.user?.id,
+          messageType: 'human',
+        },
+        commandOrParams?.threadId,
+      );
+      this.db?.createMessage(
+        {
+          content: result.output,
+          userId: this.context?.user?.id,
+          messageType: 'ai',
+        },
+        commandOrParams?.threadId,
+      );
+      return result.output;
     }
-    this.db?.createMessage(
-      {
-        content: typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input,
-        userId: this.context?.user?.id,
-        messageType: 'human',
-      },
-      this.context?.threadId,
-    );
-    this.db?.createMessage(
-      {
-        content: result.output,
-        userId: this.context?.user?.id,
-        messageType: 'ai',
-      },
-      this.context?.threadId,
-    );
-    return result.output;
   }
 
   public getWallet(): IWallet {

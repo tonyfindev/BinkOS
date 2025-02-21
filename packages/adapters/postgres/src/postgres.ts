@@ -287,6 +287,18 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
     }
   }
 
+  async clearUserMessages(address: string): Promise<boolean> {
+    const user = await this.getUserByAddress(address);
+    if (user?.id) {
+      return await this.clearMessagesByUserId(user.id);
+    }
+    return false;
+  }
+
+  async clearThreadMessages(threadId: UUID): Promise<boolean> {
+    return await this.clearMessagesByThreadId(threadId);
+  }
+
   async createMessages(messages: MessageEntity[], threadId?: UUID): Promise<boolean> {
     return this.wrapDatabase(async () => {
       try {
