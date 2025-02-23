@@ -92,12 +92,12 @@ export class SwapTool extends BaseTool {
         .enum(supportedChains as [string, ...string[]])
         .default(this.defaultChain)
         .describe('The blockchain to execute the swap on'),
-      provider: z
-        .enum(providers as [string, ...string[]])
-        .optional()
-        .describe(
-          'The DEX provider to use for the swap. If not specified, the best rate will be found',
-        ),
+      // provider: z
+      //   .enum(providers as [string, ...string[]])
+      //   .optional()
+      //   .describe(
+      //     'The DEX provider to use for the swap. If not specified, the best rate will be found',
+      //   ),
       slippage: z
         .number()
         .optional()
@@ -138,13 +138,19 @@ export class SwapTool extends BaseTool {
     return validQuotes.reduce((best, current) => {
       if (params.type === 'input') {
         // For input amount, find highest output amount
-        const bestAmount = BigInt(best.quote.toAmount);
-        const currentAmount = BigInt(current.quote.toAmount);
+        const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toTokenDecimals);
+        const currentAmount = BigInt(
+          Number(current.quote.toAmount) * 10 ** current.quote.toTokenDecimals,
+        );
         return currentAmount > bestAmount ? current : best;
       } else {
         // For output amount, find lowest input amount
-        const bestAmount = BigInt(best.quote.fromAmount);
-        const currentAmount = BigInt(current.quote.fromAmount);
+        const bestAmount = BigInt(
+          Number(best.quote.fromAmount) * 10 ** best.quote.fromTokenDecimals,
+        );
+        const currentAmount = BigInt(
+          Number(current.quote.fromAmount) * 10 ** current.quote.fromTokenDecimals,
+        );
         return currentAmount < bestAmount ? current : best;
       }
     }, validQuotes[0]);
@@ -164,7 +170,7 @@ export class SwapTool extends BaseTool {
             amount,
             amountType,
             chain = this.defaultChain,
-            provider: preferredProvider,
+            // provider: preferredProvider, // DISABLED FOR NOW
             slippage = this.defaultSlippage,
           } = args;
 
@@ -200,6 +206,8 @@ export class SwapTool extends BaseTool {
 
           let selectedProvider: ISwapProvider;
           let quote: SwapQuote;
+
+          let preferredProvider = null; // TODO: Implement preferred provider
 
           if (preferredProvider) {
             selectedProvider = this.registry.getProvider(preferredProvider);

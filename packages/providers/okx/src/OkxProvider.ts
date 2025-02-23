@@ -14,6 +14,7 @@ const CONSTANTS = {
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
   BNB_ADDRESS: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
   OKX_BNB_ADDRESS: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+  OKX_APPROVE_ADDRESS: '0x2c34A2Fb1d0b4f55de51E1d0bDEfaDDce6b7cDD6',
 } as const;
 
 export interface SwapTransaction {
@@ -64,6 +65,10 @@ export class OkxProvider implements ISwapProvider {
 
   getSupportedChains(): string[] {
     return ['bnb', 'ethereum'];
+  }
+
+  getPrompt(): string {
+    return `If you are using Okx, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
   }
 
   private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
@@ -131,6 +136,10 @@ export class OkxProvider implements ISwapProvider {
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      if (params.type === 'output') {
+        throw new Error('OKX does not support output swaps');
+      }
+
       const [tokenIn, tokenOut] = await Promise.all([
         this.getToken(params.fromToken),
         this.getToken(params.toToken),
@@ -139,13 +148,17 @@ export class OkxProvider implements ISwapProvider {
       const amountIn =
         params.type === 'input'
           ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
-          : undefined;
+          : Math.floor(Number(params.amount) * 10 ** tokenOut.decimals);
 
       // Convert BNB addresses to OKX format
       const tokenInAddress =
-        tokenIn.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKX_BNB_ADDRESS : tokenIn.address;
+        tokenIn.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
+          ? CONSTANTS.OKX_BNB_ADDRESS
+          : tokenIn.address;
       const tokenOutAddress =
-        tokenOut.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKX_BNB_ADDRESS : tokenOut.address;
+        tokenOut.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
+          ? CONSTANTS.OKX_BNB_ADDRESS
+          : tokenOut.address;
 
       const now = new Date();
 
@@ -153,9 +166,9 @@ export class OkxProvider implements ISwapProvider {
 
       const slippageOKX = Number(params.slippage) / 100 || 0.1;
 
-      const chainId = this.chainId;
+      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn}&chainId=${this.chainId}&fromTokenAddress=${tokenInAddress}&toTokenAddress=${tokenOutAddress}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
 
-      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn}&chainId=${chainId}&fromTokenAddress=${tokenInAddress}&toTokenAddress=${tokenOutAddress}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
+      console.log('🤖 OKX Path', path);
 
       const headers = this.generateApiHeaders(path, isoString);
 
@@ -172,7 +185,6 @@ export class OkxProvider implements ISwapProvider {
 
       const inputAmount = data.data[0].routerResult.fromTokenAmount;
       const outputAmount = data.data[0].routerResult.toTokenAmount;
-      const route = data.data[0].routerResult.route;
       const estimatedGas = data.data[0].routerResult.estimatedGas;
       const priceImpact = Number(data.data[0].routerResult.priceImpactPercentage);
       const tx = data.data[0].tx;
@@ -187,26 +199,19 @@ export class OkxProvider implements ISwapProvider {
         fromTokenDecimals: tokenIn.decimals,
         toTokenDecimals: tokenOut.decimals,
         slippage: params.slippage,
-        // fromAmount: params.type === 'input'
-        //   ? params.amount
-        //   : ethers.formatUnits(inputAmount.toString(), tokenIn.decimals),
-        // toAmount: params.type === 'output'
-        //   ? params.amount
-        //   : ethers.formatUnits(outputAmount.toString(), tokenOut.decimals),
-        fromAmount: inputAmount,
-        toAmount: outputAmount,
+        fromAmount: ethers.formatUnits(inputAmount.toString(), tokenIn.decimals),
+        toAmount: ethers.formatUnits(outputAmount.toString(), tokenOut.decimals),
         priceImpact,
-        route: route,
+        route: ['okx'],
         estimatedGas: estimatedGas,
         type: params.type,
         tx: {
           to: tx?.to || '',
           data: tx?.data || '',
           value: tx?.value || '0',
-          gasLimit: tx?.gas || '350000',
+          gasLimit: (tx.gas * 1.5).toString() || '350000',
         },
       };
-
       // Store the quote and trade for later use
       this.quotes.set(quoteId, { quote, expiresAt: Date.now() + CONSTANTS.QUOTE_EXPIRY });
 
@@ -259,7 +264,7 @@ export class OkxProvider implements ISwapProvider {
     ]);
 
     const data = erc20Interface.encodeFunctionData('approve', [
-      spender,
+      CONSTANTS.OKX_APPROVE_ADDRESS,
       ethers.parseUnits(amount, tokenInfo.decimals),
     ]);
 
@@ -277,6 +282,6 @@ export class OkxProvider implements ISwapProvider {
       ['function allowance(address owner, address spender) view returns (uint256)'],
       this.provider,
     );
-    return await erc20.allowance(owner, spender);
+    return await erc20.allowance(owner, CONSTANTS.OKX_APPROVE_ADDRESS);
   }
 }

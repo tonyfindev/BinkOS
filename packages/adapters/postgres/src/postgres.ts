@@ -194,7 +194,10 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
 
   async getUserById(userId: UUID): Promise<UserEntity | null> {
     return this.wrapDatabase(async () => {
-      const { rows } = await this.pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+      const { rows } = await this.pool.query(
+        `SELECT * FROM users WHERE id = $1 AND ${this.getSoftDeleteCondition()}`,
+        [userId],
+      );
       if (rows.length === 0) {
         console.debug('Account not found:', { userId });
         return null;
@@ -220,7 +223,7 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
             user.username || '',
             user.email || '',
             user.address || '',
-            user.avatarUrl || '',
+            user.avatar_url || '',
             JSON.stringify(user.metadata),
           ],
         );
@@ -264,7 +267,7 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
     }, 'createAndGetUserByAddress');
   }
 
-  private async createThreadIfNotExists(threadId?: UUID, title?: string): Promise<UUID> {
+  async createThreadIfNotExists(threadId?: UUID, title?: string): Promise<UUID> {
     if (!threadId) {
       const { rows } = await this.pool.query(
         'INSERT INTO threads (title) VALUES ($1) RETURNING id',
@@ -284,6 +287,18 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
     }
   }
 
+  async clearUserMessages(address: string): Promise<boolean> {
+    const user = await this.getUserByAddress(address);
+    if (user?.id) {
+      return await this.clearMessagesByUserId(user.id);
+    }
+    return false;
+  }
+
+  async clearThreadMessages(threadId: UUID): Promise<boolean> {
+    return await this.clearMessagesByThreadId(threadId);
+  }
+
   async createMessages(messages: MessageEntity[], threadId?: UUID): Promise<boolean> {
     return this.wrapDatabase(async () => {
       try {
@@ -301,13 +316,13 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
 
         // Flatten message data into values array
         messages.forEach(message => {
-          if (!message.userId) {
-            throw new Error('userId is required for message creation');
+          if (!message.user_id) {
+            throw new Error('user_id is required for message creation');
           }
           values.push(
             message.content,
-            message.userId,
-            message.messageType,
+            message.user_id,
+            message.message_type,
             JSON.stringify(message.metadata),
             thread_id || null,
           );
@@ -335,8 +350,8 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
            VALUES ($1, $2, $3, $4, $5)`,
           [
             message.content,
-            message.userId,
-            message.messageType,
+            message.user_id,
+            message.message_type,
             JSON.stringify(message.metadata),
             thread_id || null,
           ],
@@ -352,17 +367,96 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
   async getMessagesByUserId(userId: UUID, take?: number): Promise<MessageEntity[]> {
     return this.wrapDatabase(async () => {
       const { rows } = await this.pool.query(
-        'SELECT * FROM messages WHERE user_id = $1 ORDER BY created_at ASC LIMIT $2',
+        `SELECT * FROM messages 
+         WHERE user_id = $1 AND ${this.getSoftDeleteCondition()}
+         ORDER BY created_at DESC LIMIT $2`,
         [userId, take || 10],
       );
-      return rows;
+      return rows.reverse();
     }, 'getMessagesByUserId');
   }
 
   async getMessageById(messageId: UUID): Promise<MessageEntity | null> {
     return this.wrapDatabase(async () => {
-      const { rows } = await this.pool.query('SELECT * FROM messages WHERE id = $1', [messageId]);
+      const { rows } = await this.pool.query(
+        `SELECT * FROM messages WHERE id = $1 AND ${this.getSoftDeleteCondition()}`,
+        [messageId],
+      );
       return rows[0] || null;
     }, 'getMessageById');
+  }
+
+  private getSoftDeleteCondition(): string {
+    return 'deleted_at IS NULL';
+  }
+
+  private markAsDeleted(tableName: string, id: UUID): Promise<boolean> {
+    return this.wrapDatabase(async () => {
+      try {
+        await this.pool.query(
+          `UPDATE ${tableName} SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`,
+          [id],
+        );
+        return true;
+      } catch (error) {
+        console.error(`Error soft deleting ${tableName}:`, {
+          error: error instanceof Error ? error.message : String(error),
+          id,
+        });
+        return false;
+      }
+    }, `markAsDeleted${tableName}`);
+  }
+
+  async getMessagesByThreadId(threadId: UUID, take?: number): Promise<MessageEntity[]> {
+    return this.wrapDatabase(async () => {
+      const { rows } = await this.pool.query(
+        `SELECT * FROM messages 
+         WHERE thread_id = $1 AND ${this.getSoftDeleteCondition()}
+         ORDER BY created_at DESC LIMIT $2`,
+        [threadId, take || 10],
+      );
+      return rows.reverse();
+    }, 'getMessagesByThreadId');
+  }
+
+  async getUserByAddress(address: string): Promise<UserEntity | null> {
+    return this.wrapDatabase(async () => {
+      const { rows } = await this.pool.query(
+        `SELECT * FROM users WHERE address = $1 AND ${this.getSoftDeleteCondition()}`,
+        [address],
+      );
+
+      if (rows.length === 0) {
+        console.debug('User not found:', { address });
+        return null;
+      }
+
+      const user = rows[0];
+      return {
+        ...user,
+        metadata: typeof user.metadata === 'string' ? JSON.parse(user.metadata) : user.metadata,
+      };
+    }, 'getUserByAddress');
+  }
+
+  async clearMessagesByUserId(userId: UUID): Promise<boolean> {
+    return this.wrapDatabase(async () => {
+      await this.pool.query(
+        'UPDATE messages SET deleted_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND deleted_at IS NULL',
+        [userId],
+      );
+      return true;
+    }, 'clearMessagesByUserId');
+  }
+
+  async clearMessagesByThreadId(threadId: UUID): Promise<boolean> {
+    return this.wrapDatabase(async () => {
+      await this.pool.query(
+        'UPDATE messages SET deleted_at = CURRENT_TIMESTAMP WHERE thread_id = $1 AND deleted_at IS NULL',
+        [threadId],
+      );
+      return true;
+    }, 'clearMessagesByThreadId');
   }
 }
