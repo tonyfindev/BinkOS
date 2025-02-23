@@ -53,6 +53,9 @@ importers:
       '@binkai/knowledge-plugin':
         specifier: workspace:*
         version: link:../../packages/plugins/knowledge
+      '@binkai/kyber-provider':
+        specifier: workspace:*
+        version: link:../../packages/providers/kyber
       '@binkai/okx-provider':
         specifier: workspace:*
         version: link:../../packages/providers/okx
@@ -376,7 +379,6 @@ importers:
       typescript:
         specifier: ^5.0.0
         version: 5.7.3
-
   packages/providers/okx:
     dependencies:
       '@binkai/swap-plugin':
