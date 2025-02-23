@@ -1,8 +1,12 @@
 {
   "name": "@binkai/birdeye-provider",
-  "version": "0.0.18",
+  "version": "0.0.21",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bink-AI/BinkOS"
+  },
   "files": [
     "dist",
     "README.md",
