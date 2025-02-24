@@ -18,6 +18,11 @@ import {
   SwapRouter,
   V4Router,
 } from '@pancakeswap/smart-router';
+
+// Constants
+const WBNB_ADDRESS = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
+const GAS_BUFFER = ethers.parseEther('0.0001'); // ~0.0001 BNB for gas
+
 interface TokenInfo {
   address: `0x${string}`;
   decimals: number;
@@ -323,5 +328,77 @@ export class PancakeSwapProvider implements ISwapProvider {
     }
 
     return trade;
+  }
+
+  async checkBalance(
+    quote: SwapQuote,
+    userAddress: string,
+  ): Promise<{ isValid: boolean; message?: string }> {
+    try {
+      const tokenToCheck = quote.fromToken;
+      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromTokenDecimals);
+
+      // Add gas cost buffer for BNB swaps
+      const gasCostBuffer =
+        tokenToCheck.toLowerCase() === WBNB_ADDRESS.toLowerCase() ? GAS_BUFFER : 0n;
+
+      const formattedGasBuffer = ethers.formatEther(gasCostBuffer);
+
+      const totalRequired = requiredAmount + gasCostBuffer;
+
+      // Check BNB/WBNB balance
+      if (tokenToCheck.toLowerCase() === WBNB_ADDRESS.toLowerCase()) {
+        const balance = await this.provider.getBalance(userAddress);
+
+        if (balance < totalRequired) {
+          const formattedBalance = ethers.formatEther(balance);
+          const formattedRequired = ethers.formatEther(requiredAmount);
+          const formattedTotal = ethers.formatEther(totalRequired);
+          return {
+            isValid: false,
+            message: `Insufficient BNB balance. Required: ${formattedRequired} BNB (+ ~${formattedGasBuffer} BNB for gas = ${formattedTotal} BNB), Available: ${formattedBalance} BNB`,
+          };
+        }
+      } else {
+        // For other tokens, check ERC20 balance
+        const erc20 = new Contract(
+          tokenToCheck,
+          [
+            'function balanceOf(address) view returns (uint256)',
+            'function symbol() view returns (string)',
+          ],
+          this.provider,
+        );
+
+        const [balance, symbol] = await Promise.all([erc20.balanceOf(userAddress), erc20.symbol()]);
+
+        if (balance < requiredAmount) {
+          const formattedBalance = ethers.formatUnits(balance, quote.fromTokenDecimals);
+          const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromTokenDecimals);
+          return {
+            isValid: false,
+            message: `Insufficient ${symbol} balance. Required: ${formattedRequired} ${symbol}, Available: ${formattedBalance} ${symbol}`,
+          };
+        }
+
+        // If swapping tokens (not BNB), check if user has enough BNB for gas
+        const bnbBalance = await this.provider.getBalance(userAddress);
+        if (bnbBalance < GAS_BUFFER) {
+          const formattedBnbBalance = ethers.formatEther(bnbBalance);
+          return {
+            isValid: false,
+            message: `Insufficient BNB for gas fees. Required: ~0.01 BNB, Available: ${formattedBnbBalance} BNB`,
+          };
+        }
+      }
+
+      return { isValid: true };
+    } catch (error) {
+      console.error('Error checking balance:', error);
+      return {
+        isValid: false,
+        message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
   }
 }

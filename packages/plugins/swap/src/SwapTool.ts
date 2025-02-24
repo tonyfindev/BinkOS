@@ -239,6 +239,12 @@ export class SwapTool extends BaseTool {
 
           console.log('🤖 The selected provider is:', selectedProvider.getName());
 
+          // Check user's balance before proceeding
+          const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
+          if (!balanceCheck.isValid) {
+            throw new Error(balanceCheck.message || 'Insufficient balance for swap');
+          }
+
           // Build swap transaction
           const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
 
