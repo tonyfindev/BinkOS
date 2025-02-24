@@ -1,6 +1,6 @@
 {
   "name": "@binkai/pancakeswap-provider",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
@@ -20,6 +20,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "@binkai/core": "workspace:*",
     "@binkai/swap-plugin": "workspace:*",
     "@pancakeswap/sdk": "^5.8.10",
     "@pancakeswap/smart-router": "^7.0.2",

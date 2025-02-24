@@ -31,7 +31,7 @@ export class GetTokenInfoTool extends BaseTool {
   }
 
   getName(): string {
-    return 'getTokenInfo';
+    return 'get_token_info';
   }
 
   getDescription(): string {

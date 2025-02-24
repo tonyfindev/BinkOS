@@ -59,6 +59,13 @@ export class OkxProvider implements ISwapProvider {
     this.projectId = process.env.OKX_PROJECT || '';
   }
 
+  checkBalance(
+    quote: SwapQuote,
+    userAddress: string,
+  ): Promise<{ isValid: boolean; message?: string }> {
+    return Promise.resolve({ isValid: true });
+  }
+
   getName(): string {
     return 'okx';
   }

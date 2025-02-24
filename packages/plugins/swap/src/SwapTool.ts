@@ -92,12 +92,12 @@ export class SwapTool extends BaseTool {
         .enum(supportedChains as [string, ...string[]])
         .default(this.defaultChain)
         .describe('The blockchain to execute the swap on'),
-      // provider: z
-      //   .enum(providers as [string, ...string[]])
-      //   .optional()
-      //   .describe(
-      //     'The DEX provider to use for the swap. If not specified, the best rate will be found',
-      //   ),
+      provider: z
+        .enum(providers as [string, ...string[]])
+        .optional()
+        .describe(
+          'The DEX provider to use for the swap. If not specified, the best rate will be found',
+        ),
       slippage: z
         .number()
         .optional()
@@ -107,14 +107,13 @@ export class SwapTool extends BaseTool {
 
   private async findBestQuote(
     params: SwapParams & { chain: string },
+    userAddress: string,
   ): Promise<{ provider: ISwapProvider; quote: SwapQuote }> {
     // Validate chain is supported
     const providers = this.registry.getProvidersByChain(params.chain);
     if (providers.length === 0) {
       throw new Error(`No providers available for chain ${params.chain}`);
     }
-
-    const userAddress = await this.agent.getWallet().getAddress(params.chain);
 
     const quotes = await Promise.all(
       providers.map(async provider => {
@@ -170,7 +169,7 @@ export class SwapTool extends BaseTool {
             amount,
             amountType,
             chain = this.defaultChain,
-            // provider: preferredProvider, // DISABLED FOR NOW
+            provider: preferredProvider,
             slippage = this.defaultSlippage,
           } = args;
 
@@ -207,25 +206,49 @@ export class SwapTool extends BaseTool {
           let selectedProvider: ISwapProvider;
           let quote: SwapQuote;
 
-          let preferredProvider = null; // TODO: Implement preferred provider
-
           if (preferredProvider) {
-            selectedProvider = this.registry.getProvider(preferredProvider);
-            // Validate provider supports the chain
-            if (!selectedProvider.getSupportedChains().includes(chain)) {
-              throw new Error(`Provider ${preferredProvider} does not support chain ${chain}`);
+            try {
+              selectedProvider = this.registry.getProvider(preferredProvider);
+              // Validate provider supports the chain
+              if (!selectedProvider.getSupportedChains().includes(chain)) {
+                throw new Error(`Provider ${preferredProvider} does not support chain ${chain}`);
+              }
+              quote = await selectedProvider.getQuote(swapParams, userAddress);
+            } catch (error) {
+              console.warn(
+                `Failed to get quote from preferred provider ${preferredProvider}:`,
+                error,
+              );
+              console.log('🔄 Falling back to checking all providers for best quote...');
+              const bestQuote = await this.findBestQuote(
+                {
+                  ...swapParams,
+                  chain,
+                },
+                userAddress,
+              );
+              selectedProvider = bestQuote.provider;
+              quote = bestQuote.quote;
             }
-            quote = await selectedProvider.getQuote(swapParams, userAddress);
           } else {
-            const bestQuote = await this.findBestQuote({
-              ...swapParams,
-              chain,
-            });
+            const bestQuote = await this.findBestQuote(
+              {
+                ...swapParams,
+                chain,
+              },
+              userAddress,
+            );
             selectedProvider = bestQuote.provider;
             quote = bestQuote.quote;
           }
 
           console.log('🤖 The selected provider is:', selectedProvider.getName());
+
+          // Check user's balance before proceeding
+          const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
+          if (!balanceCheck.isValid) {
+            throw new Error(balanceCheck.message || 'Insufficient balance for swap');
+          }
 
           // Build swap transaction
           const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
