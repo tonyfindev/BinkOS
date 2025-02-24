@@ -115,9 +115,9 @@ export class FourMemeProvider implements ISwapProvider {
     return ['bnb'];
   }
 
-  getPrompt(): string {
-    return `If you are using FourMeme, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
-  }
+  // getPrompt(): string {
+  //   return `If you are using FourMeme, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
+  // }
 
   private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
     const erc20Interface = new Interface([

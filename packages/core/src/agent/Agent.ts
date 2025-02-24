@@ -10,6 +10,7 @@ import { BaseAgent } from './BaseAgent';
 import { IPlugin } from '../plugin/types';
 import { DatabaseAdapter } from '../storage';
 import { MessageEntity } from '../types';
+import { EVM_NATIVE_TOKEN_ADDRESS, SOL_NATIVE_TOKEN_ADDRESS } from '../network';
 
 export class Agent extends BaseAgent {
   private model: ChatOpenAI;
@@ -125,14 +126,19 @@ export class Agent extends BaseAgent {
   }
 
   private async createExecutor(): Promise<AgentExecutor> {
-    const supportedNetworkPrompt = `Available networks include: ${Object.keys(this.networks).join(
-      ', ',
-    )}`;
+    const requiredPrompt = `
+    Native token address: 
+    - EVM (${Object.values(this.networks)
+      .filter(network => network.type === 'evm')
+      .map(network => network.config.name)
+      .join(', ')}): ${EVM_NATIVE_TOKEN_ADDRESS}
+    - Solana: ${SOL_NATIVE_TOKEN_ADDRESS}
+    Available networks include: ${Object.keys(this.networks).join(', ')}`;
 
     const defaultSystemPrompt = `You are a helpful blockchain agent. You can help users interact with different blockchain networks.`;
 
     const prompt = ChatPromptTemplate.fromMessages([
-      ['system', `${this.config.systemPrompt ?? defaultSystemPrompt}\n${supportedNetworkPrompt}`],
+      ['system', `${this.config.systemPrompt ?? defaultSystemPrompt}\n${requiredPrompt}`],
       new MessagesPlaceholder('chat_history'),
       ['human', '{input}'],
       new MessagesPlaceholder('agent_scratchpad'),

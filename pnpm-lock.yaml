@@ -460,6 +460,9 @@ importers:
 
   packages/providers/pancakeswap:
     dependencies:
+      '@binkai/core':
+        specifier: workspace:*
+        version: link:../../core
       '@binkai/swap-plugin':
         specifier: workspace:*
         version: link:../../plugins/swap
