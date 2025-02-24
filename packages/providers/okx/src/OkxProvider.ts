@@ -59,13 +59,57 @@ export class OkxProvider implements ISwapProvider {
     this.projectId = process.env.OKX_PROJECT || '';
   }
 
-  checkBalance(
+  async checkBalance(
     quote: SwapQuote,
     userAddress: string,
   ): Promise<{ isValid: boolean; message?: string }> {
-    return Promise.resolve({ isValid: true });
-  }
+    try {
+      // For input swaps, check the fromToken balance
+      // For output swaps, we still need to check the fromToken as that's what user will spend
+      const tokenToCheck = quote.fromToken;
+      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromTokenDecimals);
 
+      // If the token is BNB, check native balance
+      if (tokenToCheck.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()) {
+        const balance = await this.provider.getBalance(userAddress);
+
+        if (balance < requiredAmount) {
+          const formattedBalance = ethers.formatUnits(balance, 18);
+          const formattedRequired = ethers.formatUnits(requiredAmount, 18);
+          return {
+            isValid: false,
+            message: `Insufficient BNB balance. Required: ${formattedRequired} BNB, Available: ${formattedBalance} BNB`,
+          };
+        }
+      } else {
+        // For other tokens, check ERC20 balance
+        const erc20 = new Contract(
+          tokenToCheck,
+          ['function balanceOf(address) view returns (uint256)'],
+          this.provider,
+        );
+        const balance = await erc20.balanceOf(userAddress);
+
+        if (balance < requiredAmount) {
+          const token = await this.getToken(tokenToCheck);
+          const formattedBalance = ethers.formatUnits(balance, token.decimals);
+          const formattedRequired = ethers.formatUnits(requiredAmount, token.decimals);
+          return {
+            isValid: false,
+            message: `Insufficient ${token.symbol} balance. Required: ${formattedRequired} ${token.symbol}, Available: ${formattedBalance} ${token.symbol}`,
+          };
+        }
+      }
+
+      return { isValid: true };
+    } catch (error) {
+      console.error('Error checking balance:', error);
+      return {
+        isValid: false,
+        message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
   getName(): string {
     return 'okx';
   }

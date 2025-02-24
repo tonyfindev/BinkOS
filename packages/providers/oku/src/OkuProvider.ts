@@ -12,8 +12,8 @@ const CONSTANTS = {
   APPROVE_GAS_LIMIT: '50000',
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
   BNB_ADDRESS: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-  KYBER_BNB_ADDRESS: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-  KYBER_API_BASE: 'https://aggregator-api.kyberswap.com/bsc/',
+  OKU_BNB_ADDRESS: '0x0000000000000000000000000000000000000000',
+  OKU_API_PATH: 'https://canoe.v2.icarus.tools/market/zeroex/swap_quote',
 } as const;
 
 export interface SwapTransaction {
@@ -35,7 +35,7 @@ enum ChainId {
   ETH = 1,
 }
 
-export class KyberProvider implements ISwapProvider {
+export class OkuProvider implements ISwapProvider {
   private provider: Provider;
   private chainId: ChainId;
   // Token cache with expiration time
@@ -51,7 +51,7 @@ export class KyberProvider implements ISwapProvider {
   }
 
   getName(): string {
-    return 'kyber';
+    return 'oku';
   }
 
   getSupportedChains(): string[] {
@@ -59,7 +59,50 @@ export class KyberProvider implements ISwapProvider {
   }
 
   getPrompt(): string {
-    return `If you are using KyberSwap, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
+    return `If you are using OkuSwap, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
+  }
+
+  private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
+    const erc20Interface = new Interface([
+      'function decimals() view returns (uint8)',
+      'function symbol() view returns (string)',
+    ]);
+
+    const contract = new Contract(tokenAddress, erc20Interface, this.provider);
+    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
+
+    return {
+      address: tokenAddress.toLowerCase() as `0x${string}`,
+      decimals: Number(decimals),
+      symbol,
+      chainId: this.chainId,
+    };
+  }
+
+  /**
+   * Retrieves token information with caching and TTL
+   * @param tokenAddress The address of the token
+   * @returns Promise<Token>
+   */
+  private async getToken(tokenAddress: string): Promise<Token> {
+    const now = Date.now();
+    const cached = this.tokenCache.get(tokenAddress);
+
+    if (cached && now - cached.timestamp < this.CACHE_TTL) {
+      return cached.token;
+    }
+
+    const info = await this.getTokenInfo(tokenAddress);
+    console.log('🤖 Token info', info);
+    const token = {
+      chainId: info.chainId,
+      address: info.address.toLowerCase() as `0x${string}`,
+      decimals: info.decimals,
+      symbol: info.symbol,
+    };
+
+    this.tokenCache.set(tokenAddress, { token, timestamp: now });
+    return token;
   }
 
   async checkBalance(
@@ -113,167 +156,106 @@ export class KyberProvider implements ISwapProvider {
       };
     }
   }
-
-  private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
-    const erc20Interface = new Interface([
-      'function decimals() view returns (uint8)',
-      'function symbol() view returns (string)',
-    ]);
-
-    const contract = new Contract(tokenAddress, erc20Interface, this.provider);
-    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
-
-    return {
-      address: tokenAddress.toLowerCase() as `0x${string}`,
-      decimals: Number(decimals),
-      symbol,
-      chainId: this.chainId,
-    };
-  }
-
-  /**
-   * Retrieves token information with caching and TTL
-   * @param tokenAddress The address of the token
-   * @returns Promise<Token>
-   */
-  private async getToken(tokenAddress: string): Promise<Token> {
-    const now = Date.now();
-    const cached = this.tokenCache.get(tokenAddress);
-
-    if (cached && now - cached.timestamp < this.CACHE_TTL) {
-      return cached.token;
-    }
-
-    const info = await this.getTokenInfo(tokenAddress);
-    console.log('🤖 Token info', info);
-    const token = {
-      chainId: info.chainId,
-      address: info.address.toLowerCase() as `0x${string}`,
-      decimals: info.decimals,
-      symbol: info.symbol,
-    };
-
-    this.tokenCache.set(tokenAddress, { token, timestamp: now });
-    return token;
-  }
-
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
-      // Fetch input and output token information
-      const [sourceToken, destinationToken] = await Promise.all([
+      if (params.type === 'output') {
+        throw new Error('OKU does not support output swaps');
+      }
+
+      const [tokenIn, tokenOut] = await Promise.all([
         this.getToken(params.fromToken),
         this.getToken(params.toToken),
       ]);
 
-      // Calculate input amount based on decimals
-      const swapAmount =
+      const amountIn =
         params.type === 'input'
-          ? Math.floor(Number(params.amount) * 10 ** sourceToken.decimals)
-          : undefined;
+          ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
+          : Math.floor(Number(params.amount) * 10 ** tokenOut.decimals);
 
-      // Convert BNB addresses to KYBER format if needed
-      const sourceAddress =
-        sourceToken.address === CONSTANTS.BNB_ADDRESS
-          ? CONSTANTS.KYBER_BNB_ADDRESS
-          : sourceToken.address;
-      const destinationAddress =
-        destinationToken.address === CONSTANTS.BNB_ADDRESS
-          ? CONSTANTS.KYBER_BNB_ADDRESS
-          : destinationToken.address;
+      // Convert BNB addresses to OKU format
+      const tokenInAddress =
+        tokenIn.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
+          ? CONSTANTS.OKU_BNB_ADDRESS
+          : tokenIn.address;
+      const tokenOutAddress =
+        tokenOut.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
+          ? CONSTANTS.OKU_BNB_ADDRESS
+          : tokenOut.address;
 
-      // Fetch optimal swap route
-      const optimalRoute = await this.fetchOptimalRoute(
-        sourceAddress,
-        destinationAddress,
-        swapAmount,
-      );
+      const now = new Date();
 
-      // Build swap transaction
-      const swapTransactionData = await this.buildSwapRouteTransaction(optimalRoute, userAddress);
+      // const isoString = now.toISOString();
+      // console.log("tesst1",params.slippage)
+      const slippageOKU = params.slippage || 10;
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      const body = JSON.stringify({
+        chain: 'bsc',
+        account: userAddress,
+        inTokenAddress: tokenInAddress,
+        outTokenAddress: tokenOutAddress,
+        isExactIn: true,
+        slippage: slippageOKU,
+        inTokenAmount: params.amount,
+      });
+      const response = await fetch(CONSTANTS.OKU_API_PATH, {
+        method: 'POST',
+        headers,
+        body,
+      });
 
-      // Create and store quote
-      const swapQuote = this.createSwapQuote(
-        params,
-        sourceToken,
-        destinationToken,
-        swapTransactionData,
-        optimalRoute,
-      );
-      this.storeQuoteWithExpiry(swapQuote);
+      const data = await response.json();
+      console.log('Response:', data);
+      if (!data || data.length === 0) {
+        throw new Error('No data returned from OKU');
+      }
 
-      return swapQuote;
+      const inputAmount = data.inAmount;
+      const outputAmount = data.outAmount;
+      const estimatedGas = data.fees.gas;
+      const priceImpact = 0;
+      const tx = data.coupon.raw.quote.transaction;
+
+      // Generate a unique quote ID
+      const quoteId = ethers.hexlify(ethers.randomBytes(32));
+
+      const quote: SwapQuote = {
+        quoteId,
+        fromToken: params.fromToken,
+        toToken: params.toToken,
+        fromTokenDecimals: tokenIn.decimals,
+        toTokenDecimals: tokenOut.decimals,
+        slippage: params.slippage,
+        fromAmount: inputAmount,
+        toAmount: outputAmount,
+        priceImpact,
+        route: ['oku'],
+        estimatedGas: estimatedGas,
+        type: params.type,
+        tx: {
+          to: tx?.to || '',
+          data: tx?.data || '',
+          value: tx?.value || '0',
+          gasLimit: (tx.gas * 1.5).toString() || '350000',
+        },
+      };
+      console.log('log', quote);
+      // Store the quote and trade for later use
+      this.quotes.set(quoteId, { quote, expiresAt: Date.now() + CONSTANTS.QUOTE_EXPIRY });
+
+      // Delete quote after 5 minutes
+      setTimeout(() => {
+        this.quotes.delete(quoteId);
+      }, CONSTANTS.QUOTE_EXPIRY);
+
+      return quote;
     } catch (error: unknown) {
       console.error('Error getting quote:', error);
       throw new Error(
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
-  }
-
-  // Helper methods for better separation of concerns
-  private async fetchOptimalRoute(sourceToken: string, destinationToken: string, amount?: number) {
-    const routePath = `api/v1/routes?tokenIn=${sourceToken}&tokenOut=${destinationToken}&amountIn=${amount}&gasInclude=true`;
-    const routeResponse = await fetch(`${CONSTANTS.KYBER_API_BASE}${routePath}`);
-    const routeData = await routeResponse.json();
-
-    if (!routeData.data || routeData.data.length === 0) {
-      throw new Error('No swap routes available from Kyber');
-    }
-    return routeData.data;
-  }
-
-  private async buildSwapRouteTransaction(routeData: any, userAddress: string) {
-    const transactionResponse = await fetch(`${CONSTANTS.KYBER_API_BASE}api/v1/route/build`, {
-      method: 'POST',
-      body: JSON.stringify({
-        routeSummary: routeData.routeSummary,
-        sender: userAddress,
-        recipient: userAddress,
-        skipSimulateTx: false,
-        slippageTolerance: 200,
-      }),
-    });
-    return (await transactionResponse.json()).data;
-  }
-
-  private createSwapQuote(
-    params: SwapParams,
-    sourceToken: Token,
-    destinationToken: Token,
-    swapTransactionData: any,
-    routeData: any,
-  ): SwapQuote {
-    const quoteId = ethers.hexlify(ethers.randomBytes(32));
-
-    return {
-      quoteId,
-      fromToken: params.fromToken,
-      toToken: params.toToken,
-      fromAmount: swapTransactionData.amountIn,
-      toAmount: swapTransactionData.amountOut,
-      fromTokenDecimals: sourceToken.decimals,
-      toTokenDecimals: destinationToken.decimals,
-      slippage: 100, // 10% default slippage
-      type: params.type,
-      priceImpact: routeData.priceImpact || 0,
-      route: ['kyber'],
-      estimatedGas: CONSTANTS.DEFAULT_GAS_LIMIT,
-      tx: {
-        to: swapTransactionData.routerAddress,
-        data: swapTransactionData.data,
-        value: swapTransactionData.transactionValue || '0',
-        gasLimit: CONSTANTS.DEFAULT_GAS_LIMIT,
-      },
-    };
-  }
-
-  private storeQuoteWithExpiry(quote: SwapQuote) {
-    this.quotes.set(quote.quoteId, { quote, expiresAt: Date.now() + CONSTANTS.QUOTE_EXPIRY });
-
-    // Delete quote after expiry
-    setTimeout(() => {
-      this.quotes.delete(quote.quoteId);
-    }, CONSTANTS.QUOTE_EXPIRY);
   }
 
   async buildSwapTransaction(quote: SwapQuote, userAddress: string): Promise<SwapTransaction> {
@@ -319,11 +301,14 @@ export class KyberProvider implements ISwapProvider {
       to: token,
       data,
       value: '0',
-      gasLimit: '100000',
+      gasLimit: '50000',
     };
   }
 
   async checkAllowance(token: string, owner: string, spender: string): Promise<bigint> {
+    if (token.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()) {
+      return BigInt(Number.MAX_SAFE_INTEGER);
+    }
     const erc20 = new Contract(
       token,
       ['function allowance(address owner, address spender) view returns (uint256)'],
