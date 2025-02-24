@@ -107,14 +107,13 @@ export class SwapTool extends BaseTool {
 
   private async findBestQuote(
     params: SwapParams & { chain: string },
+    userAddress: string,
   ): Promise<{ provider: ISwapProvider; quote: SwapQuote }> {
     // Validate chain is supported
     const providers = this.registry.getProvidersByChain(params.chain);
     if (providers.length === 0) {
       throw new Error(`No providers available for chain ${params.chain}`);
     }
-
-    const userAddress = await this.agent.getWallet().getAddress(params.chain);
 
     const quotes = await Promise.all(
       providers.map(async provider => {
@@ -221,18 +220,24 @@ export class SwapTool extends BaseTool {
                 error,
               );
               console.log('🔄 Falling back to checking all providers for best quote...');
-              const bestQuote = await this.findBestQuote({
-                ...swapParams,
-                chain,
-              });
+              const bestQuote = await this.findBestQuote(
+                {
+                  ...swapParams,
+                  chain,
+                },
+                userAddress,
+              );
               selectedProvider = bestQuote.provider;
               quote = bestQuote.quote;
             }
           } else {
-            const bestQuote = await this.findBestQuote({
-              ...swapParams,
-              chain,
-            });
+            const bestQuote = await this.findBestQuote(
+              {
+                ...swapParams,
+                chain,
+              },
+              userAddress,
+            );
             selectedProvider = bestQuote.provider;
             quote = bestQuote.quote;
           }

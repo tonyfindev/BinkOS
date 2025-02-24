@@ -15,7 +15,7 @@ import { bsc } from 'viem/chains';
 import { SMART_ROUTER_ADDRESSES, SwapRouter, V4Router } from '@pancakeswap/smart-router';
 
 // Constants
-const GAS_BUFFER = ethers.parseEther('0.0001'); // ~0.0001 BNB for gas
+const GAS_BUFFER = ethers.parseEther('0.0003');
 
 interface TokenInfo {
   address: `0x${string}`;
@@ -119,7 +119,7 @@ export class PancakeSwapProvider implements ISwapProvider {
     }
   }
 
-  async getQuote(params: SwapParams): Promise<SwapQuote> {
+  async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       const [tokenIn, tokenOut] = await Promise.all([
         params.fromToken.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()
@@ -130,12 +130,46 @@ export class PancakeSwapProvider implements ISwapProvider {
           : this.getToken(params.toToken),
       ]);
 
+      // If input token is native token and it's an exact input swap
+      let adjustedAmount = params.amount;
+      if (
+        params.type === 'input' &&
+        params.fromToken.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()
+      ) {
+        const amountBN = ethers.parseUnits(params.amount, tokenIn.decimals);
+        const balance = await this.provider.getBalance(userAddress);
+
+        // Check if user has enough balance for amount + gas buffer
+        if (balance < amountBN + GAS_BUFFER) {
+          // If not enough balance for both, ensure at least gas buffer is available
+          if (amountBN <= GAS_BUFFER) {
+            throw new Error(
+              `Amount too small. Minimum amount should be greater than ${ethers.formatEther(GAS_BUFFER)} BNB to cover gas`,
+            );
+          }
+          // Subtract gas buffer from amount
+          const adjustedAmountBN = amountBN - GAS_BUFFER;
+          adjustedAmount = ethers.formatUnits(adjustedAmountBN, tokenIn.decimals);
+          console.log(
+            '🤖 Adjusted amount for gas buffer:',
+            adjustedAmount,
+            '(insufficient balance for full amount + gas)',
+          );
+        } else {
+          console.log(
+            '🤖 Using full amount:',
+            adjustedAmount,
+            '(sufficient balance for amount + gas)',
+          );
+        }
+      }
+
       // Create currency amounts
       const amountIn =
         params.type === 'input'
           ? CurrencyAmount.fromRawAmount(
               tokenIn,
-              ethers.parseUnits(params.amount, tokenIn.decimals).toString(),
+              ethers.parseUnits(adjustedAmount, tokenIn.decimals).toString(),
             )
           : undefined;
       const amountOut =
@@ -183,7 +217,7 @@ export class PancakeSwapProvider implements ISwapProvider {
         toTokenDecimals: tokenOut.decimals,
         fromAmount:
           params.type === 'input'
-            ? params.amount
+            ? adjustedAmount
             : ethers.formatUnits(inputAmount.quotient.toString(), tokenIn.decimals),
         toAmount:
           params.type === 'output'
@@ -342,7 +376,7 @@ export class PancakeSwapProvider implements ISwapProvider {
           const formattedBnbBalance = ethers.formatEther(bnbBalance);
           return {
             isValid: false,
-            message: `Insufficient BNB for gas fees. Required: ~0.01 BNB, Available: ${formattedBnbBalance} BNB`,
+            message: `Insufficient BNB for gas fees. Required: ~${formattedGasBuffer} BNB, Available: ${formattedBnbBalance} BNB`,
           };
         }
       }
