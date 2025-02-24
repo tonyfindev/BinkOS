@@ -8,16 +8,15 @@ import {
   Currency,
   Native,
 } from '@pancakeswap/sdk';
+import { EVM_NATIVE_TOKEN_ADDRESS } from '@binkai/core';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { createPublicClient, http, PublicClient } from 'viem';
 import { bsc } from 'viem/chains';
-import {
-  SmartRouter,
-  SmartRouterTrade,
-  SMART_ROUTER_ADDRESSES,
-  SwapRouter,
-  V4Router,
-} from '@pancakeswap/smart-router';
+import { SMART_ROUTER_ADDRESSES, SwapRouter, V4Router } from '@pancakeswap/smart-router';
+
+// Constants
+const GAS_BUFFER = ethers.parseEther('0.0001'); // ~0.0001 BNB for gas
+
 interface TokenInfo {
   address: `0x${string}`;
   decimals: number;
@@ -66,9 +65,9 @@ export class PancakeSwapProvider implements ISwapProvider {
     return ['bnb'];
   }
 
-  getPrompt(): string {
-    return `If you are using PancakeSwap, You can use BNB with address ${Native.onChain(this.chainId).wrapped.address}`;
-  }
+  // getPrompt(): string {
+  //   return `If you are using PancakeSwap, You can use BNB with address ${Native.onChain(this.chainId).wrapped.address}`;
+  // }
 
   private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
     const erc20Interface = new Interface([
@@ -91,6 +90,12 @@ export class PancakeSwapProvider implements ISwapProvider {
     const cachedToken = this.tokenCache.get(tokenAddress);
     if (cachedToken) {
       return cachedToken;
+    }
+
+    if (tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()) {
+      const token = new Token(this.chainId, tokenAddress as `0x${string}`, 18, 'BNB');
+      this.tokenCache.set(tokenAddress, token);
+      return token;
     }
 
     const info = await this.getTokenInfo(tokenAddress);
@@ -117,11 +122,10 @@ export class PancakeSwapProvider implements ISwapProvider {
   async getQuote(params: SwapParams): Promise<SwapQuote> {
     try {
       const [tokenIn, tokenOut] = await Promise.all([
-        params.fromToken.toLowerCase() ===
-        Native.onChain(this.chainId).wrapped.address.toLowerCase()
+        params.fromToken.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()
           ? Native.onChain(this.chainId)
           : this.getToken(params.fromToken),
-        params.toToken.toLowerCase() === Native.onChain(this.chainId).wrapped.address.toLowerCase()
+        params.toToken.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()
           ? Native.onChain(this.chainId)
           : this.getToken(params.toToken),
       ]);
@@ -166,7 +170,6 @@ export class PancakeSwapProvider implements ISwapProvider {
       }
 
       // Calculate output amounts based on trade type
-      const slippage = new Percent(Math.floor(params.slippage * 100), 10000);
       const { inputAmount, outputAmount } = trade;
 
       // Generate a unique quote ID
@@ -271,8 +274,8 @@ export class PancakeSwapProvider implements ISwapProvider {
   }
 
   async checkAllowance(token: string, owner: string, spender: string): Promise<bigint> {
-    if (token.toLowerCase() === Native.onChain(this.chainId).wrapped.address.toLowerCase()) {
-      return BigInt(Number.MAX_SAFE_INTEGER);
+    if (token.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()) {
+      return BigInt(Number.MAX_SAFE_INTEGER) * BigInt(10 ** 18);
     }
     const erc20 = new Contract(
       token,
@@ -282,46 +285,75 @@ export class PancakeSwapProvider implements ISwapProvider {
     return await erc20.allowance(owner, spender);
   }
 
-  private async recreateTrade(
+  async checkBalance(
     quote: SwapQuote,
-    tokenIn: Currency,
-    tokenOut: Currency,
-  ): Promise<any> {
-    const amountIn =
-      quote.type === 'input'
-        ? CurrencyAmount.fromRawAmount(
-            tokenIn,
-            ethers.parseUnits(quote.fromAmount, tokenIn.decimals).toString(),
-          )
-        : undefined;
-    const amountOut =
-      quote.type === 'output'
-        ? CurrencyAmount.fromRawAmount(
-            tokenOut,
-            ethers.parseUnits(quote.toAmount, tokenOut.decimals).toString(),
-          )
-        : undefined;
+    userAddress: string,
+  ): Promise<{ isValid: boolean; message?: string }> {
+    try {
+      const tokenToCheck = quote.fromToken;
+      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromTokenDecimals);
 
-    // Get candidate pools
-    const pools = await this.getCandidatePools(tokenIn, tokenOut);
+      // Add gas cost buffer for native token swaps
+      const gasCostBuffer =
+        tokenToCheck.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase() ? GAS_BUFFER : 0n;
 
-    const trade =
-      quote.type === 'input' && amountIn
-        ? await V4Router.getBestTrade(amountIn, tokenOut, TradeType.EXACT_INPUT, {
-            gasPriceWei: () => this.viemClient.getGasPrice(),
-            candidatePools: pools,
-          })
-        : amountOut
-          ? await V4Router.getBestTrade(amountOut, tokenIn, TradeType.EXACT_OUTPUT, {
-              gasPriceWei: () => this.viemClient.getGasPrice(),
-              candidatePools: pools,
-            })
-          : null;
+      const formattedGasBuffer = ethers.formatEther(gasCostBuffer);
 
-    if (!trade) {
-      throw new Error('Failed to recreate trade route');
+      const totalRequired = requiredAmount + gasCostBuffer;
+
+      // Check native balance
+      if (tokenToCheck.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()) {
+        const balance = await this.provider.getBalance(userAddress);
+
+        if (balance < totalRequired) {
+          const formattedBalance = ethers.formatEther(balance);
+          const formattedRequired = ethers.formatEther(requiredAmount);
+          const formattedTotal = ethers.formatEther(totalRequired);
+          return {
+            isValid: false,
+            message: `Insufficient BNB balance. Required: ${formattedRequired} BNB (+ ~${formattedGasBuffer} BNB for gas = ${formattedTotal} BNB), Available: ${formattedBalance} BNB`,
+          };
+        }
+      } else {
+        // For other tokens, check ERC20 balance
+        const erc20 = new Contract(
+          tokenToCheck,
+          [
+            'function balanceOf(address) view returns (uint256)',
+            'function symbol() view returns (string)',
+          ],
+          this.provider,
+        );
+
+        const [balance, symbol] = await Promise.all([erc20.balanceOf(userAddress), erc20.symbol()]);
+
+        if (balance < requiredAmount) {
+          const formattedBalance = ethers.formatUnits(balance, quote.fromTokenDecimals);
+          const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromTokenDecimals);
+          return {
+            isValid: false,
+            message: `Insufficient ${symbol} balance. Required: ${formattedRequired} ${symbol}, Available: ${formattedBalance} ${symbol}`,
+          };
+        }
+
+        // If swapping tokens (not BNB), check if user has enough BNB for gas
+        const bnbBalance = await this.provider.getBalance(userAddress);
+        if (bnbBalance < GAS_BUFFER) {
+          const formattedBnbBalance = ethers.formatEther(bnbBalance);
+          return {
+            isValid: false,
+            message: `Insufficient BNB for gas fees. Required: ~0.01 BNB, Available: ${formattedBnbBalance} BNB`,
+          };
+        }
+      }
+
+      return { isValid: true };
+    } catch (error) {
+      console.error('Error checking balance:', error);
+      return {
+        isValid: false,
+        message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
     }
-
-    return trade;
   }
 }

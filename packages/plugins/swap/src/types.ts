@@ -58,6 +58,17 @@ export interface ISwapProvider {
   getPrompt?(): string;
 
   /**
+   * Check if user has sufficient balance for the swap
+   * @param quote The swap quote to check balance against
+   * @param userAddress The address of the user
+   * @returns Promise<{ isValid: boolean; message?: string }> Returns if balance is sufficient and error message if not
+   */
+  checkBalance(
+    quote: SwapQuote,
+    userAddress: string,
+  ): Promise<{ isValid: boolean; message?: string }>;
+
+  /**
    * Get a quote for swapping tokens
    */
   getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote>;

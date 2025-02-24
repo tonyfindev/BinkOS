@@ -54,6 +54,7 @@ export class BirdeyeProvider implements ITokenProvider {
         sort_by: 'volume_24h_usd',
         sort_type: 'desc',
         limit: 10,
+        chain: this.mapChain(chain),
       },
     });
 

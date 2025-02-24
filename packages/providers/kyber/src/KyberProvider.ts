@@ -62,6 +62,13 @@ export class KyberProvider implements ISwapProvider {
     return `If you are using KyberSwap, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
   }
 
+  checkBalance(
+    quote: SwapQuote,
+    userAddress: string,
+  ): Promise<{ isValid: boolean; message?: string }> {
+    return Promise.resolve({ isValid: true });
+  }
+
   private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
     const erc20Interface = new Interface([
       'function decimals() view returns (uint8)',
