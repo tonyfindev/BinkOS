@@ -1,5 +1,13 @@
 import { ethers } from 'ethers';
-import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
+import {
+  Agent,
+  Wallet,
+  Network,
+  settings,
+  NetworkType,
+  NetworksConfig,
+  NetworkName,
+} from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { OkxProvider } from '@binkai/okx-provider';
 
@@ -74,8 +82,8 @@ async function main() {
 
   console.log('✓ Wallet created\n');
 
-  console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
-  console.log('🤖 Wallet ETH:', await wallet.getAddress('ethereum'));
+  console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
+  console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(

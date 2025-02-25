@@ -25,7 +25,7 @@ export class Network {
 
   #initialize(): void {
     for (const [name, config] of Object.entries(this.#config.networks)) {
-      this.#initializeProvider(name, config);
+      this.#initializeProvider(name as NetworkName, config);
     }
   }
 
@@ -71,7 +71,7 @@ export class Network {
   }
 
   public getNetworks(): NetworkName[] {
-    return Object.keys(this.#config.networks);
+    return Object.keys(this.#config.networks) as NetworkName[];
   }
 
   public isSupported(name: NetworkName): boolean {

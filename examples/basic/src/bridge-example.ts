@@ -1,5 +1,13 @@
 import { ethers } from 'ethers';
-import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
+import {
+  Agent,
+  Wallet,
+  Network,
+  settings,
+  NetworkType,
+  NetworksConfig,
+  NetworkName,
+} from '@binkai/core';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
 // Hardcoded RPC URLs for demonstration
@@ -21,7 +29,7 @@ async function main() {
   // Define available networks
   console.log('📡 Configuring networks...');
   const networks: NetworksConfig['networks'] = {
-    solana: {
+    [NetworkName.SOLANA]: {
       type: 'solana' as NetworkType,
       config: {
         rpcUrl: SOL_RPC,
@@ -33,7 +41,7 @@ async function main() {
         },
       },
     },
-    bnb: {
+    [NetworkName.BNB]: {
       type: 'evm' as NetworkType,
       config: {
         chainId: 56,

@@ -3,7 +3,7 @@ import { AgentExecutor, createOpenAIToolsAgent } from 'langchain/agents';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { IWallet } from '../wallet/types';
-import { NetworksConfig } from '../network/types';
+import { NetworkName, NetworksConfig } from '../network/types';
 import { AgentConfig, AgentContext, AgentExecuteParams, IAgent } from './types';
 import { GetWalletAddressTool, ITool } from './tools';
 import { BaseAgent } from './BaseAgent';
@@ -115,7 +115,7 @@ export class Agent extends BaseAgent {
     if (this.db) {
       const networkNames = Object.keys(this.networks);
       if (networkNames.length) {
-        const defaultNetwork = networkNames[0];
+        const defaultNetwork = networkNames[0] as NetworkName;
         const address = await this.wallet?.getAddress(defaultNetwork);
         if (!address) throw new Error('Not found wallet address');
         const user = await this.db.createAndGetUserByAddress({ address });

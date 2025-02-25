@@ -1,4 +1,12 @@
-import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
+import {
+  Agent,
+  Wallet,
+  Network,
+  settings,
+  NetworkType,
+  NetworksConfig,
+  NetworkName,
+} from '@binkai/core';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 
@@ -71,8 +79,8 @@ async function main() {
   );
   console.log('✓ Wallet created\n');
 
-  console.log('🤖 Wallet Solana:', await wallet.getAddress('solana'));
-  console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
+  console.log('🤖 Wallet Solana:', await wallet.getAddress(NetworkName.SOLANA));
+  console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
 
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');

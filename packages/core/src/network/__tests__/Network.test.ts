@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { Connection } from '@solana/web3.js';
 import { Network } from '../Network';
-import { NetworksConfig, NetworkType } from '../types';
+import { NetworkName, NetworksConfig, NetworkType } from '../types';
 
 describe('Network', () => {
   const testConfig: NetworksConfig = {
@@ -48,12 +48,12 @@ describe('Network', () => {
 
   describe('getProvider', () => {
     it('should return EVM provider for Sepolia', () => {
-      const provider = network.getProvider('sepolia', 'evm');
+      const provider = network.getProvider(NetworkName.SEPOLIA, 'evm');
       expect(provider).toBeInstanceOf(ethers.JsonRpcProvider);
     });
 
     it('should return Solana provider for devnet', () => {
-      const provider = network.getProvider('solana-devnet', 'solana');
+      const provider = network.getProvider(NetworkName.SOLANA_DEVNET, 'solana');
       expect(provider).toBeInstanceOf(Connection);
     });
 
@@ -64,7 +64,7 @@ describe('Network', () => {
     });
 
     it('should throw error for wrong network type', () => {
-      expect(() => network.getProvider('sepolia', 'solana')).toThrow(
+      expect(() => network.getProvider(NetworkName.SEPOLIA, 'solana')).toThrow(
         'Network sepolia is not of type solana',
       );
     });
@@ -72,7 +72,7 @@ describe('Network', () => {
 
   describe('getConfig', () => {
     it('should return correct config for existing network', () => {
-      const config = network.getConfig('sepolia');
+      const config = network.getConfig(NetworkName.SEPOLIA);
       expect(config).toEqual(testConfig.networks.sepolia);
     });
 
@@ -92,8 +92,8 @@ describe('Network', () => {
 
   describe('isSupported', () => {
     it('should return true for supported networks', () => {
-      expect(network.isSupported('sepolia')).toBe(true);
-      expect(network.isSupported('solana-devnet')).toBe(true);
+      expect(network.isSupported(NetworkName.SEPOLIA)).toBe(true);
+      expect(network.isSupported(NetworkName.SOLANA_DEVNET)).toBe(true);
     });
 
     it('should return false for unsupported networks', () => {
@@ -103,8 +103,8 @@ describe('Network', () => {
 
   describe('getNetworkType', () => {
     it('should return correct network type', () => {
-      expect(network.getNetworkType('sepolia')).toBe('evm');
-      expect(network.getNetworkType('solana-devnet')).toBe('solana');
+      expect(network.getNetworkType(NetworkName.SEPOLIA)).toBe('evm');
+      expect(network.getNetworkType(NetworkName.SOLANA_DEVNET)).toBe('solana');
     });
 
     it('should throw error for non-existent network', () => {
