@@ -234,8 +234,8 @@ export abstract class BaseStakingProvider implements IStakingProvider {
         // TODO: Implement Solana
       }
       const provider = this.getEvmProviderForNetwork(quote.network);
-      const tokenToCheck = quote.fromToken;
-      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromToken.decimals);
+      const tokenToCheck = quote.tokenA;
+      const requiredAmount = ethers.parseUnits(quote.amountA, quote.tokenA.decimals);
       const gasBuffer = this.getGasBuffer(quote.network);
 
       // Check if the token is native token
@@ -271,8 +271,8 @@ export abstract class BaseStakingProvider implements IStakingProvider {
         ]);
 
         if (balance < requiredAmount) {
-          const formattedBalance = ethers.formatUnits(balance, quote.fromToken.decimals);
-          const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromToken.decimals);
+          const formattedBalance = ethers.formatUnits(balance, quote.tokenA.decimals);
+          const formattedRequired = ethers.formatUnits(requiredAmount, quote.tokenA.decimals);
           return {
             isValid: false,
             message: `Insufficient ${symbol} balance. Required: ${formattedRequired} ${symbol}, Available: ${formattedBalance} ${symbol}`,

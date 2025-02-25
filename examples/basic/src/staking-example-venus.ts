@@ -118,7 +118,7 @@ async function main() {
   console.log('💱 Example 1: Stake 0.0002 BNB on Venus');
   const inputResult = await agent.execute({
     input: `
-      Stake 0.0002 BNB on Venus.
+      Supply 0.0001 BNB on Venus.
     `,
   });
   console.log('✓ Staking result (input):', inputResult, '\n');
@@ -126,7 +126,7 @@ async function main() {
   console.log('💱 Example 2: Unstake 0.0001 BNB on Venus');
   const outputResult = await agent.execute({
     input: `
-      Unstake 0.0001 BNB on Venus.
+      Withdraw 0.0001 BNB on Venus.
     `,
   });
   console.log('✓ Staking result (input):', outputResult, '\n');
