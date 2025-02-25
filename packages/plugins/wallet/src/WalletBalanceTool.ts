@@ -106,7 +106,7 @@ export class GetWalletBalanceTool extends BaseTool {
           console.log('🤖 Wallet info:', results);
 
           return JSON.stringify({
-            status: 'success',
+            status: Object.keys(results).length === 0 ? 'error' : 'success',
             data: results,
             errors,
             network,
