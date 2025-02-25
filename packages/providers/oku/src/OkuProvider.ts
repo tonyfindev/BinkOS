@@ -1,7 +1,6 @@
-import { ISwapProvider, SwapQuote, SwapParams } from '@binkai/swap-plugin';
+import { SwapQuote, SwapParams, NetworkProvider, BaseSwapProvider } from '@binkai/swap-plugin';
 import { ethers, Contract, Interface, Provider } from 'ethers';
-import { EVM_NATIVE_TOKEN_ADDRESS } from '@binkai/core';
-import { BaseSwapProvider } from '@binkai/swap-plugin';
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 // Enhanced interface with better type safety
 interface TokenInfo extends Token {
   // Inherits all Token properties and maintains DRY principle
@@ -17,20 +16,6 @@ const CONSTANTS = {
   OKU_API_PATH: 'https://canoe.v2.icarus.tools/market/zeroex/swap_quote',
 } as const;
 
-export interface SwapTransaction {
-  to: string;
-  data: string;
-  value: string;
-  gasLimit: string;
-}
-
-export interface Token {
-  address: `0x${string}`;
-  decimals: number;
-  symbol: string;
-  chainId: number;
-}
-
 enum ChainId {
   BSC = 56,
   ETH = 1,
@@ -40,22 +25,40 @@ export class OkuProvider extends BaseSwapProvider {
   private chainId: ChainId;
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
-    super(provider);
-    this.provider = provider;
+    const providerMap = new Map<NetworkName, NetworkProvider>();
+    providerMap.set(NetworkName.BNB, provider);
+    super(providerMap);
     this.chainId = chainId;
   }
 
   getName(): string {
     return 'oku';
   }
-
-  getSupportedChains(): string[] {
-    return ['bnb', 'ethereum'];
+  getSupportedNetworks(): NetworkName[] {
+    return [NetworkName.BNB];
   }
   protected isNativeToken(tokenAddress: string): boolean {
     return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
   }
+  protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
+    if (this.isNativeToken(tokenAddress)) {
+      return {
+        address: tokenAddress as `0x${string}`,
+        decimals: 18,
+        symbol: 'BNB',
+      };
+    }
 
+    const token = await super.getToken(tokenAddress, network);
+
+    const tokenInfo = {
+      chainId: this.chainId,
+      address: token.address.toLowerCase() as `0x${string}`,
+      decimals: token.decimals,
+      symbol: token.symbol,
+    };
+    return tokenInfo;
+  }
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       if (params.type === 'output') {
@@ -63,8 +66,8 @@ export class OkuProvider extends BaseSwapProvider {
       }
 
       const [tokenIn, tokenOut] = await Promise.all([
-        this.getToken(params.fromToken),
-        this.getToken(params.toToken),
+        this.getToken(params.fromToken, params.network),
+        this.getToken(params.toToken, params.network),
       ]);
 
       const tokenInAddress =
@@ -105,11 +108,10 @@ export class OkuProvider extends BaseSwapProvider {
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
 
       const quote: SwapQuote = {
+        network: params.network,
         quoteId,
-        fromToken: params.fromToken,
-        toToken: params.toToken,
-        fromTokenDecimals: tokenIn.decimals,
-        toTokenDecimals: tokenOut.decimals,
+        fromToken: tokenIn,
+        toToken: tokenOut,
         slippage: params.slippage,
         fromAmount: inputAmount,
         toAmount: outputAmount,
@@ -121,7 +123,10 @@ export class OkuProvider extends BaseSwapProvider {
           to: tx?.to || '',
           data: tx?.data || '',
           value: tx?.value || '0',
-          gasLimit: (tx.gas * 1.5).toString() || '350000',
+          gasLimit:
+            ethers.parseUnits((tx.gas * 1.5).toString(), 'wei') ||
+            ethers.parseUnits('350000', 'wei'),
+          network: params.network,
         },
       };
       console.log('log', quote);
@@ -142,26 +147,26 @@ export class OkuProvider extends BaseSwapProvider {
     }
   }
 
-  async buildSwapTransaction(quote: SwapQuote, userAddress: string): Promise<SwapTransaction> {
-    try {
-      // Get the stored quote and trade
-      const storedData = this.quotes.get(quote.quoteId);
+  //   async buildSwapTransaction(quote: SwapQuote, userAddress: string): Promise<SwapTransaction> {
+  //     try {
+  //       // Get the stored quote and trade
+  //       const storedData = this.quotes.get(quote.quoteId);
 
-      if (!storedData) {
-        throw new Error('Quote expired or not found. Please get a new quote.');
-      }
+  //       if (!storedData) {
+  //         throw new Error('Quote expired or not found. Please get a new quote.');
+  //       }
 
-      return {
-        to: storedData?.quote.tx?.to || '',
-        data: storedData?.quote?.tx?.data || '',
-        value: storedData?.quote?.tx?.value || '0',
-        gasLimit: '350000',
-      };
-    } catch (error: unknown) {
-      console.error('Error building swap transaction:', error);
-      throw new Error(
-        `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-    }
-  }
+  //       return {
+  //         to: storedData?.quote.tx?.to || '',
+  //         data: storedData?.quote?.tx?.data || '',
+  //         value: storedData?.quote?.tx?.value || '0',
+  //         gasLimit: '350000',
+  //       };
+  //     } catch (error: unknown) {
+  //       console.error('Error building swap transaction:', error);
+  //       throw new Error(
+  //         `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
+  //       );
+  //     }
+  //   }
 }

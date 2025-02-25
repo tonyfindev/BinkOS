@@ -7,30 +7,30 @@ import { validateTokenAddress } from './utils/addressValidation';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
-  defaultChain?: string;
-  supportedChains?: string[];
+  defaultNetwork?: string;
+  supportedNetworks?: string[];
 }
 
 export class SwapTool extends BaseTool {
   public registry: ProviderRegistry;
   private defaultSlippage: number;
-  private defaultChain: string;
-  private supportedChains: Set<string>;
+  private defaultNetwork: string;
+  private supportedNetworks: Set<string>;
 
   constructor(config: SwapToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
     this.defaultSlippage = config.defaultSlippage || 0.5;
-    this.defaultChain = config.defaultChain || 'bnb';
-    this.supportedChains = new Set<string>(config.supportedChains || []);
+    this.defaultNetwork = config.defaultNetwork || 'bnb';
+    this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
   }
 
   registerProvider(provider: ISwapProvider): void {
     this.registry.registerProvider(provider);
     console.log('✓ Provider registered', provider.constructor.name);
-    // Add provider's supported chains
-    provider.getSupportedChains().forEach(chain => {
-      this.supportedChains.add(chain);
+    // Add provider's supported networks
+    provider.getSupportedNetworks().forEach(network => {
+      this.supportedNetworks.add(network);
     });
   }
 
@@ -40,8 +40,8 @@ export class SwapTool extends BaseTool {
 
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
-    const chains = Array.from(this.supportedChains).join(', ');
-    let description = `Swap tokens using various DEX providers (${providers}). Supports chains: ${chains}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
+    const networks = Array.from(this.supportedNetworks).join(', ');
+    let description = `Swap tokens using various DEX providers (${providers}). Supports networks: ${networks}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
 
     // Add provider-specific prompts if they exist
     const providerPrompts = this.registry
@@ -59,15 +59,15 @@ export class SwapTool extends BaseTool {
     return description;
   }
 
-  private getSupportedChains(): string[] {
+  private getSupportedNetworks(): string[] {
     // Get networks from agent's wallet
     const agentNetworks = Object.keys(this.agent.getNetworks());
 
-    // Intersect with supported chains from providers
-    const providerChains = Array.from(this.supportedChains);
+    // Intersect with supported networks from providers
+    const providerNetworks = Array.from(this.supportedNetworks);
 
-    // Return intersection of agent networks and provider supported chains
-    return agentNetworks.filter(network => providerChains.includes(network));
+    // Return intersection of agent networks and provider supported networks
+    return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
   getSchema(): z.ZodObject<any> {
@@ -76,9 +76,9 @@ export class SwapTool extends BaseTool {
       throw new Error('No swap providers registered');
     }
 
-    const supportedChains = this.getSupportedChains();
-    if (supportedChains.length === 0) {
-      throw new Error('No supported chains available');
+    const supportedNetworks = this.getSupportedNetworks();
+    if (supportedNetworks.length === 0) {
+      throw new Error('No supported networks available');
     }
 
     return z.object({
@@ -88,10 +88,10 @@ export class SwapTool extends BaseTool {
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
-      chain: z
-        .enum(supportedChains as [string, ...string[]])
-        .default(this.defaultChain)
-        .describe('The blockchain to execute the swap on'),
+      network: z
+        .enum(supportedNetworks as [string, ...string[]])
+        .default(this.defaultNetwork)
+        .describe('The blockchain network to execute the swap on'),
       provider: z
         .enum(providers as [string, ...string[]])
         .optional()
@@ -106,18 +106,17 @@ export class SwapTool extends BaseTool {
   }
 
   private async findBestQuote(
-    params: SwapParams & { chain: string },
+    params: SwapParams & { network: string },
+    userAddress: string,
   ): Promise<{ provider: ISwapProvider; quote: SwapQuote }> {
-    // Validate chain is supported
-    const providers = this.registry.getProvidersByChain(params.chain);
+    // Validate network is supported
+    const providers = this.registry.getProvidersByNetwork(params.network);
     if (providers.length === 0) {
-      throw new Error(`No providers available for chain ${params.chain}`);
+      throw new Error(`No providers available for network ${params.network}`);
     }
 
-    const userAddress = await this.agent.getWallet().getAddress(params.chain);
-
     const quotes = await Promise.all(
-      providers.map(async provider => {
+      providers.map(async (provider: ISwapProvider) => {
         try {
           console.log('🤖 Getting quote from', provider.getName());
           const quote = await provider.getQuote(params, userAddress);
@@ -129,27 +128,28 @@ export class SwapTool extends BaseTool {
       }),
     );
 
-    const validQuotes = quotes.filter((q): q is NonNullable<typeof q> => q !== null);
+    type QuoteResult = { provider: ISwapProvider; quote: SwapQuote };
+    const validQuotes = quotes.filter((q): q is QuoteResult => q !== null);
     if (validQuotes.length === 0) {
       throw new Error('No valid quotes found');
     }
 
     // Find the best quote based on amount type
-    return validQuotes.reduce((best, current) => {
+    return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
       if (params.type === 'input') {
         // For input amount, find highest output amount
-        const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toTokenDecimals);
+        const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals);
         const currentAmount = BigInt(
-          Number(current.quote.toAmount) * 10 ** current.quote.toTokenDecimals,
+          Number(current.quote.toAmount) * 10 ** current.quote.toToken.decimals,
         );
         return currentAmount > bestAmount ? current : best;
       } else {
         // For output amount, find lowest input amount
         const bestAmount = BigInt(
-          Number(best.quote.fromAmount) * 10 ** best.quote.fromTokenDecimals,
+          Number(best.quote.fromAmount) * 10 ** best.quote.fromToken.decimals,
         );
         const currentAmount = BigInt(
-          Number(current.quote.fromAmount) * 10 ** current.quote.fromTokenDecimals,
+          Number(current.quote.fromAmount) * 10 ** current.quote.fromToken.decimals,
         );
         return currentAmount < bestAmount ? current : best;
       }
@@ -169,7 +169,7 @@ export class SwapTool extends BaseTool {
             toToken,
             amount,
             amountType,
-            chain = this.defaultChain,
+            network = this.defaultNetwork,
             provider: preferredProvider,
             slippage = this.defaultSlippage,
           } = args;
@@ -177,26 +177,27 @@ export class SwapTool extends BaseTool {
           console.log('🤖 Swap Args:', args);
 
           // Validate token addresses
-          if (!validateTokenAddress(fromToken, chain)) {
-            throw new Error(`Invalid fromToken address for chain ${chain}: ${fromToken}`);
+          if (!validateTokenAddress(fromToken, network)) {
+            throw new Error(`Invalid fromToken address for network ${network}: ${fromToken}`);
           }
-          if (!validateTokenAddress(toToken, chain)) {
-            throw new Error(`Invalid toToken address for chain ${chain}: ${toToken}`);
+          if (!validateTokenAddress(toToken, network)) {
+            throw new Error(`Invalid toToken address for network ${network}: ${toToken}`);
           }
 
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();
-          const userAddress = await wallet.getAddress(chain);
+          const userAddress = await wallet.getAddress(network);
 
-          // Validate chain is supported
-          const supportedChains = this.getSupportedChains();
-          if (!supportedChains.includes(chain)) {
+          // Validate network is supported
+          const supportedNetworks = this.getSupportedNetworks();
+          if (!supportedNetworks.includes(network)) {
             throw new Error(
-              `Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`,
+              `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
             );
           }
 
           const swapParams: SwapParams = {
+            network,
             fromToken,
             toToken,
             amount,
@@ -210,9 +211,11 @@ export class SwapTool extends BaseTool {
           if (preferredProvider) {
             try {
               selectedProvider = this.registry.getProvider(preferredProvider);
-              // Validate provider supports the chain
-              if (!selectedProvider.getSupportedChains().includes(chain)) {
-                throw new Error(`Provider ${preferredProvider} does not support chain ${chain}`);
+              // Validate provider supports the network
+              if (!selectedProvider.getSupportedNetworks().includes(network)) {
+                throw new Error(
+                  `Provider ${preferredProvider} does not support network ${network}`,
+                );
               }
               quote = await selectedProvider.getQuote(swapParams, userAddress);
             } catch (error) {
@@ -221,18 +224,24 @@ export class SwapTool extends BaseTool {
                 error,
               );
               console.log('🔄 Falling back to checking all providers for best quote...');
-              const bestQuote = await this.findBestQuote({
-                ...swapParams,
-                chain,
-              });
+              const bestQuote = await this.findBestQuote(
+                {
+                  ...swapParams,
+                  network,
+                },
+                userAddress,
+              );
               selectedProvider = bestQuote.provider;
               quote = bestQuote.quote;
             }
           } else {
-            const bestQuote = await this.findBestQuote({
-              ...swapParams,
-              chain,
-            });
+            const bestQuote = await this.findBestQuote(
+              {
+                ...swapParams,
+                network,
+              },
+              userAddress,
+            );
             selectedProvider = bestQuote.provider;
             quote = bestQuote.quote;
           }
@@ -250,28 +259,29 @@ export class SwapTool extends BaseTool {
 
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
-            quote.fromToken,
+            network,
+            quote.fromToken.address,
             userAddress,
             swapTx.to,
           );
-          const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromTokenDecimals);
+          const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromToken.decimals);
 
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
           if (allowance < requiredAmount) {
             const approveTx = await selectedProvider.buildApproveTransaction(
-              quote.fromToken,
+              network,
+              quote.fromToken.address,
               swapTx.to,
               quote.fromAmount,
               userAddress,
             );
             console.log('🤖 Approving...');
             // Sign and send approval transaction
-            const approveReceipt = await wallet.signAndSendTransaction(chain, {
+            const approveReceipt = await wallet.signAndSendTransaction(network, {
               to: approveTx.to,
               data: approveTx.data,
               value: BigInt(approveTx.value),
-              gasLimit: BigInt(approveTx.gasLimit),
             });
 
             console.log('🤖 ApproveReceipt:', approveReceipt);
@@ -282,11 +292,10 @@ export class SwapTool extends BaseTool {
           console.log('🤖 Swapping...');
 
           // Sign and send swap transaction
-          const receipt = await wallet.signAndSendTransaction(chain, {
+          const receipt = await wallet.signAndSendTransaction(network, {
             to: swapTx.to,
             data: swapTx.data,
             value: BigInt(swapTx.value),
-            gasLimit: BigInt(swapTx.gasLimit),
           });
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
@@ -301,7 +310,7 @@ export class SwapTool extends BaseTool {
             transactionHash: finalReceipt.hash,
             priceImpact: quote.priceImpact,
             type: quote.type,
-            chain,
+            network,
           });
         } catch (error) {
           console.error('Swap error:', error);

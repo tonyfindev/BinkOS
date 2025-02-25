@@ -1,6 +1,6 @@
 {
   "name": "@binkai/okx-provider",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
@@ -20,6 +20,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@binkai/core": "workspace:*",
     "@binkai/swap-plugin": "workspace:*",
     "@binkai/core": "workspace:*",
     "crypto-js": "^4.1.1",

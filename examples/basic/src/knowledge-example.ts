@@ -1,4 +1,12 @@
-import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
+import {
+  Agent,
+  Wallet,
+  Network,
+  settings,
+  NetworkType,
+  NetworksConfig,
+  NetworkName,
+} from '@binkai/core';
 import { KnowledgePlugin } from '@binkai/knowledge-plugin';
 import { BinkProvider } from '@binkai/bink-provider';
 import { PostgresDatabaseAdapter } from '@binkai/postgres-adapter';
@@ -43,7 +51,7 @@ async function main() {
   );
   console.log('✓ Wallet created\n');
 
-  console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
+  console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
 
   // Create agent instance
   const agent = new Agent(

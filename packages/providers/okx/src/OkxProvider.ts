@@ -1,37 +1,16 @@
-import { ISwapProvider, SwapQuote, SwapResult, SwapParams } from '@binkai/swap-plugin';
-import { ethers, Contract, Interface, Provider } from 'ethers';
+import { SwapQuote, SwapParams, NetworkProvider, BaseSwapProvider } from '@binkai/swap-plugin';
+import { ethers, Provider } from 'ethers';
 import CryptoJS from 'crypto-js';
-import { EVM_NATIVE_TOKEN_ADDRESS } from '@binkai/core';
-import { BaseSwapProvider } from '@binkai/swap-plugin';
-
-// Enhanced interface with better type safety
-interface TokenInfo extends Token {
-  // Inherits all Token properties and maintains DRY principle
-}
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 
 // Constants for better maintainability
 const CONSTANTS = {
   DEFAULT_GAS_LIMIT: '350000',
   APPROVE_GAS_LIMIT: '50000',
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
-  // BNB_ADDRESS: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-  // OKX_BNB_ADDRESS: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+  OKX_BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
   OKX_APPROVE_ADDRESS: '0x2c34A2Fb1d0b4f55de51E1d0bDEfaDDce6b7cDD6',
 } as const;
-
-export interface SwapTransaction {
-  to: string;
-  data: string;
-  value: string;
-  gasLimit: string;
-}
-
-export interface Token {
-  address: `0x${string}`;
-  decimals: number;
-  symbol: string;
-  chainId: number;
-}
 
 enum ChainId {
   BSC = 56,
@@ -40,31 +19,55 @@ enum ChainId {
 
 export class OkxProvider extends BaseSwapProvider {
   private chainId: ChainId;
-
   private readonly apiKey: string;
   private readonly secretKey: string;
   private readonly passphrase: string;
   private readonly projectId: string;
+  protected GAS_BUFFER: bigint = ethers.parseEther('0.0003');
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
-    super(provider);
-    this.provider = provider;
+    // Create a Map with BNB network and the provider
+    const providerMap = new Map<NetworkName, NetworkProvider>();
+    providerMap.set(NetworkName.BNB, provider);
+
+    super(providerMap);
     this.chainId = chainId;
     this.apiKey = process.env.OKX_API_KEY || '';
     this.secretKey = process.env.OKX_SECRET_KEY || '';
     this.passphrase = process.env.OKX_PASSPHRASE || '';
     this.projectId = process.env.OKX_PROJECT || '';
   }
-  protected isNativeToken(tokenAddress: string): boolean {
-    return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
-  }
 
   getName(): string {
     return 'okx';
   }
 
-  getSupportedChains(): string[] {
-    return ['bnb', 'ethereum'];
+  getSupportedNetworks(): NetworkName[] {
+    return [NetworkName.BNB];
+  }
+
+  protected isNativeToken(tokenAddress: string): boolean {
+    return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
+  }
+
+  protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
+    if (this.isNativeToken(tokenAddress)) {
+      return {
+        address: tokenAddress as `0x${string}`,
+        decimals: 18,
+        symbol: 'BNB',
+      };
+    }
+
+    const token = await super.getToken(tokenAddress, network);
+
+    const tokenInfo = {
+      chainId: this.chainId,
+      address: token.address.toLowerCase() as `0x${string}`,
+      decimals: token.decimals,
+      symbol: token.symbol,
+    };
+    return tokenInfo;
   }
 
   /**
@@ -94,8 +97,8 @@ export class OkxProvider extends BaseSwapProvider {
       }
 
       const [tokenIn, tokenOut] = await Promise.all([
-        this.getToken(params.fromToken),
-        this.getToken(params.toToken),
+        this.getToken(params.fromToken, params.network),
+        this.getToken(params.toToken, params.network),
       ]);
 
       const amountIn =
@@ -135,11 +138,10 @@ export class OkxProvider extends BaseSwapProvider {
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
 
       const quote: SwapQuote = {
+        network: params.network,
         quoteId,
-        fromToken: params.fromToken,
-        toToken: params.toToken,
-        fromTokenDecimals: tokenIn.decimals,
-        toTokenDecimals: tokenOut.decimals,
+        fromToken: tokenIn,
+        toToken: tokenOut,
         slippage: params.slippage,
         fromAmount: ethers.formatUnits(inputAmount.toString(), tokenIn.decimals),
         toAmount: ethers.formatUnits(outputAmount.toString(), tokenOut.decimals),
@@ -151,7 +153,10 @@ export class OkxProvider extends BaseSwapProvider {
           to: tx?.to || '',
           data: tx?.data || '',
           value: tx?.value || '0',
-          gasLimit: (tx.gas * 1.5).toString() || '350000',
+          gasLimit:
+            ethers.parseUnits((tx.gas * 1.5).toString(), 'wei') ||
+            ethers.parseUnits('350000', 'wei'),
+          network: params.network,
         },
       };
       // Store the quote and trade for later use
@@ -167,29 +172,6 @@ export class OkxProvider extends BaseSwapProvider {
       console.error('Error getting quote:', error);
       throw new Error(
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-    }
-  }
-
-  async buildSwapTransaction(quote: SwapQuote, userAddress: string): Promise<SwapTransaction> {
-    try {
-      // Get the stored quote and trade
-      const storedData = this.quotes.get(quote.quoteId);
-
-      if (!storedData) {
-        throw new Error('Quote expired or not found. Please get a new quote.');
-      }
-
-      return {
-        to: storedData?.quote.tx?.to || '',
-        data: storedData?.quote?.tx?.data || '',
-        value: storedData?.quote?.tx?.value || '0',
-        gasLimit: '350000',
-      };
-    } catch (error: unknown) {
-      console.error('Error building swap transaction:', error);
-      throw new Error(
-        `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }

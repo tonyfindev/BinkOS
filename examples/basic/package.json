@@ -14,6 +14,7 @@
     "swap-oku": "ts-node src/swap-example-oku.ts",
     "bridge": "ts-node src/bridge-example.ts",
     "swap-four-meme": "ts-node src/swap-example-four-meme.ts",
+    "staking-venus": "ts-node src/staking-example-venus.ts",
     "token": "ts-node src/token-example.ts",
     "knowledge": "ts-node src/knowledge-example.ts",
     "build": "tsc"
@@ -29,6 +30,8 @@
     "@binkai/token-plugin": "workspace:*",
     "@binkai/birdeye-provider": "workspace:*",
     "@binkai/bink-provider": "workspace:*",
+    "@binkai/staking-plugin": "workspace:*",
+    "@binkai/venus-provider": "workspace:*",
     "@binkai/knowledge-plugin": "workspace:*",
     "@binkai/postgres-adapter": "workspace:*",
     "@pancakeswap/sdk": "^5.7.7",

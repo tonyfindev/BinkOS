@@ -1,11 +1,19 @@
 import { ethers } from 'ethers';
-import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
+import {
+  Agent,
+  Wallet,
+  Network,
+  settings,
+  NetworkType,
+  NetworksConfig,
+  NetworkName,
+} from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
-import { OkxProvider } from '@binkai/okx-provider';
+// import { OkxProvider } from '@binkai/okx-provider';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
-import { FourMemeProvider } from '@binkai/four-meme-provider';
+// import { FourMemeProvider } from '@binkai/four-meme-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -25,7 +33,7 @@ async function main() {
   // Define available networks
   console.log('📡 Configuring networks...');
   const networks: NetworksConfig['networks'] = {
-    bnb: {
+    [NetworkName.BNB]: {
       type: 'evm' as NetworkType,
       config: {
         chainId: 56,
@@ -38,7 +46,7 @@ async function main() {
         },
       },
     },
-    ethereum: {
+    [NetworkName.ETHEREUM]: {
       type: 'evm' as NetworkType,
       config: {
         chainId: 1,
@@ -77,8 +85,8 @@ async function main() {
   );
   console.log('✓ Wallet created\n');
 
-  console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
-  console.log('🤖 Wallet ETH:', await wallet.getAddress('ethereum'));
+  console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
+  console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
@@ -116,15 +124,15 @@ async function main() {
   // Create providers with proper chain IDs
   const pancakeswap = new PancakeSwapProvider(provider, 56);
 
-  const okx = new OkxProvider(provider, 56);
+  // const okx = new OkxProvider(provider, 56);
 
-  const fourMeme = new FourMemeProvider(provider, 56);
+  // const fourMeme = new FourMemeProvider(provider, 56);
 
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [okx, pancakeswap, fourMeme],
+    providers: [pancakeswap],
     supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
@@ -162,12 +170,12 @@ async function main() {
 
   // Check available providers for each chain
   console.log('📊 Available providers by chain:');
-  const chains = registeredPlugin.getSupportedChains();
+  const chains = registeredPlugin.getSupportedNetworks();
   for (const chain of chains) {
-    const providers = registeredPlugin.getProvidersForChain(chain);
+    const providers = registeredPlugin.getProvidersForNetwork(chain);
     console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
   }
-  console.log();
+  // console.log();
 }
 
 main().catch(error => {

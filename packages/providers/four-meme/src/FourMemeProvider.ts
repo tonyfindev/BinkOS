@@ -1,13 +1,8 @@
-import { ISwapProvider, SwapQuote, SwapParams } from '@binkai/swap-plugin';
-import { ethers, Contract, Interface, Provider } from 'ethers';
+import { SwapQuote, SwapParams } from '@binkai/swap-plugin';
+import { ethers, Contract, Provider } from 'ethers';
 import { TokenManagerHelper2ABI } from './abis/TokenManagerHelper2';
-import { BaseSwapProvider } from '@binkai/swap-plugin';
-import { EVM_NATIVE_TOKEN_ADDRESS } from '@binkai/core';
-
-// Enhanced interface with better type safety
-interface TokenInfo extends Token {
-  // Inherits all Token properties and maintains DRY principle
-}
+import { BaseSwapProvider, NetworkProvider } from '@binkai/swap-plugin';
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 
 // Constants for better maintainability
 const CONSTANTS = {
@@ -19,20 +14,6 @@ const CONSTANTS = {
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
 } as const;
 
-export interface SwapTransaction {
-  to: string;
-  data: string;
-  value: string;
-  gasLimit: string;
-}
-
-export interface Token {
-  address: `0x${string}`;
-  decimals: number;
-  symbol: string;
-  chainId: number;
-}
-
 enum ChainId {
   BSC = 56,
   ETH = 1,
@@ -41,27 +22,48 @@ enum ChainId {
 export class FourMemeProvider extends BaseSwapProvider {
   private chainId: ChainId;
   private factory: any;
+  protected GAS_BUFFER: bigint = ethers.parseEther('0.0003');
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
-    super(provider);
-    this.provider = provider;
+    // Create a Map with BNB network and the provider
+    const providerMap = new Map<NetworkName, NetworkProvider>();
+    providerMap.set(NetworkName.BNB, provider);
+
+    super(providerMap);
     this.chainId = chainId;
-    this.factory = new Contract(
-      CONSTANTS.FOUR_MEME_FACTORY_V2,
-      TokenManagerHelper2ABI,
-      this.provider,
-    );
+    this.factory = new Contract(CONSTANTS.FOUR_MEME_FACTORY_V2, TokenManagerHelper2ABI, provider);
   }
 
   getName(): string {
     return 'four-meme';
   }
 
-  getSupportedChains(): string[] {
-    return ['bnb'];
+  getSupportedNetworks(): NetworkName[] {
+    return [NetworkName.BNB];
   }
+
   protected isNativeToken(tokenAddress: string): boolean {
     return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
+  }
+
+  protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
+    if (this.isNativeToken(tokenAddress)) {
+      return {
+        address: tokenAddress as `0x${string}`,
+        decimals: 18,
+        symbol: 'BNB',
+      };
+    }
+
+    const token = await super.getToken(tokenAddress, network);
+
+    const tokenInfo = {
+      chainId: this.chainId,
+      address: token.address.toLowerCase() as `0x${string}`,
+      decimals: token.decimals,
+      symbol: token.symbol,
+    };
+    return tokenInfo;
   }
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
@@ -75,8 +77,8 @@ export class FourMemeProvider extends BaseSwapProvider {
       // }
 
       const [tokenIn, tokenOut] = await Promise.all([
-        this.getToken(params.fromToken),
-        this.getToken(params.toToken),
+        this.getToken(params.fromToken, params.network),
+        this.getToken(params.toToken, params.network),
       ]);
 
       const amountIn =
@@ -168,11 +170,10 @@ export class FourMemeProvider extends BaseSwapProvider {
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
 
       const quote: SwapQuote = {
+        network: params.network,
         quoteId,
-        fromToken: params.fromToken,
-        toToken: params.toToken,
-        fromTokenDecimals: tokenIn.decimals,
-        toTokenDecimals: tokenOut.decimals,
+        fromToken: tokenIn,
+        toToken: tokenOut,
         slippage: 10,
         fromAmount: ethers.formatUnits(amountIn?.toString() || '0', tokenIn.decimals),
         toAmount: ethers.formatUnits(estimatedAmount, tokenOut.decimals),
@@ -184,7 +185,8 @@ export class FourMemeProvider extends BaseSwapProvider {
           to: CONSTANTS.FOUR_MEME_FACTORY_V2,
           data: txData,
           value,
-          gasLimit: CONSTANTS.DEFAULT_GAS_LIMIT,
+          gasLimit: BigInt(CONSTANTS.DEFAULT_GAS_LIMIT),
+          network: params.network,
         },
       };
 
@@ -195,29 +197,6 @@ export class FourMemeProvider extends BaseSwapProvider {
       console.error('Error getting quote:', error);
       throw new Error(
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-    }
-  }
-
-  async buildSwapTransaction(quote: SwapQuote, userAddress: string): Promise<SwapTransaction> {
-    try {
-      // Get the stored quote and trade
-      const storedData = this.quotes.get(quote.quoteId);
-
-      if (!storedData) {
-        throw new Error('Quote expired or not found. Please get a new quote.');
-      }
-
-      return {
-        to: storedData?.quote.tx?.to || '',
-        data: storedData?.quote?.tx?.data || '',
-        value: storedData?.quote?.tx?.value || '0',
-        gasLimit: '350000',
-      };
-    } catch (error: unknown) {
-      console.error('Error building swap transaction:', error);
-      throw new Error(
-        `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
