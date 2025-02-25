@@ -1,4 +1,12 @@
-import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
+import {
+  Agent,
+  Wallet,
+  Network,
+  settings,
+  NetworkType,
+  NetworksConfig,
+  NetworkName,
+} from '@binkai/core';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 
@@ -71,8 +79,8 @@ async function main() {
   );
   console.log('✓ Wallet created\n');
 
-  console.log('🤖 Wallet Solana:', await wallet.getAddress('solana'));
-  console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
+  console.log('🤖 Wallet Solana:', await wallet.getAddress(NetworkName.SOLANA));
+  console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
 
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
@@ -111,7 +119,7 @@ async function main() {
   // Example 1: Get token info by symbol on BSC
   console.log('💎 Example 1: Get token info by symbol on BSC');
   const bscSymbolResult = await agent.execute({
-    input: 'Get information about the BINK token on BNB chain',
+    input: 'Get information about the USDT token on BNB chain',
   });
   console.log('✓ Token info (BSC symbol):', bscSymbolResult, '\n');
 
@@ -142,9 +150,9 @@ async function main() {
 
   // Check available providers for each chain
   console.log('📊 Available providers by chain:');
-  const chains = registeredPlugin.getSupportedChains();
+  const chains = registeredPlugin.getSupportedNetworks();
   for (const chain of chains) {
-    const providers = registeredPlugin.getProvidersForChain(chain);
+    const providers = registeredPlugin.getProvidersForNetwork(chain);
     console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
   }
   console.log();

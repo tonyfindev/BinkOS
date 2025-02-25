@@ -7,36 +7,43 @@ import {
   CHAIN_MAPPING,
   SupportedChain,
 } from './types';
+import { NetworkName } from '@binkai/core';
 
 export class BirdeyeProvider implements ITokenProvider {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
+  private readonly supportedNetworks: NetworkName[];
 
   constructor(config: BirdeyeConfig = {}) {
     this.baseUrl = config.baseUrl || 'https://public-api.birdeye.so/defi';
     this.apiKey = config.apiKey;
+    this.supportedNetworks = Object.keys(CHAIN_MAPPING) as NetworkName[];
   }
 
   getName(): string {
     return 'birdeye';
   }
 
-  getSupportedChains(): string[] {
-    return Object.keys(CHAIN_MAPPING);
+  getSupportedNetworks(): NetworkName[] {
+    return this.supportedNetworks;
   }
 
-  private mapChain(chain: string): string {
-    const mappedChain = CHAIN_MAPPING[chain as SupportedChain];
+  private isNetworkSupported(network: NetworkName): boolean {
+    return this.supportedNetworks.includes(network);
+  }
+
+  private mapChain(network: NetworkName): string {
+    const mappedChain = CHAIN_MAPPING[network as SupportedChain];
     if (!mappedChain) {
-      throw new Error(`Chain ${chain} is not supported by Birdeye`);
+      throw new Error(`Network ${network} is not supported by Birdeye`);
     }
     return mappedChain;
   }
 
-  private getHeaders(chain: string): Record<string, string> {
+  private getHeaders(network: NetworkName): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-chain': this.mapChain(chain),
+      'x-chain': this.mapChain(network),
     };
 
     if (this.apiKey) {
@@ -46,40 +53,66 @@ export class BirdeyeProvider implements ITokenProvider {
     return headers;
   }
 
-  private async searchTokensFromApi(query: string, chain: string): Promise<BirdeyeTokenResponse> {
-    const response = await axios.get(`${this.baseUrl}/v3/search`, {
-      headers: this.getHeaders(chain),
-      params: {
-        keyword: query,
-        sort_by: 'volume_24h_usd',
-        sort_type: 'desc',
-        limit: 10,
-        chain: this.mapChain(chain),
-      },
-    });
+  private async searchTokensFromApi(
+    query: string,
+    network: NetworkName,
+  ): Promise<BirdeyeTokenResponse> {
+    try {
+      const response = await axios.get(`${this.baseUrl}/v3/search`, {
+        headers: this.getHeaders(network),
+        params: {
+          keyword: query,
+          sort_by: 'volume_24h_usd',
+          sort_type: 'desc',
+          limit: 10,
+          chain: this.mapChain(network),
+        },
+      });
 
-    return response.data;
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(
+          `Birdeye API search error: ${error.response?.data?.message || error.message}`,
+        );
+      }
+      throw error;
+    }
   }
 
-  private async getTokenOverview(address: string, chain: string): Promise<TokenOverviewResponse> {
-    const response = await axios.get(`${this.baseUrl}/token_overview`, {
-      headers: this.getHeaders(chain),
-      params: {
-        address: address,
-      },
-    });
+  private async getTokenOverview(
+    address: string,
+    network: NetworkName,
+  ): Promise<TokenOverviewResponse> {
+    try {
+      const response = await axios.get(`${this.baseUrl}/token_overview`, {
+        headers: this.getHeaders(network),
+        params: {
+          address: address,
+        },
+      });
 
-    return response.data;
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(
+          `Birdeye API token overview error: ${error.response?.data?.message || error.message}`,
+        );
+      }
+      throw error;
+    }
   }
 
   private mapTokenInfo(
     tokenData: BirdeyeTokenResponse['data']['items'][0]['result'][0],
+    network: NetworkName,
   ): TokenInfo {
     return {
       address: tokenData.address,
       symbol: tokenData.symbol,
       name: tokenData.name,
       decimals: tokenData.decimals || 0,
+      network,
       price: {
         usd: tokenData.price,
       },
@@ -87,20 +120,25 @@ export class BirdeyeProvider implements ITokenProvider {
       volume24h: tokenData.volume_24h_usd,
       priceChange24h: tokenData.price_change_24h_percent,
       logoURI: tokenData.logo_uri,
+      verified: true, // Assuming tokens from Birdeye are verified
     };
   }
 
-  private mapTokenOverviewToInfo(data: TokenOverviewResponse['data']): TokenInfo {
+  private mapTokenOverviewToInfo(
+    data: TokenOverviewResponse['data'],
+    network: NetworkName,
+  ): TokenInfo {
     return {
       address: data.address,
       symbol: data.symbol,
       name: data.name,
       decimals: data.decimals,
+      network,
       price: {
         usd: data.price,
       },
-      marketCap: data.market_cap,
-      volume24h: data.volume_24h_usd,
+      marketCap: data.marketCap ?? data.mc,
+      volume24h: data.v24hUSD,
       priceChange24h: data.priceChange24hPercent,
       logoURI: data.logoURI,
       verified: true, // Token overview endpoint returns verified tokens
@@ -108,30 +146,38 @@ export class BirdeyeProvider implements ITokenProvider {
   }
 
   private isAddress(query: string): boolean {
-    // Basic address validation - can be enhanced based on chain requirements
+    // Basic address validation - can be enhanced based on network requirements
     return /^[0-9a-zA-Z]{32,44}$/.test(query);
   }
 
   async getTokenInfo(params: TokenQueryParams): Promise<TokenInfo> {
-    if (!params.chain) {
-      throw new Error('Chain parameter is required for Birdeye provider');
+    const { query, network } = params;
+
+    if (!network) {
+      throw new Error('Network parameter is required for Birdeye provider');
+    }
+
+    if (!this.isNetworkSupported(network)) {
+      throw new Error(
+        `Network ${network} is not supported by Birdeye. Supported networks: ${this.supportedNetworks.join(', ')}`,
+      );
     }
 
     try {
-      if (this.isAddress(params.query)) {
+      if (this.isAddress(query)) {
         // If query is an address, use token_overview endpoint
-        const response = await this.getTokenOverview(params.query, params.chain);
+        const response = await this.getTokenOverview(query, network);
         if (!response.success) {
-          throw new Error(`Token ${params.query} not found on chain ${params.chain}`);
+          throw new Error(`Token ${query} not found on network ${network}`);
         }
-        return this.mapTokenOverviewToInfo(response.data);
+        return this.mapTokenOverviewToInfo(response.data, network);
       } else {
         // If query is a symbol, use search endpoint
-        const response = await this.searchTokensFromApi(params.query, params.chain);
+        const response = await this.searchTokensFromApi(query, network);
         if (!response.success || !response.data.items?.[0]?.result?.[0]) {
-          throw new Error(`Token ${params.query} not found on chain ${params.chain}`);
+          throw new Error(`Token ${query} not found on network ${network}`);
         }
-        return this.mapTokenInfo(response.data.items[0].result[0]);
+        return this.mapTokenInfo(response.data.items[0].result[0], network);
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -141,13 +187,19 @@ export class BirdeyeProvider implements ITokenProvider {
     }
   }
 
-  async searchTokens(query: string, chain: string): Promise<TokenInfo[]> {
+  async searchTokens(query: string, network: NetworkName): Promise<TokenInfo[]> {
+    if (!this.isNetworkSupported(network)) {
+      throw new Error(
+        `Network ${network} is not supported by Birdeye. Supported networks: ${this.supportedNetworks.join(', ')}`,
+      );
+    }
+
     try {
-      const response = await this.searchTokensFromApi(query, chain);
+      const response = await this.searchTokensFromApi(query, network);
       if (!response.success || !response.data.items?.[0]?.result) {
         return [];
       }
-      return response.data.items[0].result.map(tokenData => this.mapTokenInfo(tokenData));
+      return response.data.items[0].result.map(tokenData => this.mapTokenInfo(tokenData, network));
     } catch (error) {
       if (axios.isAxiosError(error)) {
         throw new Error(`Birdeye API error: ${error.response?.data?.message || error.message}`);
@@ -156,13 +208,17 @@ export class BirdeyeProvider implements ITokenProvider {
     }
   }
 
-  async isValidAddress(address: string, chain: string): Promise<boolean> {
+  async isValidAddress(address: string, network: NetworkName): Promise<boolean> {
+    if (!this.isNetworkSupported(network)) {
+      return false;
+    }
+
     if (!this.isAddress(address)) {
       return false;
     }
 
     try {
-      const response = await this.getTokenOverview(address, chain);
+      const response = await this.getTokenOverview(address, network);
       return response.success;
     } catch {
       return false;
