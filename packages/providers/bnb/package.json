@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@binkai/wallet-plugin": "workspace:*",
+    "@binkai/core": "workspace:*",
     "ethers": "^6.0.0"
   },
   "devDependencies": {
