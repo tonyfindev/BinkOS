@@ -110,15 +110,17 @@ async function main() {
     networks,
   );
   console.log('✓ Agent initialized\n');
-
+  // Register with agent
   console.log('🔌 Registering wallet plugin with agent...');
   await agent.registerPlugin(walletPlugin);
   console.log('✓ Plugin registered\n');
 
+  // Register the plugin with the agent
   console.log('🔌 Registering swap plugin with agent...');
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
 
+  // Register the plugin with the agent
   console.log('🔌 Registering token plugin with agent...');
   await agent.registerPlugin(tokenPlugin);
   console.log('✓ Plugin registered\n');
@@ -129,6 +131,13 @@ async function main() {
     input: 'Buy BINK from half of my bnb on bnb chain.',
     // input: `
     //   Buy BINKAI from half of my wallet balance on bnb chain.
+    //   Use the following token addresses:
+    //    BINKAI: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
+    // `,
+    input: `
+      Buy Broccoli from half of my wallet balance on bnb chain`,
+    //   input: `
+    //   Buy BINK from with 0.5 bnb from my wallet.
     //   Use the following token addresses:
     //    BINKAI: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
     // `,
