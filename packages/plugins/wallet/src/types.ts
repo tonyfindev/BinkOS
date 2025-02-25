@@ -10,7 +10,7 @@ export interface WalletBalance {
 }
 
 export interface WalletInfo {
-  address: string;
+  address?: string;
   nativeBalance?: WalletBalance;
   tokens?: WalletBalance[];
   totalUsdValue?: number;

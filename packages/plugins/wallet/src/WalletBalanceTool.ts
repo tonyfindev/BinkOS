@@ -9,6 +9,40 @@ export interface WalletToolConfig extends IToolConfig {
   supportedNetworks?: string[];
 }
 
+export function mergeObjects<T extends Record<string, any>>(obj1: T, obj2: T): T {
+  // Create a new object to avoid mutating the inputs
+  const result = { ...obj1 };
+
+  // Add or override properties from obj2
+  for (const key in obj2) {
+    if (Object.prototype.hasOwnProperty.call(obj2, key)) {
+      // If both objects have the same key and both values are objects, merge recursively
+      if (
+        key in result &&
+        typeof result[key] === 'object' &&
+        result[key] !== null &&
+        typeof obj2[key] === 'object' &&
+        obj2[key] !== null &&
+        !Array.isArray(result[key]) &&
+        !Array.isArray(obj2[key])
+      ) {
+        result[key] = mergeObjects(result[key], obj2[key]);
+      } else if (obj2[key] === null || obj2[key] === undefined) {
+        // Keep obj1's value if obj2's value is null or undefined
+        continue;
+      } else if (result[key] === null || result[key] === undefined) {
+        // Take obj2's value if obj1's value is null or undefined
+        result[key] = obj2[key];
+      } else {
+        // Otherwise just take the value from obj2
+        result[key] = obj2[key];
+      }
+    }
+  }
+
+  return result;
+}
+
 export class GetWalletBalanceTool extends BaseTool {
   public registry: ProviderRegistry;
   private defaultNetwork: string;
@@ -83,14 +117,14 @@ export class GetWalletBalanceTool extends BaseTool {
             throw new Error(`No providers available for network ${network}`);
           }
 
-          const results: Record<string, WalletInfo> = {};
+          let results: WalletInfo = {};
           const errors: Record<string, string> = {};
 
           // Try all providers and collect results
           for (const provider of providers) {
             try {
               const data = await provider.getWalletInfo(address, network);
-              results[provider.getName()] = data;
+              results = mergeObjects(results, data);
             } catch (error) {
               console.warn(`Failed to get wallet info from ${provider.getName()}:`, error);
               errors[provider.getName()] = error instanceof Error ? error.message : String(error);
