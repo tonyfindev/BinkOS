@@ -2,30 +2,30 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { BaseTool, IToolConfig } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
-import { IWalletProvider } from './types';
+import { IWalletProvider, WalletInfo } from './types';
 
 export interface WalletToolConfig extends IToolConfig {
-  defaultChain?: string;
-  supportedChains?: string[];
+  defaultNetwork?: string;
+  supportedNetworks?: string[];
 }
 
 export class GetWalletBalanceTool extends BaseTool {
   public registry: ProviderRegistry;
-  private defaultChain: string;
-  private supportedChains: Set<string>;
+  private defaultNetwork: string;
+  private supportedNetworks: Set<string>;
 
   constructor(config: WalletToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
-    this.defaultChain = config.defaultChain || 'bnb';
-    this.supportedChains = new Set<string>(config.supportedChains || []);
+    this.defaultNetwork = config.defaultNetwork || 'bnb';
+    this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
   }
 
   registerProvider(provider: IWalletProvider): void {
     this.registry.registerProvider(provider);
     console.log('✓ Provider registered', provider.constructor.name);
-    provider.getSupportedChains().forEach(chain => {
-      this.supportedChains.add(chain);
+    provider.getSupportedNetworks().forEach(network => {
+      this.supportedNetworks.add(network);
     });
   }
 
@@ -35,20 +35,20 @@ export class GetWalletBalanceTool extends BaseTool {
 
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
-    const chains = Array.from(this.supportedChains).join(', ');
-    return `Get wallet balance from address. Supports chains: ${chains}. Available providers: ${providers}`;
+    const networks = Array.from(this.supportedNetworks).join(', ');
+    return `Get wallet balance from address. Supports networks: ${networks}. Available providers: ${providers}`;
   }
 
-  private getSupportedChains(): string[] {
+  private getsupportedNetworks(): string[] {
     const agentNetworks = Object.keys(this.agent.getNetworks());
-    const providerChains = Array.from(this.supportedChains);
-    return agentNetworks.filter(network => providerChains.includes(network));
+    const providerNetworks = Array.from(this.supportedNetworks);
+    return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
   getSchema(): z.ZodObject<any> {
-    const supportedChains = this.getSupportedChains();
-    if (supportedChains.length === 0) {
-      throw new Error('No supported chains available');
+    const supportedNetworks = this.getsupportedNetworks();
+    if (supportedNetworks.length === 0) {
+      throw new Error('No supported networks available');
     }
 
     return z.object({
@@ -56,9 +56,9 @@ export class GetWalletBalanceTool extends BaseTool {
         .string()
         .optional()
         .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
-      chain: z
-        .enum(supportedChains as [string, ...string[]])
-        .default(this.defaultChain)
+      network: z
+        .enum(supportedNetworks as [string, ...string[]])
+        .default(this.defaultNetwork)
         .describe('The blockchain to query the wallet on'),
     });
   }
@@ -70,46 +70,53 @@ export class GetWalletBalanceTool extends BaseTool {
       schema: this.getSchema(),
       func: async (args: any) => {
         try {
-          const chain = args.chain || this.defaultChain;
+          const network = args.network || this.defaultNetwork;
           let address = args.address;
 
           // If no address provided, get it from the agent's wallet
           if (!address) {
-            address = await this.agent.getWallet().getAddress(chain);
+            address = await this.agent.getWallet().getAddress(network);
           }
 
-          const providers = this.registry.getProvidersByChain(chain);
+          const providers = this.registry.getProvidersByNetwork(network);
           if (providers.length === 0) {
-            throw new Error(`No providers available for chain ${chain}`);
+            throw new Error(`No providers available for network ${network}`);
           }
 
-          // Try each provider until we get a result
-          let lastError: Error | undefined;
+          const results: Record<string, WalletInfo> = {};
+          const errors: Record<string, string> = {};
+
+          // Try all providers and collect results
           for (const provider of providers) {
             try {
-              const walletInfo = await provider.getWalletInfo(address, chain);
-              return JSON.stringify({
-                status: 'success',
-                data: walletInfo,
-                provider: provider.getName(),
-                chain,
-              });
+              const data = await provider.getWalletInfo(address, network);
+              results[provider.getName()] = data;
             } catch (error) {
               console.warn(`Failed to get wallet info from ${provider.getName()}:`, error);
-              lastError = error as Error;
-              continue;
+              errors[provider.getName()] = error instanceof Error ? error.message : String(error);
             }
           }
 
-          throw new Error(
-            `Failed to get wallet information for ${address} on chain ${chain}. Last error: ${lastError?.message}`,
-          );
+          // If no successful results, throw error
+          if (Object.keys(results).length === 0) {
+            throw new Error(
+              `Failed to get wallet information for ${address} on network ${network}. Errors: ${JSON.stringify(errors)}`,
+            );
+          }
+          console.log('🤖 Wallet info:', results);
+
+          return JSON.stringify({
+            status: 'success',
+            data: results,
+            errors,
+            network,
+          });
         } catch (error) {
           console.error('Wallet info error:', error);
           return JSON.stringify({
             status: 'error',
             message: error instanceof Error ? error.message : String(error),
-            chain: args.chain || this.defaultChain,
+            network: args.network || this.defaultNetwork,
           });
         }
       },

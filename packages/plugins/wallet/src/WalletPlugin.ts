@@ -1,33 +1,33 @@
-import { BasePlugin, IPluginConfig } from '@binkai/core';
+import { BasePlugin, IPluginConfig, NetworkName } from '@binkai/core';
 import { GetWalletBalanceTool } from './WalletBalanceTool';
 import { IWalletProvider } from './types';
 import { ProviderRegistry } from './ProviderRegistry';
 
 export interface WalletPluginConfig extends IPluginConfig {
-  defaultChain?: string;
+  defaultNetwork?: string;
   providers?: IWalletProvider[];
-  supportedChains?: string[];
+  supportedNetworks?: string[];
 }
 
 export class WalletPlugin extends BasePlugin {
   public registry: ProviderRegistry;
   private walletTool!: GetWalletBalanceTool;
-  private supportedChains: Set<string>;
+  private supportedNetworks: Set<string>;
 
   constructor() {
     super();
     this.registry = new ProviderRegistry();
-    this.supportedChains = new Set();
+    this.supportedNetworks = new Set();
   }
 
   async initialize(config: WalletPluginConfig): Promise<void> {
-    if (config.supportedChains) {
-      config.supportedChains.forEach(chain => this.supportedChains.add(chain));
+    if (config.supportedNetworks) {
+      config.supportedNetworks.forEach(chain => this.supportedNetworks.add(chain));
     }
 
     this.walletTool = new GetWalletBalanceTool({
-      defaultChain: config.defaultChain,
-      supportedChains: Array.from(this.supportedChains),
+      defaultNetwork: config.defaultNetwork,
+      supportedNetworks: Array.from(this.supportedNetworks),
     });
 
     if (config.providers) {
@@ -40,21 +40,21 @@ export class WalletPlugin extends BasePlugin {
   registerProvider(provider: IWalletProvider): void {
     this.registry.registerProvider(provider);
     this.walletTool.registerProvider(provider);
-    provider.getSupportedChains().forEach(chain => {
-      this.supportedChains.add(chain);
+    provider.getSupportedNetworks().forEach(network => {
+      this.supportedNetworks.add(network);
     });
   }
 
   getProviders(): IWalletProvider[] {
-    return this.registry.getProvidersByChain('*');
+    return this.registry.getProvidersByNetwork('*');
   }
 
-  getProvidersForChain(chain: string): IWalletProvider[] {
-    return this.registry.getProvidersByChain(chain);
+  getProvidersForNetwork(network: NetworkName): IWalletProvider[] {
+    return this.registry.getProvidersByNetwork(network);
   }
 
-  getSupportedChains(): string[] {
-    return Array.from(this.supportedChains);
+  getSupportedChain(): string[] {
+    return Array.from(this.supportedNetworks);
   }
 
   getName(): string {

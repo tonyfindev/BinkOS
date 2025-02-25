@@ -1,3 +1,4 @@
+import { NetworkName } from '@binkai/core';
 import { IWalletProvider } from './types';
 
 export class ProviderRegistry {
@@ -39,12 +40,12 @@ export class ProviderRegistry {
    * @param chain The blockchain network to filter by
    * @returns Array of providers that support the chain
    */
-  getProvidersByChain(chain: string): IWalletProvider[] {
-    if (chain === '*') {
+  getProvidersByNetwork(network: NetworkName | '*'): IWalletProvider[] {
+    if (network === '*') {
       return Array.from(this.providers.values());
     }
     return Array.from(this.providers.values()).filter(provider =>
-      provider.getSupportedChains().includes(chain),
+      provider.getSupportedNetworks().includes(network),
     );
   }
 

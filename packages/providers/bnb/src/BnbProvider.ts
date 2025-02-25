@@ -1,5 +1,6 @@
 import { IWalletProvider, WalletBalance, WalletInfo } from '@binkai/wallet-plugin';
 import { ethers } from 'ethers';
+import { NetworkName } from '../../../core/src';
 
 interface BnbProviderConfig {
   rpcUrl?: string;
@@ -24,27 +25,21 @@ export class BnbProvider implements IWalletProvider {
     return 'bnb';
   }
 
-  getSupportedChains(): string[] {
-    return ['bnb'];
+  getSupportedNetworks(): NetworkName[] {
+    return [NetworkName.BNB];
   }
 
-  async getWalletInfo(address: string, chain: string): Promise<WalletInfo> {
-    const nativeBalance = await this.getNativeBalance(address, chain);
-    const tokens = await this.getTokenBalances(address, chain);
-
-    // const totalUsdValue = tokens.reduce((sum, token) => {
-    //   return sum + (token.usdValue || 0);
-    // }, nativeBalance.usdValue || 0);
-
+  async getWalletInfo(address: string, network?: NetworkName): Promise<WalletInfo> {
+    const nativeBalance = await this.getNativeBalance(address, network);
     return {
       address,
-      nativeBalance,
-      tokens,
+      nativeBalance: nativeBalance,
+      tokens: undefined,
       //   totalUsdValue,
     };
   }
 
-  async getNativeBalance(address: string, chain: string): Promise<WalletBalance> {
+  async getNativeBalance(address: string, network?: NetworkName): Promise<WalletBalance> {
     const balance = await this.provider.getBalance(address);
     return {
       symbol: 'BNB',
@@ -54,15 +49,11 @@ export class BnbProvider implements IWalletProvider {
     };
   }
 
-  async getTokenBalances(address: string, chain: string): Promise<WalletBalance[]> {
+  async getTokenBalances(address: string, network?: NetworkName): Promise<WalletBalance[]> {
     // This would typically call the BSCScan API to get token list
     // For demo, returning empty array
     // Implement BSCScan API integration for full functionality
     return [];
-  }
-
-  async getTransactionCount(address: string, chain: string): Promise<number> {
-    return await this.provider.getTransactionCount(address);
   }
 
   private async getTokenBalance(
