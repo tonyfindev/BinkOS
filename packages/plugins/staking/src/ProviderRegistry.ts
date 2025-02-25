@@ -1,14 +1,14 @@
-import { ISwapProvider } from './types';
+import { IStakingProvider } from './types';
 import { NetworkName } from '@binkai/core';
 
 export class ProviderRegistry {
-  private providers: Map<string, ISwapProvider> = new Map();
+  private providers: Map<string, IStakingProvider> = new Map();
 
-  registerProvider(provider: ISwapProvider): void {
+  registerProvider(provider: IStakingProvider): void {
     this.providers.set(provider.getName(), provider);
   }
 
-  getProvider(name: string): ISwapProvider {
+  getProvider(name: string): IStakingProvider {
     const provider = this.providers.get(name);
     if (!provider) {
       throw new Error(`Provider ${name} not found`);
@@ -16,7 +16,7 @@ export class ProviderRegistry {
     return provider;
   }
 
-  getProviders(): ISwapProvider[] {
+  getProviders(): IStakingProvider[] {
     return Array.from(this.providers.values());
   }
 
@@ -24,7 +24,7 @@ export class ProviderRegistry {
     return Array.from(this.providers.keys());
   }
 
-  getProvidersByNetwork(network: NetworkName | '*'): ISwapProvider[] {
+  getProvidersByNetwork(network: NetworkName | '*'): IStakingProvider[] {
     if (network === '*') {
       return this.getProviders();
     }

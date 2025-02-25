@@ -1,15 +1,15 @@
 import { NetworkName, Token } from '@binkai/core';
-import { ISwapProvider, SwapQuote, SwapParams, Transaction } from './types';
+import { IStakingProvider, StakingQuote, StakingParams, Transaction } from './types';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { Connection } from '@solana/web3.js';
 
 export type NetworkProvider = Provider | Connection;
 
-export abstract class BaseSwapProvider implements ISwapProvider {
+export abstract class BaseStakingProvider implements IStakingProvider {
   protected providers: Map<NetworkName, NetworkProvider> = new Map();
   protected tokenCache: Map<string, { token: Token; timestamp: number }> = new Map();
   protected readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-  protected quotes: Map<string, { quote: SwapQuote; expiresAt: number }> = new Map();
+  protected quotes: Map<string, { quote: StakingQuote; expiresAt: number }> = new Map();
   protected readonly QUOTE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
   // Network-specific gas buffers
@@ -98,7 +98,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
   }
 
   abstract getName(): string;
-  abstract getQuote(params: SwapParams, walletAddress: string): Promise<SwapQuote>;
+  abstract getQuote(params: StakingParams, walletAddress: string): Promise<StakingQuote>;
   abstract getSupportedNetworks(): NetworkName[];
 
   getPrompt?(): string;
@@ -130,7 +130,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
   }
 
   /**
-   * Adjusts the input amount for native token swaps to account for gas costs
+   * Adjusts the input amount for native token Stakings to account for gas costs
    * @param amount The original amount to spend
    * @param decimals The decimals of the token
    * @param walletAddress The address of the user
@@ -225,7 +225,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
   }
 
   async checkBalance(
-    quote: SwapQuote,
+    quote: StakingQuote,
     walletAddress: string,
   ): Promise<{ isValid: boolean; message?: string }> {
     try {
@@ -356,7 +356,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
     return await erc20.allowance(owner, spender);
   }
 
-  protected storeQuote(quote: SwapQuote, additionalData?: any) {
+  protected storeQuote(quote: StakingQuote, additionalData?: any) {
     this.quotes.set(quote.quoteId, {
       quote,
       expiresAt: Date.now() + this.QUOTE_EXPIRY,
@@ -368,7 +368,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
     }, this.QUOTE_EXPIRY);
   }
 
-  async buildSwapTransaction(quote: SwapQuote, walletAddress: string): Promise<Transaction> {
+  async buildStakingTransaction(quote: StakingQuote, walletAddress: string): Promise<Transaction> {
     try {
       this.validateNetwork(quote.network);
       if (this.isSolanaNetwork(quote.network)) {
@@ -383,13 +383,13 @@ export abstract class BaseSwapProvider implements ISwapProvider {
         to: storedData.quote.tx?.to || '',
         data: storedData.quote.tx?.data || '',
         value: storedData.quote.tx?.value || '0',
-        gasLimit: storedData.quote.tx?.gasLimit,
+        gasLimit: storedData.quote.tx?.gasLimit ? BigInt(storedData.quote.tx.gasLimit) : undefined,
         network: storedData.quote.network,
       };
     } catch (error) {
-      console.error('Error building swap transaction:', error);
+      console.error('Error building staking transaction:', error);
       throw new Error(
-        `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to build Staking transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }

@@ -1,26 +1,19 @@
 import { ISwapProvider, SwapQuote, SwapParams } from '@binkai/swap-plugin';
-import { BaseSwapProvider } from '@binkai/swap-plugin';
+import { BaseSwapProvider, NetworkProvider } from '@binkai/swap-plugin';
 import {
   ChainId,
-  Token,
+  Token as PancakeToken,
   CurrencyAmount,
   TradeType,
   Percent,
   Currency,
   Native,
 } from '@pancakeswap/sdk';
-import { EVM_NATIVE_TOKEN_ADDRESS } from '@binkai/core';
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { createPublicClient, http, PublicClient } from 'viem';
 import { bsc } from 'viem/chains';
 import { SMART_ROUTER_ADDRESSES, SwapRouter, V4Router } from '@pancakeswap/smart-router';
-
-export interface SwapTransaction {
-  to: string;
-  data: string;
-  value: string;
-  gasLimit: string;
-}
 
 export class PancakeSwapProvider extends BaseSwapProvider {
   private viemClient: PublicClient;
@@ -28,7 +21,11 @@ export class PancakeSwapProvider extends BaseSwapProvider {
   protected GAS_BUFFER: bigint = ethers.parseEther('0.0003');
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
-    super(provider);
+    // Create a Map with BNB network and the provider
+    const providerMap = new Map<NetworkName, NetworkProvider>();
+    providerMap.set(NetworkName.BNB, provider);
+
+    super(providerMap);
     this.chainId = chainId;
 
     // Initialize viem client
@@ -47,6 +44,11 @@ export class PancakeSwapProvider extends BaseSwapProvider {
     return 'pancakeswap';
   }
 
+  getSupportedNetworks(): NetworkName[] {
+    return [NetworkName.BNB];
+  }
+
+  // Keep this for backward compatibility
   getSupportedChains(): string[] {
     return ['bnb'];
   }
@@ -55,9 +57,14 @@ export class PancakeSwapProvider extends BaseSwapProvider {
     return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
   }
 
-  protected async getToken(tokenAddress: string): Promise<Token> {
-    const token = await super.getToken(tokenAddress);
-    return new Token(this.chainId, token.address, token.decimals, token.symbol);
+  protected async getToken(tokenAddress: string, network: NetworkName): Promise<PancakeToken> {
+    const token = await super.getToken(tokenAddress, network);
+    return new PancakeToken(
+      this.chainId,
+      tokenAddress as `0x${string}`,
+      token.decimals,
+      token.symbol,
+    );
   }
 
   private async getCandidatePools(tokenIn: Currency, tokenOut: Currency) {
@@ -76,13 +83,21 @@ export class PancakeSwapProvider extends BaseSwapProvider {
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      if (params.fromToken === Native.onChain(this.chainId).wrapped.address) {
+        params.fromToken = EVM_NATIVE_TOKEN_ADDRESS;
+      }
+
+      if (params.toToken === Native.onChain(this.chainId).wrapped.address) {
+        params.toToken = EVM_NATIVE_TOKEN_ADDRESS;
+      }
+
       const [tokenIn, tokenOut] = await Promise.all([
         params.fromToken.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()
           ? Native.onChain(this.chainId)
-          : this.getToken(params.fromToken),
+          : this.getToken(params.fromToken, params.network),
         params.toToken.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()
           ? Native.onChain(this.chainId)
-          : this.getToken(params.toToken),
+          : this.getToken(params.toToken, params.network),
       ]);
 
       // If input token is native token and it's an exact input swap
@@ -92,6 +107,7 @@ export class PancakeSwapProvider extends BaseSwapProvider {
           params.amount,
           tokenIn.decimals,
           userAddress,
+          params.network,
         );
       }
 
@@ -145,12 +161,33 @@ export class PancakeSwapProvider extends BaseSwapProvider {
         slippageTolerance: new Percent(Math.floor(params.slippage * 100), 10000),
       });
 
+      // Create token objects that match the expected Token type
+      const fromTokenObj: Token = {
+        address: params.fromToken as `0x${string}`,
+        decimals: tokenIn.decimals,
+        symbol: tokenIn.symbol,
+      };
+
+      if (params.fromToken === EVM_NATIVE_TOKEN_ADDRESS) {
+        fromTokenObj.address = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+        fromTokenObj.symbol = 'BNB';
+      }
+
+      const toTokenObj: Token = {
+        address: params.toToken as `0x${string}`,
+        decimals: tokenOut.decimals,
+        symbol: tokenOut.symbol,
+      };
+
+      if (params.toToken === EVM_NATIVE_TOKEN_ADDRESS) {
+        toTokenObj.address = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+        toTokenObj.symbol = 'BNB';
+      }
+
       const quote: SwapQuote = {
         quoteId,
-        fromToken: params.fromToken,
-        toToken: params.toToken,
-        fromTokenDecimals: tokenIn.decimals,
-        toTokenDecimals: tokenOut.decimals,
+        fromToken: fromTokenObj,
+        toToken: toTokenObj,
         fromAmount:
           params.type === 'input'
             ? adjustedAmount
@@ -164,11 +201,12 @@ export class PancakeSwapProvider extends BaseSwapProvider {
         estimatedGas: '350000', // TODO: get gas limit from trade
         type: params.type,
         slippage: params.slippage,
+        network: params.network,
         tx: {
           to: SMART_ROUTER_ADDRESSES[this.chainId as keyof typeof SMART_ROUTER_ADDRESSES],
           data: calldata,
           value: value.toString(),
-          gasLimit: '350000', // TODO: get gas limit from trade
+          network: params.network,
         },
       };
 

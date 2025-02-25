@@ -1,27 +1,34 @@
 import { NetworkName, Token } from '@binkai/core';
 
-export interface SwapQuote {
+export interface StakingQuote {
   network: NetworkName;
   quoteId: string;
   fromToken: Token;
   toToken: Token;
   fromAmount: string;
   toAmount: string;
-  priceImpact: number;
-  route: string[];
+  currentAPY: number;
+  averageAPY?: number;
+  maxSupply: number;
+  currentSupply: number;
+  liquidity: number;
   estimatedGas: string;
-  type: 'input' | 'output'; // Whether this is an exact input or exact output swap
+  type: 'supply' | 'withdraw' | 'stake' | 'unstake';
   tx?: Transaction;
-  slippage: number;
 }
 
-export interface SwapParams {
+export interface StakingResult extends StakingQuote {
+  transactionHash: string;
+  status: 'success' | 'failed';
+  error?: string;
+}
+
+export interface StakingParams {
   network: NetworkName;
   fromToken: string;
   toToken: string;
   amount: string;
-  type: 'input' | 'output'; // Whether amount is input or output
-  slippage: number;
+  type: 'supply' | 'withdraw' | 'stake' | 'unstake';
 }
 
 export interface Transaction {
@@ -32,7 +39,7 @@ export interface Transaction {
   network: NetworkName;
 }
 
-export interface ISwapProvider {
+export interface IStakingProvider {
   /**
    * Get the name of the DEX provider
    */
@@ -50,27 +57,27 @@ export interface ISwapProvider {
   getPrompt?(): string;
 
   /**
-   * Check if user has sufficient balance for the swap
-   * @param quote The swap quote to check balance against
-   * @param walletAddress The address of the user
+   * Check if user has sufficient balance for the staking
+   * @param quote The staking quote to check balance against
+   * @param userAddress The address of the user
    * @returns Promise<{ isValid: boolean; message?: string }> Returns if balance is sufficient and error message if not
    */
   checkBalance(
-    quote: SwapQuote,
-    walletAddress: string,
+    quote: StakingQuote,
+    userAddress: string,
   ): Promise<{ isValid: boolean; message?: string }>;
 
   /**
-   * Get a quote for swapping tokens
+   * Get a quote for staking tokens
    */
-  getQuote(params: SwapParams, walletAddress: string): Promise<SwapQuote>;
+  getQuote(params: StakingParams, userAddress: string): Promise<StakingQuote>;
 
   /**
-   * Build a transaction for swapping tokens
+   * Build a transaction for staking tokens
    * @param quote The quote to execute
-   * @param walletAddress The address of the user who will execute the swap
+   * @param userAddress The address of the user who will execute the staking
    */
-  buildSwapTransaction(quote: SwapQuote, walletAddress: string): Promise<Transaction>;
+  buildStakingTransaction(quote: StakingQuote, userAddress: string): Promise<Transaction>;
 
   /**
    * Build a transaction for approving token spending

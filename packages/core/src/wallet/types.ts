@@ -23,7 +23,7 @@ export interface TransactionRequest {
   to: string;
   data: string;
   value: bigint;
-  gasLimit: bigint;
+  gasLimit?: bigint;
 }
 
 export interface TransactionReceipt {

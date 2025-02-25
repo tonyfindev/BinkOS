@@ -1,18 +1,17 @@
-import { SwapTool } from './SwapTool';
-import { ISwapProvider } from './types';
+import { StakingTool } from './StakingTool';
+import { IStakingProvider } from './types';
 import { ProviderRegistry } from './ProviderRegistry';
 import { BaseTool, IPluginConfig, BasePlugin, NetworkName } from '@binkai/core';
 
-export interface SwapPluginConfig extends IPluginConfig {
-  defaultSlippage?: number;
+export interface StakingPluginConfig extends IPluginConfig {
   defaultNetwork?: string;
-  providers?: ISwapProvider[];
+  providers?: IStakingProvider[];
   supportedNetworks?: string[];
 }
 
-export class SwapPlugin extends BasePlugin {
+export class StakingPlugin extends BasePlugin {
   public registry: ProviderRegistry;
-  private swapTool!: SwapTool;
+  private stakingTool!: StakingTool;
   private supportedNetworks: Set<string>;
 
   constructor() {
@@ -22,18 +21,17 @@ export class SwapPlugin extends BasePlugin {
   }
 
   getName(): string {
-    return 'swap';
+    return 'staking';
   }
 
-  async initialize(config: SwapPluginConfig): Promise<void> {
+  async initialize(config: StakingPluginConfig): Promise<void> {
     // Initialize supported networks
     if (config.supportedNetworks) {
       config.supportedNetworks.forEach(network => this.supportedNetworks.add(network));
     }
 
-    // Configure swap tool
-    this.swapTool = new SwapTool({
-      defaultSlippage: config.defaultSlippage,
+    // Configure staking tool
+    this.stakingTool = new StakingTool({
       defaultNetwork: config.defaultNetwork,
       supportedNetworks: Array.from(this.supportedNetworks),
     });
@@ -47,15 +45,15 @@ export class SwapPlugin extends BasePlugin {
   }
 
   getTools(): BaseTool[] {
-    return [this.swapTool as unknown as BaseTool];
+    return [this.stakingTool as unknown as BaseTool];
   }
 
   /**
-   * Register a new swap provider
+   * Register a new Staking provider
    */
-  registerProvider(provider: ISwapProvider): void {
+  registerProvider(provider: IStakingProvider): void {
     this.registry.registerProvider(provider);
-    this.swapTool.registerProvider(provider);
+    this.stakingTool.registerProvider(provider);
 
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach((network: NetworkName) => {
@@ -66,14 +64,14 @@ export class SwapPlugin extends BasePlugin {
   /**
    * Get all registered providers
    */
-  getProviders(): ISwapProvider[] {
+  getProviders(): IStakingProvider[] {
     return this.registry.getProvidersByNetwork('*');
   }
 
   /**
    * Get providers for a specific network
    */
-  getProvidersForNetwork(network: NetworkName): ISwapProvider[] {
+  getProvidersForNetwork(network: NetworkName): IStakingProvider[] {
     return this.registry.getProvidersByNetwork(network);
   }
 
