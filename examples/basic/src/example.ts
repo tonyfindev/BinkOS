@@ -10,10 +10,10 @@ import {
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
-import { OkxProvider } from '@binkai/okx-provider';
+// import { OkxProvider } from '@binkai/okx-provider';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
-import { FourMemeProvider } from '@binkai/four-meme-provider';
+// import { FourMemeProvider } from '@binkai/four-meme-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -124,15 +124,15 @@ async function main() {
   // Create providers with proper chain IDs
   const pancakeswap = new PancakeSwapProvider(provider, 56);
 
-  const okx = new OkxProvider(provider, 56);
+  // const okx = new OkxProvider(provider, 56);
 
-  const fourMeme = new FourMemeProvider(provider, 56);
+  // const fourMeme = new FourMemeProvider(provider, 56);
 
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [okx, pancakeswap, fourMeme],
+    providers: [pancakeswap],
     supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
@@ -170,12 +170,12 @@ async function main() {
 
   // Check available providers for each chain
   console.log('📊 Available providers by chain:');
-  const chains = registeredPlugin.getSupportedChains();
+  const chains = registeredPlugin.getSupportedNetworks();
   for (const chain of chains) {
-    const providers = registeredPlugin.getProvidersForChain(chain);
+    const providers = registeredPlugin.getProvidersForNetwork(chain);
     console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
   }
-  console.log();
+  // console.log();
 }
 
 main().catch(error => {

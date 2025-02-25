@@ -2,30 +2,26 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { BaseTool, IToolConfig } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
-import { ISwapProvider, SwapQuote, SwapParams } from './types';
+import { IStakingProvider, StakingQuote, StakingParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
-
-export interface SwapToolConfig extends IToolConfig {
-  defaultSlippage?: number;
+export interface StakingToolConfig extends IToolConfig {
   defaultNetwork?: string;
   supportedNetworks?: string[];
 }
 
-export class SwapTool extends BaseTool {
+export class StakingTool extends BaseTool {
   public registry: ProviderRegistry;
-  private defaultSlippage: number;
   private defaultNetwork: string;
   private supportedNetworks: Set<string>;
 
-  constructor(config: SwapToolConfig) {
+  constructor(config: StakingToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
-    this.defaultSlippage = config.defaultSlippage || 0.5;
     this.defaultNetwork = config.defaultNetwork || 'bnb';
     this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
   }
 
-  registerProvider(provider: ISwapProvider): void {
+  registerProvider(provider: IStakingProvider): void {
     this.registry.registerProvider(provider);
     console.log('✓ Provider registered', provider.constructor.name);
     // Add provider's supported networks
@@ -35,7 +31,7 @@ export class SwapTool extends BaseTool {
   }
 
   getName(): string {
-    return 'swap';
+    return 'staking';
   }
 
   getDescription(): string {
@@ -46,7 +42,7 @@ export class SwapTool extends BaseTool {
     // Add provider-specific prompts if they exist
     const providerPrompts = this.registry
       .getProviders()
-      .map((provider: ISwapProvider) => {
+      .map((provider: IStakingProvider) => {
         const prompt = provider.getPrompt?.();
         return prompt ? `${provider.getName()}: ${prompt}` : null;
       })
@@ -82,33 +78,29 @@ export class SwapTool extends BaseTool {
     }
 
     return z.object({
-      fromToken: z.string().describe('The token address swap from'),
-      toToken: z.string().describe('The token address swap to'),
-      amount: z.string().describe('The amount of tokens to swap'),
-      amountType: z
-        .enum(['input', 'output'])
-        .describe('Whether the amount is input (spend) or output (receive)'),
+      fromToken: z.string().describe('The token address staking from'),
+      toToken: z.string().describe('The token address staking to'),
+      amount: z.string().describe('The amount of tokens to staking'),
+      type: z
+        .enum(['supply', 'withdraw', 'stake', 'unstake'])
+        .describe('The type of staking operation to perform'),
       network: z
         .enum(supportedNetworks as [string, ...string[]])
         .default(this.defaultNetwork)
-        .describe('The blockchain network to execute the swap on'),
+        .describe('The blockchain network to execute the staking on'),
       provider: z
         .enum(providers as [string, ...string[]])
         .optional()
         .describe(
-          'The DEX provider to use for the swap. If not specified, the best rate will be found',
+          'The staking provider to use for the staking. If not specified, the best rate will be found',
         ),
-      slippage: z
-        .number()
-        .optional()
-        .describe(`Maximum slippage percentage allowed (default: ${this.defaultSlippage})`),
     });
   }
 
   private async findBestQuote(
-    params: SwapParams & { network: string },
+    params: StakingParams & { network: string },
     userAddress: string,
-  ): Promise<{ provider: ISwapProvider; quote: SwapQuote }> {
+  ): Promise<{ provider: IStakingProvider; quote: StakingQuote }> {
     // Validate network is supported
     const providers = this.registry.getProvidersByNetwork(params.network);
     if (providers.length === 0) {
@@ -116,7 +108,7 @@ export class SwapTool extends BaseTool {
     }
 
     const quotes = await Promise.all(
-      providers.map(async (provider: ISwapProvider) => {
+      providers.map(async (provider: IStakingProvider) => {
         try {
           console.log('🤖 Getting quote from', provider.getName());
           const quote = await provider.getQuote(params, userAddress);
@@ -128,7 +120,7 @@ export class SwapTool extends BaseTool {
       }),
     );
 
-    type QuoteResult = { provider: ISwapProvider; quote: SwapQuote };
+    type QuoteResult = { provider: IStakingProvider; quote: StakingQuote };
     const validQuotes = quotes.filter((q): q is QuoteResult => q !== null);
     if (validQuotes.length === 0) {
       throw new Error('No valid quotes found');
@@ -136,7 +128,7 @@ export class SwapTool extends BaseTool {
 
     // Find the best quote based on amount type
     return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
-      if (params.type === 'input') {
+      if (params.type === 'supply' || params.type === 'stake') {
         // For input amount, find highest output amount
         const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals);
         const currentAmount = BigInt(
@@ -168,13 +160,12 @@ export class SwapTool extends BaseTool {
             fromToken,
             toToken,
             amount,
-            amountType,
+            type,
             network = this.defaultNetwork,
             provider: preferredProvider,
-            slippage = this.defaultSlippage,
           } = args;
 
-          console.log('🤖 Swap Args:', args);
+          console.log('🤖 Staking Args:', args);
 
           // Validate token addresses
           if (!validateTokenAddress(fromToken, network)) {
@@ -196,17 +187,16 @@ export class SwapTool extends BaseTool {
             );
           }
 
-          const swapParams: SwapParams = {
+          const stakingParams: StakingParams = {
             network,
             fromToken,
             toToken,
             amount,
-            type: amountType,
-            slippage,
+            type,
           };
 
-          let selectedProvider: ISwapProvider;
-          let quote: SwapQuote;
+          let selectedProvider: IStakingProvider;
+          let quote: StakingQuote;
 
           if (preferredProvider) {
             try {
@@ -217,7 +207,7 @@ export class SwapTool extends BaseTool {
                   `Provider ${preferredProvider} does not support network ${network}`,
                 );
               }
-              quote = await selectedProvider.getQuote(swapParams, userAddress);
+              quote = await selectedProvider.getQuote(stakingParams, userAddress);
             } catch (error) {
               console.warn(
                 `Failed to get quote from preferred provider ${preferredProvider}:`,
@@ -226,7 +216,7 @@ export class SwapTool extends BaseTool {
               console.log('🔄 Falling back to checking all providers for best quote...');
               const bestQuote = await this.findBestQuote(
                 {
-                  ...swapParams,
+                  ...stakingParams,
                   network,
                 },
                 userAddress,
@@ -237,7 +227,7 @@ export class SwapTool extends BaseTool {
           } else {
             const bestQuote = await this.findBestQuote(
               {
-                ...swapParams,
+                ...stakingParams,
                 network,
               },
               userAddress,
@@ -250,20 +240,22 @@ export class SwapTool extends BaseTool {
 
           // Check user's balance before proceeding
           const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
+
           if (!balanceCheck.isValid) {
-            throw new Error(balanceCheck.message || 'Insufficient balance for swap');
+            throw new Error(balanceCheck.message || 'Insufficient balance for staking');
           }
 
-          // Build swap transaction
-          const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
+          // Build staking transaction
+          const stakingTx = await selectedProvider.buildStakingTransaction(quote, userAddress);
 
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
             network,
             quote.fromToken.address,
             userAddress,
-            swapTx.to,
+            stakingTx.to,
           );
+
           const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromToken.decimals);
 
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
@@ -272,7 +264,7 @@ export class SwapTool extends BaseTool {
             const approveTx = await selectedProvider.buildApproveTransaction(
               network,
               quote.fromToken.address,
-              swapTx.to,
+              stakingTx.to,
               quote.fromAmount,
               userAddress,
             );
@@ -289,13 +281,13 @@ export class SwapTool extends BaseTool {
             // Wait for approval to be mined
             await approveReceipt.wait();
           }
-          console.log('🤖 Swapping...');
+          console.log('🤖 Staking...');
 
-          // Sign and send swap transaction
+          // Sign and send Staking transaction
           const receipt = await wallet.signAndSendTransaction(network, {
-            to: swapTx.to,
-            data: swapTx.data,
-            value: BigInt(swapTx.value),
+            to: stakingTx.to,
+            data: stakingTx.data,
+            value: BigInt(stakingTx.value),
           });
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
@@ -308,12 +300,11 @@ export class SwapTool extends BaseTool {
             fromAmount: quote.fromAmount.toString(),
             toAmount: quote.toAmount.toString(),
             transactionHash: finalReceipt.hash,
-            priceImpact: quote.priceImpact,
             type: quote.type,
             network,
           });
         } catch (error) {
-          console.error('Swap error:', error);
+          console.error('Staking error:', error);
           return JSON.stringify({
             status: 'error',
             message: error,

@@ -36,3 +36,9 @@ export interface NetworkConfig {
 export interface NetworksConfig {
   networks: Partial<Record<NetworkName, NetworkConfig>>;
 }
+
+export interface Token {
+  address: string;
+  decimals: number;
+  symbol: string;
+}
