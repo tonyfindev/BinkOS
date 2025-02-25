@@ -13,6 +13,8 @@ import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
 // import { OkxProvider } from '@binkai/okx-provider';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { WalletPlugin } from '@binkai/wallet-plugin';
+import { BnbProvider } from '@binkai/bnb-provider';
 // import { FourMemeProvider } from '@binkai/four-meme-provider';
 
 // Hardcoded RPC URLs for demonstration
@@ -113,6 +115,20 @@ async function main() {
     apiKey: settings.get('BIRDEYE_API_KEY'),
   });
 
+  // Create and configure the wallet plugin
+  console.log('🔄 Initializing wallet plugin...');
+  const walletPlugin = new WalletPlugin();
+  // Create provider with API key
+  const bnbProvider = new BnbProvider({
+    rpcUrl: BNB_RPC,
+  });
+
+  // Initialize plugin with provider
+  await walletPlugin.initialize({
+    defaultChain: 'bnb',
+    providers: [bnbProvider, birdeye],
+    supportedChains: ['bnb'],
+  });
   // Configure the plugin with supported chains
   await tokenPlugin.initialize({
     defaultChain: 'bnb',
@@ -142,6 +158,10 @@ async function main() {
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
 
+  console.log('🔌 Registering wallet plugin with agent...');
+  await agent.registerPlugin(walletPlugin);
+  console.log('✓ Plugin registered\n');
+
   console.log('🔌 Registering token plugin with agent...');
   await agent.registerPlugin(tokenPlugin);
   console.log('✓ Plugin registered\n');
@@ -156,10 +176,10 @@ async function main() {
   console.log('✓ Swap result:', result1, '\n');
 
   // Example 2: Sell with exact output amount on BNB Chain
-  console.log('💱 Example 2: Sell exactly 20 BINK to BNB with 0.5% slippage on bnb chain.');
+  console.log('💱 Example 2: Sell exactly 50% BINK');
   const result2 = await agent.execute({
     input: `
-      Sell exactly 20 BINK to BNB with 0.5% slippage on bnb chain.
+      Sell exactly 50% BINK
     `,
   });
 
