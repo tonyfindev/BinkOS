@@ -128,7 +128,7 @@ async function main() {
   // Use the plugin through the agent
   const result = await agent.execute({
     // input: 'Get my wallet balance on bnb',
-    input: 'Buy BINK from half of my bnb on bnb chain.',
+    // input: 'Buy BINK from half of my bnb on bnb chain.',
     // input: `
     //   Buy BINKAI from half of my wallet balance on bnb chain.
     //   Use the following token addresses:
