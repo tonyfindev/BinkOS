@@ -41,8 +41,11 @@ export interface TokenOverviewResponse {
     priceChange24hPercent: number;
     volume_24h: number;
     volume_24h_usd: number;
-    market_cap: number;
+    market_cap?: number;
     holder: number;
+    v24hUSD?: number;
+    marketCap?: number;
+    mc?: number;
   };
 }
 
@@ -55,6 +58,9 @@ export const CHAIN_MAPPING = {
   [NetworkName.SOLANA]: 'solana',
   [NetworkName.ETHEREUM]: 'ethereum',
   [NetworkName.BNB]: 'bsc', // BSC chain mapping
+  [NetworkName.POLYGON]: 'polygon',
+  [NetworkName.ARBITRUM]: 'arbitrum',
+  [NetworkName.OPTIMISM]: 'optimism',
   // Add more chains as they become supported
 } as const;
 

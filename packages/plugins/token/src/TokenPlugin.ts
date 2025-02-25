@@ -1,23 +1,22 @@
-import { BasePlugin, IPluginConfig, BaseTool } from '@binkai/core';
+import { BasePlugin, IPluginConfig, BaseTool, NetworkName } from '@binkai/core';
 import { GetTokenInfoTool } from './TokenTool';
-import { ITokenProvider } from './types';
+import { ITokenProvider, TokenInfo } from './types';
 import { ProviderRegistry } from './ProviderRegistry';
 
 export interface TokenPluginConfig extends IPluginConfig {
-  defaultChain?: string;
   providers?: ITokenProvider[];
-  supportedChains?: string[];
+  supportedNetworks?: NetworkName[];
 }
 
 export class TokenPlugin extends BasePlugin {
   public registry: ProviderRegistry;
   private tokenTool!: GetTokenInfoTool;
-  private supportedChains: Set<string>;
+  private supportedNetworks: Set<NetworkName>;
 
   constructor() {
     super();
     this.registry = new ProviderRegistry();
-    this.supportedChains = new Set();
+    this.supportedNetworks = new Set();
   }
 
   getName(): string {
@@ -25,15 +24,14 @@ export class TokenPlugin extends BasePlugin {
   }
 
   async initialize(config: TokenPluginConfig): Promise<void> {
-    // Initialize supported chains
-    if (config.supportedChains) {
-      config.supportedChains.forEach(chain => this.supportedChains.add(chain));
+    // Initialize supported networks
+    if (config.supportedNetworks) {
+      config.supportedNetworks.forEach(network => this.supportedNetworks.add(network));
     }
 
     // Configure token tool
     this.tokenTool = new GetTokenInfoTool({
-      defaultChain: config.defaultChain,
-      supportedChains: Array.from(this.supportedChains),
+      supportedNetworks: Array.from(this.supportedNetworks),
     });
 
     // Register providers if provided in config
@@ -55,9 +53,9 @@ export class TokenPlugin extends BasePlugin {
     this.registry.registerProvider(provider);
     this.tokenTool.registerProvider(provider);
 
-    // Add provider's supported chains
-    provider.getSupportedChains().forEach(chain => {
-      this.supportedChains.add(chain);
+    // Add provider's supported networks
+    provider.getSupportedNetworks().forEach(network => {
+      this.supportedNetworks.add(network);
     });
   }
 
@@ -65,21 +63,29 @@ export class TokenPlugin extends BasePlugin {
    * Get all registered providers
    */
   getProviders(): ITokenProvider[] {
-    return this.registry.getProvidersByChain('*');
+    return this.registry.getProvidersByNetwork('*');
   }
 
   /**
-   * Get providers for a specific chain
+   * Get providers for a specific network
    */
-  getProvidersForChain(chain: string): ITokenProvider[] {
-    return this.registry.getProvidersByChain(chain);
+  getProvidersForNetwork(network: NetworkName): ITokenProvider[] {
+    return this.registry.getProvidersByNetwork(network);
   }
 
   /**
-   * Get all supported chains
+   * Get all supported networks
    */
-  getSupportedChains(): string[] {
-    return Array.from(this.supportedChains);
+  getSupportedNetworks(): NetworkName[] {
+    return Array.from(this.supportedNetworks);
+  }
+
+  /**
+   * Refresh token price information
+   * This will fetch the latest price from available providers without modifying the default token list
+   */
+  async refreshTokenPrice(network: NetworkName, address: string): Promise<TokenInfo> {
+    return this.tokenTool.refreshTokenPrice(network, address);
   }
 
   async cleanup(): Promise<void> {
