@@ -1,14 +1,15 @@
+import { NetworkName } from '@binkai/core';
 import { ITokenProvider } from './types';
 
 export class ProviderRegistry {
-  private providers: Map<string, ITokenProvider> = new Map();
+  private providers: ITokenProvider[] = [];
 
   registerProvider(provider: ITokenProvider): void {
-    this.providers.set(provider.getName(), provider);
+    this.providers.push(provider);
   }
 
   getProvider(name: string): ITokenProvider {
-    const provider = this.providers.get(name);
+    const provider = this.providers.find(p => p.getName() === name);
     if (!provider) {
       throw new Error(`Provider ${name} not found`);
     }
@@ -16,16 +17,13 @@ export class ProviderRegistry {
   }
 
   getProviderNames(): string[] {
-    return Array.from(this.providers.keys());
+    return this.providers.map(provider => provider.getName());
   }
 
-  getProvidersByChain(chain: string): ITokenProvider[] {
-    return Array.from(this.providers.values()).filter(provider =>
-      provider.getSupportedChains().includes(chain),
-    );
-  }
-
-  getAllProviders(): ITokenProvider[] {
-    return Array.from(this.providers.values());
+  getProvidersByNetwork(network: NetworkName | '*'): ITokenProvider[] {
+    if (network === '*') {
+      return this.providers;
+    }
+    return this.providers.filter(provider => provider.getSupportedNetworks().includes(network));
   }
 }
