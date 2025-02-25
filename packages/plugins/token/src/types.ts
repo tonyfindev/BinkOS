@@ -1,3 +1,4 @@
+import { NetworkName } from '@binkai/core';
 import { z } from 'zod';
 
 export interface TokenInfo {
@@ -5,6 +6,7 @@ export interface TokenInfo {
   symbol: string;
   name: string;
   decimals: number;
+  network: NetworkName; // The network this token belongs to
   totalSupply?: string;
   price?: {
     usd?: number;
@@ -15,20 +17,21 @@ export interface TokenInfo {
   priceChange24h?: number;
   logoURI?: string;
   verified?: boolean;
+  priceUpdatedAt?: number; // Timestamp when price was last updated
 }
 
 export interface TokenQueryParams {
   query: string; // Can be address or symbol
-  chain?: string;
+  network: NetworkName;
   includePrice?: boolean;
 }
 
 export interface ITokenProvider {
   getName(): string;
-  getSupportedChains(): string[];
+  getSupportedNetworks(): NetworkName[];
   getTokenInfo(params: TokenQueryParams): Promise<TokenInfo>;
-  searchTokens(query: string, chain: string): Promise<TokenInfo[]>;
-  isValidAddress(address: string, chain: string): Promise<boolean>;
+  searchTokens(query: string, network: NetworkName): Promise<TokenInfo[]>;
+  isValidAddress(address: string, network: NetworkName): Promise<boolean>;
 }
 
 export const TokenInfoSchema = z.object({
@@ -36,6 +39,7 @@ export const TokenInfoSchema = z.object({
   symbol: z.string(),
   name: z.string(),
   decimals: z.number(),
+  network: z.nativeEnum(NetworkName),
   totalSupply: z.string().optional(),
   price: z
     .object({
@@ -48,4 +52,5 @@ export const TokenInfoSchema = z.object({
   priceChange24h: z.number().optional(),
   logoURI: z.string().optional(),
   verified: z.boolean().optional(),
+  priceUpdatedAt: z.number().optional(),
 });
