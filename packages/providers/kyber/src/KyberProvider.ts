@@ -1,5 +1,7 @@
 import { ISwapProvider, SwapQuote, SwapParams } from '@binkai/swap-plugin';
 import { ethers, Contract, Interface, Provider } from 'ethers';
+import { EVM_NATIVE_TOKEN_ADDRESS } from '@binkai/core';
+import { BaseSwapProvider } from '@binkai/swap-plugin';
 
 // Enhanced interface with better type safety
 interface TokenInfo extends Token {
@@ -11,8 +13,8 @@ const CONSTANTS = {
   DEFAULT_GAS_LIMIT: '350000',
   APPROVE_GAS_LIMIT: '50000',
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
-  BNB_ADDRESS: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-  KYBER_BNB_ADDRESS: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
+  // KYBER_BNB_ADDRESS: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
   KYBER_API_BASE: 'https://aggregator-api.kyberswap.com/bsc/',
 } as const;
 
@@ -27,7 +29,7 @@ export interface Token {
   address: `0x${string}`;
   decimals: number;
   symbol: string;
-  chainId: number;
+  // chainId: number;
 }
 
 enum ChainId {
@@ -35,17 +37,18 @@ enum ChainId {
   ETH = 1,
 }
 
-export class KyberProvider implements ISwapProvider {
-  private provider: Provider;
+export class KyberProvider extends BaseSwapProvider {
+  // private provider: Provider;
   private chainId: ChainId;
   // Token cache with expiration time
-  private tokenCache: Map<string, { token: Token; timestamp: number }> = new Map();
-  private readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+  // private tokenCache: Map<string, { token: Token; timestamp: number }> = new Map();
+  // private readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
   // Quote storage with expiration
-  private quotes: Map<string, { quote: SwapQuote; expiresAt: number }> = new Map();
+  // private quotes: Map<string, { quote: SwapQuote; expiresAt: number }> = new Map();
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
+    super(provider);
     this.provider = provider;
     this.chainId = chainId;
   }
@@ -57,106 +60,118 @@ export class KyberProvider implements ISwapProvider {
   getSupportedChains(): string[] {
     return ['bnb', 'ethereum'];
   }
-
-  getPrompt(): string {
-    return `If you are using KyberSwap, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
+  protected isNativeToken(tokenAddress: string): boolean {
+    return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
   }
+  // getPrompt(): string {
+  //   return `If you are using KyberSwap, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
+  // }
 
-  async checkBalance(
-    quote: SwapQuote,
-    userAddress: string,
-  ): Promise<{ isValid: boolean; message?: string }> {
-    try {
-      // For input swaps, check the fromToken balance
-      // For output swaps, we still need to check the fromToken as that's what user will spend
-      const tokenToCheck = quote.fromToken;
-      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromTokenDecimals);
+  // async checkBalance(
+  //   quote: SwapQuote,
+  //   userAddress: string,
+  // ): Promise<{ isValid: boolean; message?: string }> {
+  //   try {
+  //     // For input swaps, check the fromToken balance
+  //     // For output swaps, we still need to check the fromToken as that's what user will spend
+  //     const tokenToCheck = quote.fromToken;
+  //     const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromTokenDecimals);
 
-      // If the token is BNB, check native balance
-      if (tokenToCheck.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()) {
-        const balance = await this.provider.getBalance(userAddress);
+  //     // If the token is BNB, check native balance
+  //     if (tokenToCheck.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()) {
+  //       const balance = await this.provider.getBalance(userAddress);
 
-        if (balance < requiredAmount) {
-          const formattedBalance = ethers.formatUnits(balance, 18);
-          const formattedRequired = ethers.formatUnits(requiredAmount, 18);
-          return {
-            isValid: false,
-            message: `Insufficient BNB balance. Required: ${formattedRequired} BNB, Available: ${formattedBalance} BNB`,
-          };
-        }
-      } else {
-        // For other tokens, check ERC20 balance
-        const erc20 = new Contract(
-          tokenToCheck,
-          ['function balanceOf(address) view returns (uint256)'],
-          this.provider,
-        );
-        const balance = await erc20.balanceOf(userAddress);
+  //       if (balance < requiredAmount) {
+  //         const formattedBalance = ethers.formatUnits(balance, 18);
+  //         const formattedRequired = ethers.formatUnits(requiredAmount, 18);
+  //         return {
+  //           isValid: false,
+  //           message: `Insufficient BNB balance. Required: ${formattedRequired} BNB, Available: ${formattedBalance} BNB`,
+  //         };
+  //       }
+  //     } else {
+  //       // For other tokens, check ERC20 balance
+  //       const erc20 = new Contract(
+  //         tokenToCheck,
+  //         ['function balanceOf(address) view returns (uint256)'],
+  //         this.provider,
+  //       );
+  //       const balance = await erc20.balanceOf(userAddress);
 
-        if (balance < requiredAmount) {
-          const token = await this.getToken(tokenToCheck);
-          const formattedBalance = ethers.formatUnits(balance, token.decimals);
-          const formattedRequired = ethers.formatUnits(requiredAmount, token.decimals);
-          return {
-            isValid: false,
-            message: `Insufficient ${token.symbol} balance. Required: ${formattedRequired} ${token.symbol}, Available: ${formattedBalance} ${token.symbol}`,
-          };
-        }
-      }
+  //       if (balance < requiredAmount) {
+  //         const token = await this.getToken(tokenToCheck);
+  //         const formattedBalance = ethers.formatUnits(balance, token.decimals);
+  //         const formattedRequired = ethers.formatUnits(requiredAmount, token.decimals);
+  //         return {
+  //           isValid: false,
+  //           message: `Insufficient ${token.symbol} balance. Required: ${formattedRequired} ${token.symbol}, Available: ${formattedBalance} ${token.symbol}`,
+  //         };
+  //       }
+  //     }
 
-      return { isValid: true };
-    } catch (error) {
-      console.error('Error checking balance:', error);
-      return {
-        isValid: false,
-        message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      };
-    }
-  }
+  //     return { isValid: true };
+  //   } catch (error) {
+  //     console.error('Error checking balance:', error);
+  //     return {
+  //       isValid: false,
+  //       message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+  //     };
+  //   }
+  // }
 
-  private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
-    const erc20Interface = new Interface([
-      'function decimals() view returns (uint8)',
-      'function symbol() view returns (string)',
-    ]);
+  // private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
+  //   const erc20Interface = new Interface([
+  //     'function decimals() view returns (uint8)',
+  //     'function symbol() view returns (string)',
+  //   ]);
 
-    const contract = new Contract(tokenAddress, erc20Interface, this.provider);
-    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
+  //   const contract = new Contract(tokenAddress, erc20Interface, this.provider);
+  //   const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
 
-    return {
-      address: tokenAddress.toLowerCase() as `0x${string}`,
-      decimals: Number(decimals),
-      symbol,
-      chainId: this.chainId,
-    };
-  }
+  //   return {
+  //     address: tokenAddress.toLowerCase() as `0x${string}`,
+  //     decimals: Number(decimals),
+  //     symbol,
+  //     chainId: this.chainId,
+  //   };
+  // }
 
-  /**
-   * Retrieves token information with caching and TTL
-   * @param tokenAddress The address of the token
-   * @returns Promise<Token>
-   */
-  private async getToken(tokenAddress: string): Promise<Token> {
-    const now = Date.now();
-    const cached = this.tokenCache.get(tokenAddress);
+  // /**
+  //  * Retrieves token information with caching and TTL
+  //  * @param tokenAddress The address of the token
+  //  * @returns Promise<Token>
+  //  */
+  // private async getToken(tokenAddress: string): Promise<Token> {
+  //   const now = Date.now();
+  //   const cached = this.tokenCache.get(tokenAddress);
 
-    if (cached && now - cached.timestamp < this.CACHE_TTL) {
-      return cached.token;
-    }
+  //   if (cached && now - cached.timestamp < this.CACHE_TTL) {
+  //     return cached.token;
+  //   }
 
-    const info = await this.getTokenInfo(tokenAddress);
-    console.log('🤖 Token info', info);
-    const token = {
-      chainId: info.chainId,
-      address: info.address.toLowerCase() as `0x${string}`,
-      decimals: info.decimals,
-      symbol: info.symbol,
-    };
+  //   if (tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()) {
+  //     const token = {
+  //       chainId: this.chainId,
+  //       address: tokenAddress as `0x${string}`,
+  //       decimals: 18,
+  //       symbol: 'BNB',
+  //     };
+  //     this.tokenCache.set(tokenAddress, { token, timestamp: now });
+  //     return token;
+  //   }
 
-    this.tokenCache.set(tokenAddress, { token, timestamp: now });
-    return token;
-  }
+  //   const info = await this.getTokenInfo(tokenAddress);
+  //   console.log('🤖 Token info', info);
+  //   const token = {
+  //     chainId: info.chainId,
+  //     address: info.address.toLowerCase() as `0x${string}`,
+  //     decimals: info.decimals,
+  //     symbol: info.symbol,
+  //   };
 
+  //   this.tokenCache.set(tokenAddress, { token, timestamp: now });
+  //   return token;
+  // }
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       // Fetch input and output token information
@@ -171,20 +186,20 @@ export class KyberProvider implements ISwapProvider {
           ? Math.floor(Number(params.amount) * 10 ** sourceToken.decimals)
           : undefined;
 
-      // Convert BNB addresses to KYBER format if needed
-      const sourceAddress =
-        sourceToken.address === CONSTANTS.BNB_ADDRESS
-          ? CONSTANTS.KYBER_BNB_ADDRESS
-          : sourceToken.address;
-      const destinationAddress =
-        destinationToken.address === CONSTANTS.BNB_ADDRESS
-          ? CONSTANTS.KYBER_BNB_ADDRESS
-          : destinationToken.address;
+      // // Convert BNB addresses to KYBER format if needed
+      // const sourceAddress =
+      //   sourceToken.address === CONSTANTS.BNB_ADDRESS
+      //     ? CONSTANTS.KYBER_BNB_ADDRESS
+      //     : sourceToken.address;
+      // const destinationAddress =
+      //   destinationToken.address === CONSTANTS.BNB_ADDRESS
+      //     ? CONSTANTS.KYBER_BNB_ADDRESS
+      //     : destinationToken.address;
 
       // Fetch optimal swap route
       const optimalRoute = await this.fetchOptimalRoute(
-        sourceAddress,
-        destinationAddress,
+        sourceToken.address,
+        destinationToken.address,
         swapAmount,
       );
 
@@ -200,7 +215,7 @@ export class KyberProvider implements ISwapProvider {
         optimalRoute,
       );
       this.storeQuoteWithExpiry(swapQuote);
-
+      console.log('log', swapQuote);
       return swapQuote;
     } catch (error: unknown) {
       console.error('Error getting quote:', error);
@@ -249,8 +264,11 @@ export class KyberProvider implements ISwapProvider {
       quoteId,
       fromToken: params.fromToken,
       toToken: params.toToken,
-      fromAmount: swapTransactionData.amountIn,
-      toAmount: swapTransactionData.amountOut,
+      fromAmount: ethers.formatUnits(swapTransactionData.amountIn.toString(), sourceToken.decimals),
+      toAmount: ethers.formatUnits(
+        swapTransactionData.amountOut.toString(),
+        destinationToken.decimals,
+      ),
       fromTokenDecimals: sourceToken.decimals,
       toTokenDecimals: destinationToken.decimals,
       slippage: 100, // 10% default slippage
@@ -299,36 +317,38 @@ export class KyberProvider implements ISwapProvider {
     }
   }
 
-  async buildApproveTransaction(
-    token: string,
-    spender: string,
-    amount: string,
-    userAddress: string,
-  ): Promise<SwapTransaction> {
-    const tokenInfo = await this.getToken(token);
-    const erc20Interface = new Interface([
-      'function approve(address spender, uint256 amount) returns (bool)',
-    ]);
+  //   async buildApproveTransaction(
+  //     token: string,
+  //     spender: string,
+  //     amount: string,
+  //     userAddress: string,
+  //   ): Promise<SwapTransaction> {
+  //     const tokenInfo = await this.getToken(token);
+  //     const erc20Interface = new Interface([
+  //       'function approve(address spender, uint256 amount) returns (bool)',
+  //     ]);
 
-    const data = erc20Interface.encodeFunctionData('approve', [
-      spender,
-      ethers.parseUnits(amount, tokenInfo.decimals),
-    ]);
+  //     const data = erc20Interface.encodeFunctionData('approve', [
+  //       spender,
+  //       ethers.parseUnits(amount, tokenInfo.decimals),
+  //     ]);
 
-    return {
-      to: token,
-      data,
-      value: '0',
-      gasLimit: '100000',
-    };
-  }
-
-  async checkAllowance(token: string, owner: string, spender: string): Promise<bigint> {
-    const erc20 = new Contract(
-      token,
-      ['function allowance(address owner, address spender) view returns (uint256)'],
-      this.provider,
-    );
-    return await erc20.allowance(owner, spender);
-  }
+  //     return {
+  //       to: token,
+  //       data,
+  //       value: '0',
+  //       gasLimit: '100000',
+  //     };
+  //   }
+  //   async checkAllowance(token: string, owner: string, spender: string): Promise<bigint> {
+  //     if (token.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()) {
+  //       return BigInt(Number.MAX_SAFE_INTEGER) * BigInt(10 ** 18);
+  //     }
+  //     const erc20 = new Contract(
+  //       token,
+  //       ['function allowance(address owner, address spender) view returns (uint256)'],
+  //       this.provider,
+  //     );
+  //     return await erc20.allowance(owner, spender);
+  //   }
 }

@@ -1,6 +1,8 @@
 import { ISwapProvider, SwapQuote, SwapResult, SwapParams } from '@binkai/swap-plugin';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import CryptoJS from 'crypto-js';
+import { EVM_NATIVE_TOKEN_ADDRESS } from '@binkai/core';
+import { BaseSwapProvider } from '@binkai/swap-plugin';
 
 // Enhanced interface with better type safety
 interface TokenInfo extends Token {
@@ -12,8 +14,8 @@ const CONSTANTS = {
   DEFAULT_GAS_LIMIT: '350000',
   APPROVE_GAS_LIMIT: '50000',
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
-  BNB_ADDRESS: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-  OKX_BNB_ADDRESS: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+  // BNB_ADDRESS: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
+  // OKX_BNB_ADDRESS: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
   OKX_APPROVE_ADDRESS: '0x2c34A2Fb1d0b4f55de51E1d0bDEfaDDce6b7cDD6',
 } as const;
 
@@ -36,21 +38,16 @@ enum ChainId {
   ETH = 1,
 }
 
-export class OkxProvider implements ISwapProvider {
-  private provider: Provider;
+export class OkxProvider extends BaseSwapProvider {
   private chainId: ChainId;
-  // Improved token caching with TTL
-  private tokenCache: Map<string, { token: Token; timestamp: number }> = new Map();
-  private readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
-  // Enhanced quote storage with expiration
-  private quotes: Map<string, { quote: SwapQuote; expiresAt: number }> = new Map();
   private readonly apiKey: string;
   private readonly secretKey: string;
   private readonly passphrase: string;
   private readonly projectId: string;
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
+    super(provider);
     this.provider = provider;
     this.chainId = chainId;
     this.apiKey = process.env.OKX_API_KEY || '';
@@ -58,111 +55,16 @@ export class OkxProvider implements ISwapProvider {
     this.passphrase = process.env.OKX_PASSPHRASE || '';
     this.projectId = process.env.OKX_PROJECT || '';
   }
-
-  async checkBalance(
-    quote: SwapQuote,
-    userAddress: string,
-  ): Promise<{ isValid: boolean; message?: string }> {
-    try {
-      // For input swaps, check the fromToken balance
-      // For output swaps, we still need to check the fromToken as that's what user will spend
-      const tokenToCheck = quote.fromToken;
-      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromTokenDecimals);
-
-      // If the token is BNB, check native balance
-      if (tokenToCheck.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()) {
-        const balance = await this.provider.getBalance(userAddress);
-
-        if (balance < requiredAmount) {
-          const formattedBalance = ethers.formatUnits(balance, 18);
-          const formattedRequired = ethers.formatUnits(requiredAmount, 18);
-          return {
-            isValid: false,
-            message: `Insufficient BNB balance. Required: ${formattedRequired} BNB, Available: ${formattedBalance} BNB`,
-          };
-        }
-      } else {
-        // For other tokens, check ERC20 balance
-        const erc20 = new Contract(
-          tokenToCheck,
-          ['function balanceOf(address) view returns (uint256)'],
-          this.provider,
-        );
-        const balance = await erc20.balanceOf(userAddress);
-
-        if (balance < requiredAmount) {
-          const token = await this.getToken(tokenToCheck);
-          const formattedBalance = ethers.formatUnits(balance, token.decimals);
-          const formattedRequired = ethers.formatUnits(requiredAmount, token.decimals);
-          return {
-            isValid: false,
-            message: `Insufficient ${token.symbol} balance. Required: ${formattedRequired} ${token.symbol}, Available: ${formattedBalance} ${token.symbol}`,
-          };
-        }
-      }
-
-      return { isValid: true };
-    } catch (error) {
-      console.error('Error checking balance:', error);
-      return {
-        isValid: false,
-        message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      };
-    }
+  protected isNativeToken(tokenAddress: string): boolean {
+    return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
   }
+
   getName(): string {
     return 'okx';
   }
 
   getSupportedChains(): string[] {
     return ['bnb', 'ethereum'];
-  }
-
-  getPrompt(): string {
-    return `If you are using Okx, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
-  }
-
-  private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
-    const erc20Interface = new Interface([
-      'function decimals() view returns (uint8)',
-      'function symbol() view returns (string)',
-    ]);
-
-    const contract = new Contract(tokenAddress, erc20Interface, this.provider);
-    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
-
-    return {
-      address: tokenAddress.toLowerCase() as `0x${string}`,
-      decimals: Number(decimals),
-      symbol,
-      chainId: this.chainId,
-    };
-  }
-
-  /**
-   * Retrieves token information with caching and TTL
-   * @param tokenAddress The address of the token
-   * @returns Promise<Token>
-   */
-  private async getToken(tokenAddress: string): Promise<Token> {
-    const now = Date.now();
-    const cached = this.tokenCache.get(tokenAddress);
-
-    if (cached && now - cached.timestamp < this.CACHE_TTL) {
-      return cached.token;
-    }
-
-    const info = await this.getTokenInfo(tokenAddress);
-    console.log('🤖 Token info', info);
-    const token = {
-      chainId: info.chainId,
-      address: info.address.toLowerCase() as `0x${string}`,
-      decimals: info.decimals,
-      symbol: info.symbol,
-    };
-
-    this.tokenCache.set(tokenAddress, { token, timestamp: now });
-    return token;
   }
 
   /**
@@ -201,23 +103,13 @@ export class OkxProvider implements ISwapProvider {
           ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
           : Math.floor(Number(params.amount) * 10 ** tokenOut.decimals);
 
-      // Convert BNB addresses to OKX format
-      const tokenInAddress =
-        tokenIn.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
-          ? CONSTANTS.OKX_BNB_ADDRESS
-          : tokenIn.address;
-      const tokenOutAddress =
-        tokenOut.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
-          ? CONSTANTS.OKX_BNB_ADDRESS
-          : tokenOut.address;
-
       const now = new Date();
 
       const isoString = now.toISOString();
 
       const slippageOKX = Number(params.slippage) / 100 || 0.1;
 
-      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn}&chainId=${this.chainId}&fromTokenAddress=${tokenInAddress}&toTokenAddress=${tokenOutAddress}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
+      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn}&chainId=${this.chainId}&fromTokenAddress=${tokenIn.address}&toTokenAddress=${tokenOut.address}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
 
       console.log('🤖 OKX Path', path);
 
@@ -229,7 +121,6 @@ export class OkxProvider implements ISwapProvider {
       });
 
       const data = await response.json();
-
       if (!data.data || data.data.length === 0) {
         throw new Error('No data returned from OKX');
       }
@@ -301,38 +192,5 @@ export class OkxProvider implements ISwapProvider {
         `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
-  }
-
-  async buildApproveTransaction(
-    token: string,
-    spender: string,
-    amount: string,
-    userAddress: string,
-  ): Promise<SwapTransaction> {
-    const tokenInfo = await this.getToken(token);
-    const erc20Interface = new Interface([
-      'function approve(address spender, uint256 amount) returns (bool)',
-    ]);
-
-    const data = erc20Interface.encodeFunctionData('approve', [
-      CONSTANTS.OKX_APPROVE_ADDRESS,
-      ethers.parseUnits(amount, tokenInfo.decimals),
-    ]);
-
-    return {
-      to: token,
-      data,
-      value: '0',
-      gasLimit: '100000',
-    };
-  }
-
-  async checkAllowance(token: string, owner: string, spender: string): Promise<bigint> {
-    const erc20 = new Contract(
-      token,
-      ['function allowance(address owner, address spender) view returns (uint256)'],
-      this.provider,
-    );
-    return await erc20.allowance(owner, CONSTANTS.OKX_APPROVE_ADDRESS);
   }
 }

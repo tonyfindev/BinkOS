@@ -1,6 +1,7 @@
 import { ISwapProvider, SwapQuote, SwapParams } from '@binkai/swap-plugin';
 import { ethers, Contract, Interface, Provider } from 'ethers';
-
+import { EVM_NATIVE_TOKEN_ADDRESS } from '@binkai/core';
+import { BaseSwapProvider } from '@binkai/swap-plugin';
 // Enhanced interface with better type safety
 interface TokenInfo extends Token {
   // Inherits all Token properties and maintains DRY principle
@@ -11,7 +12,7 @@ const CONSTANTS = {
   DEFAULT_GAS_LIMIT: '350000',
   APPROVE_GAS_LIMIT: '50000',
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
-  BNB_ADDRESS: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
+  BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
   OKU_BNB_ADDRESS: '0x0000000000000000000000000000000000000000',
   OKU_API_PATH: 'https://canoe.v2.icarus.tools/market/zeroex/swap_quote',
 } as const;
@@ -35,17 +36,11 @@ enum ChainId {
   ETH = 1,
 }
 
-export class OkuProvider implements ISwapProvider {
-  private provider: Provider;
+export class OkuProvider extends BaseSwapProvider {
   private chainId: ChainId;
-  // Token cache with expiration time
-  private tokenCache: Map<string, { token: Token; timestamp: number }> = new Map();
-  private readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-  // Quote storage with expiration
-  private quotes: Map<string, { quote: SwapQuote; expiresAt: number }> = new Map();
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
+    super(provider);
     this.provider = provider;
     this.chainId = chainId;
   }
@@ -57,105 +52,10 @@ export class OkuProvider implements ISwapProvider {
   getSupportedChains(): string[] {
     return ['bnb', 'ethereum'];
   }
-
-  getPrompt(): string {
-    return `If you are using OkuSwap, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
+  protected isNativeToken(tokenAddress: string): boolean {
+    return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
   }
 
-  private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
-    const erc20Interface = new Interface([
-      'function decimals() view returns (uint8)',
-      'function symbol() view returns (string)',
-    ]);
-
-    const contract = new Contract(tokenAddress, erc20Interface, this.provider);
-    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
-
-    return {
-      address: tokenAddress.toLowerCase() as `0x${string}`,
-      decimals: Number(decimals),
-      symbol,
-      chainId: this.chainId,
-    };
-  }
-
-  /**
-   * Retrieves token information with caching and TTL
-   * @param tokenAddress The address of the token
-   * @returns Promise<Token>
-   */
-  private async getToken(tokenAddress: string): Promise<Token> {
-    const now = Date.now();
-    const cached = this.tokenCache.get(tokenAddress);
-
-    if (cached && now - cached.timestamp < this.CACHE_TTL) {
-      return cached.token;
-    }
-
-    const info = await this.getTokenInfo(tokenAddress);
-    console.log('🤖 Token info', info);
-    const token = {
-      chainId: info.chainId,
-      address: info.address.toLowerCase() as `0x${string}`,
-      decimals: info.decimals,
-      symbol: info.symbol,
-    };
-
-    this.tokenCache.set(tokenAddress, { token, timestamp: now });
-    return token;
-  }
-
-  async checkBalance(
-    quote: SwapQuote,
-    userAddress: string,
-  ): Promise<{ isValid: boolean; message?: string }> {
-    try {
-      // For input swaps, check the fromToken balance
-      // For output swaps, we still need to check the fromToken as that's what user will spend
-      const tokenToCheck = quote.fromToken;
-      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromTokenDecimals);
-
-      // If the token is BNB, check native balance
-      if (tokenToCheck.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()) {
-        const balance = await this.provider.getBalance(userAddress);
-
-        if (balance < requiredAmount) {
-          const formattedBalance = ethers.formatUnits(balance, 18);
-          const formattedRequired = ethers.formatUnits(requiredAmount, 18);
-          return {
-            isValid: false,
-            message: `Insufficient BNB balance. Required: ${formattedRequired} BNB, Available: ${formattedBalance} BNB`,
-          };
-        }
-      } else {
-        // For other tokens, check ERC20 balance
-        const erc20 = new Contract(
-          tokenToCheck,
-          ['function balanceOf(address) view returns (uint256)'],
-          this.provider,
-        );
-        const balance = await erc20.balanceOf(userAddress);
-
-        if (balance < requiredAmount) {
-          const token = await this.getToken(tokenToCheck);
-          const formattedBalance = ethers.formatUnits(balance, token.decimals);
-          const formattedRequired = ethers.formatUnits(requiredAmount, token.decimals);
-          return {
-            isValid: false,
-            message: `Insufficient ${token.symbol} balance. Required: ${formattedRequired} ${token.symbol}, Available: ${formattedBalance} ${token.symbol}`,
-          };
-        }
-      }
-
-      return { isValid: true };
-    } catch (error) {
-      console.error('Error checking balance:', error);
-      return {
-        isValid: false,
-        message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      };
-    }
-  }
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       if (params.type === 'output') {
@@ -167,26 +67,10 @@ export class OkuProvider implements ISwapProvider {
         this.getToken(params.toToken),
       ]);
 
-      const amountIn =
-        params.type === 'input'
-          ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
-          : Math.floor(Number(params.amount) * 10 ** tokenOut.decimals);
-
-      // Convert BNB addresses to OKU format
       const tokenInAddress =
-        tokenIn.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
-          ? CONSTANTS.OKU_BNB_ADDRESS
-          : tokenIn.address;
-      const tokenOutAddress =
-        tokenOut.address.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()
-          ? CONSTANTS.OKU_BNB_ADDRESS
-          : tokenOut.address;
+        tokenIn.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKU_BNB_ADDRESS : tokenIn.address;
 
-      const now = new Date();
-
-      // const isoString = now.toISOString();
-      // console.log("tesst1",params.slippage)
-      const slippageOKU = params.slippage || 10;
+      const slippageOKU = Number(params.slippage) * 100 || 0.1;
       const headers = {
         'Content-Type': 'application/json',
       };
@@ -194,7 +78,7 @@ export class OkuProvider implements ISwapProvider {
         chain: 'bsc',
         account: userAddress,
         inTokenAddress: tokenInAddress,
-        outTokenAddress: tokenOutAddress,
+        outTokenAddress: tokenOut.address,
         isExactIn: true,
         slippage: slippageOKU,
         inTokenAmount: params.amount,
@@ -279,41 +163,5 @@ export class OkuProvider implements ISwapProvider {
         `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
-  }
-
-  async buildApproveTransaction(
-    token: string,
-    spender: string,
-    amount: string,
-    userAddress: string,
-  ): Promise<SwapTransaction> {
-    const tokenInfo = await this.getToken(token);
-    const erc20Interface = new Interface([
-      'function approve(address spender, uint256 amount) returns (bool)',
-    ]);
-
-    const data = erc20Interface.encodeFunctionData('approve', [
-      spender,
-      ethers.parseUnits(amount, tokenInfo.decimals),
-    ]);
-
-    return {
-      to: token,
-      data,
-      value: '0',
-      gasLimit: '50000',
-    };
-  }
-
-  async checkAllowance(token: string, owner: string, spender: string): Promise<bigint> {
-    if (token.toLowerCase() === CONSTANTS.BNB_ADDRESS.toLowerCase()) {
-      return BigInt(Number.MAX_SAFE_INTEGER);
-    }
-    const erc20 = new Contract(
-      token,
-      ['function allowance(address owner, address spender) view returns (uint256)'],
-      this.provider,
-    );
-    return await erc20.allowance(owner, spender);
   }
 }

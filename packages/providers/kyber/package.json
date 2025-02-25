@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@binkai/swap-plugin": "workspace:*",
+    "@binkai/core": "workspace:*",
     "crypto-js": "^4.1.1",
     "ethers": "^6.0.0"
   },
