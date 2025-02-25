@@ -16,6 +16,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@binkai/core": "workspace:*",
     "@binkai/swap-plugin": "workspace:*",
     "crypto-js": "^4.1.1",
     "ethers": "^6.0.0"

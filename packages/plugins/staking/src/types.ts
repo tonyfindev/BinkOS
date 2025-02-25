@@ -1,11 +1,12 @@
+import { NetworkName, Token } from '@binkai/core';
+
 export interface StakingQuote {
+  network: NetworkName;
   quoteId: string;
-  fromToken: string;
-  toToken: string;
+  fromToken: Token;
+  toToken: Token;
   fromAmount: string;
   toAmount: string;
-  fromTokenDecimals: number;
-  toTokenDecimals: number;
   currentAPY: number;
   averageAPY?: number;
   maxSupply: number;
@@ -13,12 +14,7 @@ export interface StakingQuote {
   liquidity: number;
   estimatedGas: string;
   type: 'supply' | 'withdraw' | 'stake' | 'unstake';
-  tx?: {
-    to: string;
-    data: string;
-    value: string;
-    gasLimit: string;
-  };
+  tx?: Transaction;
 }
 
 export interface StakingResult extends StakingQuote {
@@ -28,17 +24,19 @@ export interface StakingResult extends StakingQuote {
 }
 
 export interface StakingParams {
+  network: NetworkName;
   fromToken: string;
   toToken: string;
   amount: string;
   type: 'supply' | 'withdraw' | 'stake' | 'unstake';
 }
 
-export interface StakingTransaction {
+export interface Transaction {
   to: string;
   data: string;
   value: string;
-  gasLimit: string;
+  gasLimit?: bigint;
+  network: NetworkName;
 }
 
 export interface IStakingProvider {
@@ -48,9 +46,9 @@ export interface IStakingProvider {
   getName(): string;
 
   /**
-   * Get supported chains for this provider
+   * Get supported networks for this provider
    */
-  getSupportedChains(): string[];
+  getSupportedNetworks(): NetworkName[];
 
   /**
    * Get the provider-specific prompt that helps guide the AI in using this provider effectively
@@ -59,36 +57,55 @@ export interface IStakingProvider {
   getPrompt?(): string;
 
   /**
-   * Get a quote for swapping tokens
+   * Check if user has sufficient balance for the staking
+   * @param quote The staking quote to check balance against
+   * @param userAddress The address of the user
+   * @returns Promise<{ isValid: boolean; message?: string }> Returns if balance is sufficient and error message if not
+   */
+  checkBalance(
+    quote: StakingQuote,
+    userAddress: string,
+  ): Promise<{ isValid: boolean; message?: string }>;
+
+  /**
+   * Get a quote for staking tokens
    */
   getQuote(params: StakingParams, userAddress: string): Promise<StakingQuote>;
 
   /**
-   * Build a transaction for swapping tokens
+   * Build a transaction for staking tokens
    * @param quote The quote to execute
-   * @param userAddress The address of the user who will execute the swap
+   * @param userAddress The address of the user who will execute the staking
    */
-  buildStakingTransaction(quote: StakingQuote, userAddress: string): Promise<StakingTransaction>;
+  buildStakingTransaction(quote: StakingQuote, userAddress: string): Promise<Transaction>;
 
   /**
    * Build a transaction for approving token spending
-   * @param token The token to approve
+   * @param network The network to approve
+   * @param tokenAddress The address of the token to approve
    * @param spender The address to approve spending for
    * @param amount The amount to approve
-   * @param userAddress The address of the user who will approve
+   * @param walletAddress The address of the user who will approve
    */
   buildApproveTransaction(
-    token: string,
+    network: NetworkName,
+    tokenAddress: string,
     spender: string,
     amount: string,
-    userAddress: string,
-  ): Promise<StakingTransaction>;
+    walletAddress: string,
+  ): Promise<Transaction>;
 
   /**
    * Check the allowance of a token for a spender
-   * @param token The token to check
+   * @param network The network to check
+   * @param tokenAddress The address of the token to check
    * @param owner The owner of the tokens
    * @param spender The address to check allowance for
    */
-  checkAllowance(token: string, owner: string, spender: string): Promise<bigint>;
+  checkAllowance(
+    network: NetworkName,
+    tokenAddress: string,
+    owner: string,
+    spender: string,
+  ): Promise<bigint>;
 }

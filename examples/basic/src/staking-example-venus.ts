@@ -1,8 +1,15 @@
 import { ethers } from 'ethers';
-import { Agent, Wallet, Network, settings, NetworkType, NetworksConfig } from '@binkai/core';
+import {
+  Agent,
+  Wallet,
+  Network,
+  settings,
+  NetworkType,
+  NetworksConfig,
+  NetworkName,
+} from '@binkai/core';
 import { StakingPlugin } from '@binkai/staking-plugin';
 import { VenusProvider } from '@binkai/venus-provider';
-
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
@@ -74,8 +81,7 @@ async function main() {
 
   console.log('✓ Wallet created\n');
 
-  console.log('🤖 Wallet BNB:', await wallet.getAddress('bnb'));
-  console.log('🤖 Wallet ETH:', await wallet.getAddress('ethereum'));
+  console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
@@ -109,7 +115,7 @@ async function main() {
   await agent.registerPlugin(stakingPlugin);
   console.log('✓ Plugin registered\n');
 
-  console.log('💱 Example 1: Stake 0.0001 BNB on Venus');
+  console.log('💱 Example 1: Stake 0.0002 BNB on Venus');
   const inputResult = await agent.execute({
     input: `
       Stake 0.0002 BNB on Venus.
@@ -123,19 +129,18 @@ async function main() {
       Unstake 0.0001 BNB on Venus.
     `,
   });
-  console.log('✓ staking result (input):', outputResult, '\n');
-
+  console.log('✓ Staking result (input):', outputResult, '\n');
   // Get plugin information
   const registeredPlugin = agent.getPlugin('staking') as StakingPlugin;
 
   // Check available providers for each chain
   console.log('📊 Available providers by chain:');
-  const chains = registeredPlugin.getSupportedChains();
+  const chains = registeredPlugin.getSupportedNetworks();
   for (const chain of chains) {
-    const providers = registeredPlugin.getProvidersForChain(chain);
+    const providers = registeredPlugin.getProvidersForNetwork(chain);
     console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
   }
-  console.log();
+  // console.log();
 }
 
 main().catch(error => {

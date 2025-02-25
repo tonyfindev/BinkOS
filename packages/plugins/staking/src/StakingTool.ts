@@ -4,30 +4,29 @@ import { BaseTool, IToolConfig } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IStakingProvider, StakingQuote, StakingParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
-
 export interface StakingToolConfig extends IToolConfig {
-  defaultChain?: string;
-  supportedChains?: string[];
+  defaultNetwork?: string;
+  supportedNetworks?: string[];
 }
 
 export class StakingTool extends BaseTool {
   public registry: ProviderRegistry;
-  private defaultChain: string;
-  private supportedChains: Set<string>;
+  private defaultNetwork: string;
+  private supportedNetworks: Set<string>;
 
   constructor(config: StakingToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
-    this.defaultChain = config.defaultChain || 'bnb';
-    this.supportedChains = new Set<string>(config.supportedChains || []);
+    this.defaultNetwork = config.defaultNetwork || 'bnb';
+    this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
   }
 
   registerProvider(provider: IStakingProvider): void {
     this.registry.registerProvider(provider);
     console.log('✓ Provider registered', provider.constructor.name);
-    // Add provider's supported chains
-    provider.getSupportedChains().forEach(chain => {
-      this.supportedChains.add(chain);
+    // Add provider's supported networks
+    provider.getSupportedNetworks().forEach(network => {
+      this.supportedNetworks.add(network);
     });
   }
 
@@ -37,8 +36,8 @@ export class StakingTool extends BaseTool {
 
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
-    const chains = Array.from(this.supportedChains).join(', ');
-    let description = `Staking tokens using various staking providers (${providers}). Supports chains: ${chains}. You can specify either input amount (how much to spend)`;
+    const networks = Array.from(this.supportedNetworks).join(', ');
+    let description = `Swap tokens using various DEX providers (${providers}). Supports networks: ${networks}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
 
     // Add provider-specific prompts if they exist
     const providerPrompts = this.registry
@@ -56,26 +55,26 @@ export class StakingTool extends BaseTool {
     return description;
   }
 
-  private getSupportedChains(): string[] {
+  private getSupportedNetworks(): string[] {
     // Get networks from agent's wallet
     const agentNetworks = Object.keys(this.agent.getNetworks());
 
-    // Intersect with supported chains from providers
-    const providerChains = Array.from(this.supportedChains);
+    // Intersect with supported networks from providers
+    const providerNetworks = Array.from(this.supportedNetworks);
 
-    // Return intersection of agent networks and provider supported chains
-    return agentNetworks.filter(network => providerChains.includes(network));
+    // Return intersection of agent networks and provider supported networks
+    return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
   getSchema(): z.ZodObject<any> {
     const providers = this.registry.getProviderNames();
     if (providers.length === 0) {
-      throw new Error('No staking providers registered');
+      throw new Error('No swap providers registered');
     }
 
-    const supportedChains = this.getSupportedChains();
-    if (supportedChains.length === 0) {
-      throw new Error('No supported chains available');
+    const supportedNetworks = this.getSupportedNetworks();
+    if (supportedNetworks.length === 0) {
+      throw new Error('No supported networks available');
     }
 
     return z.object({
@@ -85,32 +84,31 @@ export class StakingTool extends BaseTool {
       type: z
         .enum(['supply', 'withdraw', 'stake', 'unstake'])
         .describe('The type of staking operation to perform'),
-      chain: z
-        .enum(supportedChains as [string, ...string[]])
-        .default(this.defaultChain)
-        .describe('The blockchain to execute the staking on'),
-      // provider: z
-      //   .enum(providers as [string, ...string[]])
-      //   .optional()
-      //   .describe(
-      //     'The DEX provider to use for the staking. If not specified, the best rate will be found',
-      //   ),
+      network: z
+        .enum(supportedNetworks as [string, ...string[]])
+        .default(this.defaultNetwork)
+        .describe('The blockchain network to execute the staking on'),
+      provider: z
+        .enum(providers as [string, ...string[]])
+        .optional()
+        .describe(
+          'The staking provider to use for the staking. If not specified, the best rate will be found',
+        ),
     });
   }
 
   private async findBestQuote(
-    params: StakingParams & { chain: string },
+    params: StakingParams & { network: string },
+    userAddress: string,
   ): Promise<{ provider: IStakingProvider; quote: StakingQuote }> {
-    // Validate chain is supported
-    const providers = this.registry.getProvidersByChain(params.chain);
+    // Validate network is supported
+    const providers = this.registry.getProvidersByNetwork(params.network);
     if (providers.length === 0) {
-      throw new Error(`No providers available for chain ${params.chain}`);
+      throw new Error(`No providers available for network ${params.network}`);
     }
 
-    const userAddress = await this.agent.getWallet().getAddress(params.chain);
-
     const quotes = await Promise.all(
-      providers.map(async provider => {
+      providers.map(async (provider: IStakingProvider) => {
         try {
           console.log('🤖 Getting quote from', provider.getName());
           const quote = await provider.getQuote(params, userAddress);
@@ -122,19 +120,31 @@ export class StakingTool extends BaseTool {
       }),
     );
 
-    const validQuotes = quotes.filter((q): q is NonNullable<typeof q> => q !== null);
+    type QuoteResult = { provider: IStakingProvider; quote: StakingQuote };
+    const validQuotes = quotes.filter((q): q is QuoteResult => q !== null);
     if (validQuotes.length === 0) {
       throw new Error('No valid quotes found');
     }
 
     // Find the best quote based on amount type
-    return validQuotes.reduce((best, current) => {
-      // For input amount, find highest output amount
-      const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toTokenDecimals);
-      const currentAmount = BigInt(
-        Number(current.quote.toAmount) * 10 ** current.quote.toTokenDecimals,
-      );
-      return currentAmount > bestAmount ? current : best;
+    return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
+      if (params.type === 'supply' || params.type === 'stake') {
+        // For input amount, find highest output amount
+        const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals);
+        const currentAmount = BigInt(
+          Number(current.quote.toAmount) * 10 ** current.quote.toToken.decimals,
+        );
+        return currentAmount > bestAmount ? current : best;
+      } else {
+        // For output amount, find lowest input amount
+        const bestAmount = BigInt(
+          Number(best.quote.fromAmount) * 10 ** best.quote.fromToken.decimals,
+        );
+        const currentAmount = BigInt(
+          Number(current.quote.fromAmount) * 10 ** current.quote.fromToken.decimals,
+        );
+        return currentAmount < bestAmount ? current : best;
+      }
     }, validQuotes[0]);
   }
 
@@ -151,33 +161,34 @@ export class StakingTool extends BaseTool {
             toToken,
             amount,
             type,
-            chain = this.defaultChain,
-            // provider: preferredProvider, // DISABLED FOR NOW
+            network = this.defaultNetwork,
+            provider: preferredProvider,
           } = args;
 
           console.log('🤖 Staking Args:', args);
 
           // Validate token addresses
-          if (!validateTokenAddress(fromToken, chain)) {
-            throw new Error(`Invalid fromToken address for chain ${chain}: ${fromToken}`);
+          if (!validateTokenAddress(fromToken, network)) {
+            throw new Error(`Invalid fromToken address for network ${network}: ${fromToken}`);
           }
-          if (!validateTokenAddress(toToken, chain)) {
-            throw new Error(`Invalid toToken address for chain ${chain}: ${toToken}`);
+          if (!validateTokenAddress(toToken, network)) {
+            throw new Error(`Invalid toToken address for network ${network}: ${toToken}`);
           }
 
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();
-          const userAddress = await wallet.getAddress(chain);
+          const userAddress = await wallet.getAddress(network);
 
-          // Validate chain is supported
-          const supportedChains = this.getSupportedChains();
-          if (!supportedChains.includes(chain)) {
+          // Validate network is supported
+          const supportedNetworks = this.getSupportedNetworks();
+          if (!supportedNetworks.includes(network)) {
             throw new Error(
-              `Chain ${chain} is not supported. Supported chains: ${supportedChains.join(', ')}`,
+              `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
             );
           }
 
           const stakingParams: StakingParams = {
+            network,
             fromToken,
             toToken,
             amount,
@@ -187,53 +198,82 @@ export class StakingTool extends BaseTool {
           let selectedProvider: IStakingProvider;
           let quote: StakingQuote;
 
-          let preferredProvider = null; // TODO: Implement preferred provider
-
           if (preferredProvider) {
-            selectedProvider = this.registry.getProvider(preferredProvider);
-            // Validate provider supports the chain
-            if (!selectedProvider.getSupportedChains().includes(chain)) {
-              throw new Error(`Provider ${preferredProvider} does not support chain ${chain}`);
+            try {
+              selectedProvider = this.registry.getProvider(preferredProvider);
+              // Validate provider supports the network
+              if (!selectedProvider.getSupportedNetworks().includes(network)) {
+                throw new Error(
+                  `Provider ${preferredProvider} does not support network ${network}`,
+                );
+              }
+              quote = await selectedProvider.getQuote(stakingParams, userAddress);
+            } catch (error) {
+              console.warn(
+                `Failed to get quote from preferred provider ${preferredProvider}:`,
+                error,
+              );
+              console.log('🔄 Falling back to checking all providers for best quote...');
+              const bestQuote = await this.findBestQuote(
+                {
+                  ...stakingParams,
+                  network,
+                },
+                userAddress,
+              );
+              selectedProvider = bestQuote.provider;
+              quote = bestQuote.quote;
             }
-            quote = await selectedProvider.getQuote(stakingParams, userAddress);
           } else {
-            const bestQuote = await this.findBestQuote({
-              ...stakingParams,
-              chain,
-            });
+            const bestQuote = await this.findBestQuote(
+              {
+                ...stakingParams,
+                network,
+              },
+              userAddress,
+            );
             selectedProvider = bestQuote.provider;
             quote = bestQuote.quote;
           }
 
           console.log('🤖 The selected provider is:', selectedProvider.getName());
 
-          // Build Staking transaction
+          // Check user's balance before proceeding
+          const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
+
+          if (!balanceCheck.isValid) {
+            throw new Error(balanceCheck.message || 'Insufficient balance for staking');
+          }
+
+          // Build staking transaction
           const stakingTx = await selectedProvider.buildStakingTransaction(quote, userAddress);
 
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
-            quote.fromToken,
+            network,
+            quote.fromToken.address,
             userAddress,
             stakingTx.to,
           );
-          const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromTokenDecimals);
+
+          const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromToken.decimals);
 
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
           if (allowance < requiredAmount) {
             const approveTx = await selectedProvider.buildApproveTransaction(
-              quote.fromToken,
+              network,
+              quote.fromToken.address,
               stakingTx.to,
               quote.fromAmount,
               userAddress,
             );
             console.log('🤖 Approving...');
             // Sign and send approval transaction
-            const approveReceipt = await wallet.signAndSendTransaction(chain, {
+            const approveReceipt = await wallet.signAndSendTransaction(network, {
               to: approveTx.to,
               data: approveTx.data,
               value: BigInt(approveTx.value),
-              gasLimit: BigInt(approveTx.gasLimit),
             });
 
             console.log('🤖 ApproveReceipt:', approveReceipt);
@@ -244,11 +284,10 @@ export class StakingTool extends BaseTool {
           console.log('🤖 Staking...');
 
           // Sign and send Staking transaction
-          const receipt = await wallet.signAndSendTransaction(chain, {
+          const receipt = await wallet.signAndSendTransaction(network, {
             to: stakingTx.to,
             data: stakingTx.data,
             value: BigInt(stakingTx.value),
-            gasLimit: BigInt(stakingTx.gasLimit),
           });
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
@@ -262,7 +301,7 @@ export class StakingTool extends BaseTool {
             toAmount: quote.toAmount.toString(),
             transactionHash: finalReceipt.hash,
             type: quote.type,
-            chain,
+            network,
           });
         } catch (error) {
           console.error('Staking error:', error);

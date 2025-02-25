@@ -142,12 +142,12 @@ async function main() {
 
   // Check available providers for each chain
   console.log('📊 Available providers by chain:');
-  const chains = registeredPlugin.getSupportedChains();
+  const chains = registeredPlugin.getSupportedNetworks();
   for (const chain of chains) {
-    const providers = registeredPlugin.getProvidersForChain(chain);
+    const providers = registeredPlugin.getProvidersForNetwork(chain);
     console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
   }
-  console.log();
+  // console.log();
 }
 
 main().catch(error => {

@@ -1,11 +1,12 @@
-import { IStakingProvider, StakingParams, StakingQuote } from '@binkai/staking-plugin';
+import {
+  BaseStakingProvider,
+  StakingParams,
+  StakingQuote,
+  NetworkProvider,
+} from '@binkai/staking-plugin';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { VenusPoolABI } from './abis/VenusPool';
-import { EVM_NATIVE_TOKEN_ADDRESS } from '@binkai/core';
-// Enhanced interface with better type safety
-interface TokenInfo extends Token {
-  // Inherits all Token properties and maintains DRY principle
-}
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName } from '@binkai/core';
 
 // Core system constants
 const CONSTANTS = {
@@ -115,84 +116,52 @@ interface RewardDistributor {
   updatedAt: string;
 }
 
-export class VenusProvider implements IStakingProvider {
-  private provider: Provider;
+export class VenusProvider extends BaseStakingProvider {
   private chainId: ChainId;
   private factory: any;
-
-  // Token cache with expiration time
-  private tokenCache: Map<string, { token: Token; timestamp: number }> = new Map();
-  private readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-  // Quote storage with expiration
-  private quotes: Map<string, { quote: StakingQuote; expiresAt: number }> = new Map();
+  protected GAS_BUFFER: bigint = ethers.parseEther('0.0003');
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
-    this.provider = provider;
+    // Create a Map with BNB network and the provider
+    const providerMap = new Map<NetworkName, NetworkProvider>();
+    providerMap.set(NetworkName.BNB, provider);
+    super(providerMap);
+
     this.chainId = chainId;
-    this.factory = new Contract(CONSTANTS.VENUS_POOL_ADDRESS, VenusPoolABI, this.provider);
+    this.factory = new Contract(CONSTANTS.VENUS_POOL_ADDRESS, VenusPoolABI, provider);
   }
 
   getName(): string {
     return 'venus';
   }
 
-  getSupportedChains(): string[] {
-    return ['bnb', 'ethereum'];
+  getSupportedNetworks(): NetworkName[] {
+    return [NetworkName.BNB];
   }
 
-  private async getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
-    const erc20Interface = new Interface([
-      'function decimals() view returns (uint8)',
-      'function symbol() view returns (string)',
-    ]);
-
-    const contract = new Contract(tokenAddress, erc20Interface, this.provider);
-    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
-
-    return {
-      address: tokenAddress.toLowerCase() as `0x${string}`,
-      decimals: Number(decimals),
-      symbol,
-      chainId: this.chainId,
-    };
+  protected isNativeToken(tokenAddress: string): boolean {
+    return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
   }
 
-  /**
-   * Retrieves token information with caching and TTL
-   * @param tokenAddress The address of the token
-   * @returns Promise<Token>
-   */
-  private async getToken(tokenAddress: string): Promise<Token> {
-    const now = Date.now();
-    const cached = this.tokenCache.get(tokenAddress);
-
-    if (cached && now - cached.timestamp < this.CACHE_TTL) {
-      return cached.token;
-    }
-
-    if (tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()) {
-      const token = {
+  protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
+    if (this.isNativeToken(tokenAddress)) {
+      return {
         chainId: this.chainId,
         address: tokenAddress as `0x${string}`,
         decimals: 18,
         symbol: 'BNB',
       };
-      this.tokenCache.set(tokenAddress, { token, timestamp: now });
-      return token;
     }
 
-    const info = await this.getTokenInfo(tokenAddress);
-    console.log('🤖 Token info', info);
-    const token = {
-      chainId: info.chainId,
-      address: info.address.toLowerCase() as `0x${string}`,
-      decimals: info.decimals,
-      symbol: info.symbol,
-    };
+    const token = await super.getToken(tokenAddress, network);
 
-    this.tokenCache.set(tokenAddress, { token, timestamp: now });
-    return token;
+    const tokenInfo = {
+      chainId: this.chainId,
+      address: token.address.toLowerCase() as `0x${string}`,
+      decimals: token.decimals,
+      symbol: token.symbol,
+    };
+    return tokenInfo;
   }
 
   async getQuote(params: StakingParams, userAddress: string): Promise<StakingQuote> {
@@ -200,8 +169,9 @@ export class VenusProvider implements IStakingProvider {
       if (params.fromToken.toLowerCase() !== CONSTANTS.BNB_ADDRESS.toLowerCase()) {
         throw new Error('Venus does not support this token');
       }
+
       // Fetch input and output token information
-      const sourceToken = await this.getToken(params.fromToken);
+      const sourceToken = await this.getToken(params.fromToken, params.network);
 
       // Calculate input amount based on decimals
       const swapAmount = BigInt(Math.floor(Number(params.amount) * 10 ** sourceToken.decimals));
@@ -306,13 +276,12 @@ export class VenusProvider implements IStakingProvider {
     const quoteId = ethers.hexlify(ethers.randomBytes(32));
 
     return {
+      network: params.network,
       quoteId,
-      fromToken: params.fromToken,
-      toToken: params.toToken,
+      fromToken: sourceToken,
+      toToken: sourceToken,
       fromAmount: params.amount,
       toAmount: params.amount,
-      fromTokenDecimals: sourceToken.decimals,
-      toTokenDecimals: sourceToken.decimals,
       type: params.type,
       currentAPY: Number(swapTransactionData.supplyApy),
       averageAPY: Number(swapTransactionData.supplyApy),
@@ -325,6 +294,7 @@ export class VenusProvider implements IStakingProvider {
         data: buildTransactionData.data,
         value: buildTransactionData.value,
         gasLimit: buildTransactionData.gasLimit,
+        network: params.network,
       },
     };
   }
@@ -338,62 +308,82 @@ export class VenusProvider implements IStakingProvider {
     }, CONSTANTS.QUOTE_EXPIRY);
   }
 
-  async buildStakingTransaction(quote: StakingQuote, userAddress: string): Promise<Transaction> {
+  async checkBalance(
+    quote: StakingQuote,
+    walletAddress: string,
+  ): Promise<{ isValid: boolean; message?: string }> {
     try {
-      // Get the stored quote and trade
-      const storedData = this.quotes.get(quote.quoteId);
+      if (quote.type === 'stake' || quote.type === 'supply') {
+        return { isValid: true };
+      }
+      this.validateNetwork(quote.network);
+      if (this.isSolanaNetwork(quote.network)) {
+        // TODO: Implement Solana
+      }
+      const provider = this.getEvmProviderForNetwork(quote.network);
+      const tokenToCheck = quote.fromToken;
+      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromToken.decimals);
+      const gasBuffer = this.getGasBuffer(quote.network);
 
-      if (!storedData) {
-        throw new Error('Quote expired or not found. Please get a new quote.');
+      // Check if the token is native token
+      const isNativeToken = this.isNativeToken(tokenToCheck.address);
+
+      if (isNativeToken) {
+        const balance = await provider.getBalance(walletAddress);
+        const totalRequired = requiredAmount + gasBuffer;
+
+        if (balance < totalRequired) {
+          const formattedBalance = ethers.formatEther(balance);
+          const formattedRequired = ethers.formatEther(requiredAmount);
+          const formattedTotal = ethers.formatEther(totalRequired);
+          return {
+            isValid: false,
+            message: `Insufficient native token balance. Required: ${formattedRequired} (+ ~${ethers.formatEther(gasBuffer)} for gas = ${formattedTotal}), Available: ${formattedBalance}`,
+          };
+        }
+      } else {
+        // For other tokens, check ERC20 balance
+        const erc20 = new Contract(
+          tokenToCheck.address,
+          [
+            'function balanceOf(address) view returns (uint256)',
+            'function symbol() view returns (string)',
+          ],
+          provider,
+        );
+
+        const [balance, symbol] = await Promise.all([
+          erc20.balanceOf(walletAddress),
+          erc20.symbol(),
+        ]);
+
+        if (balance < requiredAmount) {
+          const formattedBalance = ethers.formatUnits(balance, quote.fromToken.decimals);
+          const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromToken.decimals);
+          return {
+            isValid: false,
+            message: `Insufficient ${symbol} balance. Required: ${formattedRequired} ${symbol}, Available: ${formattedBalance} ${symbol}`,
+          };
+        }
+
+        // Check if user has enough native token for gas
+        const nativeBalance = await provider.getBalance(walletAddress);
+        if (nativeBalance < gasBuffer) {
+          const formattedBalance = ethers.formatEther(nativeBalance);
+          return {
+            isValid: false,
+            message: `Insufficient native token for gas fees. Required: ~${ethers.formatEther(gasBuffer)}, Available: ${formattedBalance}`,
+          };
+        }
       }
 
+      return { isValid: true };
+    } catch (error) {
+      console.error('Error checking balance:', error);
       return {
-        to: storedData?.quote.tx?.to || '',
-        data: storedData?.quote?.tx?.data || '',
-        value: storedData?.quote?.tx?.value || '0',
-        gasLimit: '350000',
+        isValid: false,
+        message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
-    } catch (error: unknown) {
-      console.error('Error building swap transaction:', error);
-      throw new Error(
-        `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
     }
-  }
-
-  async buildApproveTransaction(
-    token: string,
-    spender: string,
-    amount: string,
-    userAddress: string,
-  ): Promise<Transaction> {
-    const tokenInfo = await this.getToken(token);
-    const erc20Interface = new Interface([
-      'function approve(address spender, uint256 amount) returns (bool)',
-    ]);
-
-    const data = erc20Interface.encodeFunctionData('approve', [
-      spender,
-      ethers.parseUnits(amount, tokenInfo.decimals),
-    ]);
-
-    return {
-      to: token,
-      data,
-      value: '0',
-      gasLimit: '100000',
-    };
-  }
-
-  async checkAllowance(token: string, owner: string, spender: string): Promise<bigint> {
-    if (token.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()) {
-      return BigInt(Number.MAX_SAFE_INTEGER) * BigInt(10 ** 18);
-    }
-    const erc20 = new Contract(
-      token,
-      ['function allowance(address owner, address spender) view returns (uint256)'],
-      this.provider,
-    );
-    return await erc20.allowance(owner, spender);
   }
 }

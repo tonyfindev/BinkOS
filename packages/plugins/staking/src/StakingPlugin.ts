@@ -1,23 +1,23 @@
 import { StakingTool } from './StakingTool';
 import { IStakingProvider } from './types';
 import { ProviderRegistry } from './ProviderRegistry';
-import { BaseTool, IPluginConfig, BasePlugin } from '@binkai/core';
+import { BaseTool, IPluginConfig, BasePlugin, NetworkName } from '@binkai/core';
 
 export interface StakingPluginConfig extends IPluginConfig {
-  defaultChain?: string;
+  defaultNetwork?: string;
   providers?: IStakingProvider[];
-  supportedChains?: string[];
+  supportedNetworks?: string[];
 }
 
 export class StakingPlugin extends BasePlugin {
   public registry: ProviderRegistry;
   private stakingTool!: StakingTool;
-  private supportedChains: Set<string>;
+  private supportedNetworks: Set<string>;
 
   constructor() {
     super();
     this.registry = new ProviderRegistry();
-    this.supportedChains = new Set();
+    this.supportedNetworks = new Set();
   }
 
   getName(): string {
@@ -25,15 +25,15 @@ export class StakingPlugin extends BasePlugin {
   }
 
   async initialize(config: StakingPluginConfig): Promise<void> {
-    // Initialize supported chains
-    if (config.supportedChains) {
-      config.supportedChains.forEach(chain => this.supportedChains.add(chain));
+    // Initialize supported networks
+    if (config.supportedNetworks) {
+      config.supportedNetworks.forEach(network => this.supportedNetworks.add(network));
     }
 
     // Configure staking tool
     this.stakingTool = new StakingTool({
-      defaultChain: config.defaultChain,
-      supportedChains: Array.from(this.supportedChains),
+      defaultNetwork: config.defaultNetwork,
+      supportedNetworks: Array.from(this.supportedNetworks),
     });
 
     // Register providers if provided in config
@@ -49,15 +49,15 @@ export class StakingPlugin extends BasePlugin {
   }
 
   /**
-   * Register a new staking provider
+   * Register a new Staking provider
    */
   registerProvider(provider: IStakingProvider): void {
     this.registry.registerProvider(provider);
     this.stakingTool.registerProvider(provider);
 
-    // Add provider's supported chains
-    provider.getSupportedChains().forEach(chain => {
-      this.supportedChains.add(chain);
+    // Add provider's supported networks
+    provider.getSupportedNetworks().forEach((network: NetworkName) => {
+      this.supportedNetworks.add(network);
     });
   }
 
@@ -65,21 +65,21 @@ export class StakingPlugin extends BasePlugin {
    * Get all registered providers
    */
   getProviders(): IStakingProvider[] {
-    return this.registry.getProvidersByChain('*');
+    return this.registry.getProvidersByNetwork('*');
   }
 
   /**
-   * Get providers for a specific chain
+   * Get providers for a specific network
    */
-  getProvidersForChain(chain: string): IStakingProvider[] {
-    return this.registry.getProvidersByChain(chain);
+  getProvidersForNetwork(network: NetworkName): IStakingProvider[] {
+    return this.registry.getProvidersByNetwork(network);
   }
 
   /**
-   * Get all supported chains
+   * Get all supported networks
    */
-  getSupportedChains(): string[] {
-    return Array.from(this.supportedChains);
+  getSupportedNetworks(): NetworkName[] {
+    return Array.from(this.supportedNetworks) as NetworkName[];
   }
 
   async cleanup(): Promise<void> {
