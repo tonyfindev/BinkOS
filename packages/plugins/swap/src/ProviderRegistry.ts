@@ -1,4 +1,5 @@
 import { ISwapProvider } from './types';
+import { NetworkName } from '@binkai/core';
 
 export class ProviderRegistry {
   private providers: Map<string, ISwapProvider> = new Map();
@@ -15,17 +16,20 @@ export class ProviderRegistry {
     return provider;
   }
 
-  getProviderNames(): string[] {
-    return Array.from(this.providers.keys());
-  }
-
   getProviders(): ISwapProvider[] {
     return Array.from(this.providers.values());
   }
 
-  getProvidersByChain(chain: string): ISwapProvider[] {
-    return Array.from(this.providers.values()).filter(provider =>
-      provider.getSupportedChains().includes(chain),
+  getProviderNames(): string[] {
+    return Array.from(this.providers.keys());
+  }
+
+  getProvidersByNetwork(network: NetworkName | '*'): ISwapProvider[] {
+    if (network === '*') {
+      return this.getProviders();
+    }
+    return this.getProviders().filter(provider =>
+      provider.getSupportedNetworks().includes(network),
     );
   }
 }

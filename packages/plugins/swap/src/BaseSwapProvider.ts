@@ -1,77 +1,196 @@
-import { ISwapProvider, SwapQuote, SwapParams, SwapTransaction } from './types';
+import { NetworkName, Token } from '@binkai/core';
+import { ISwapProvider, SwapQuote, SwapParams, Transaction } from './types';
 import { ethers, Contract, Interface, Provider } from 'ethers';
+import { Connection } from '@solana/web3.js';
 
-export interface Token {
-  address: `0x${string}`;
-  decimals: number;
-  symbol: string;
-}
+export type NetworkProvider = Provider | Connection;
 
 export abstract class BaseSwapProvider implements ISwapProvider {
-  protected provider: Provider;
+  protected providers: Map<NetworkName, NetworkProvider> = new Map();
   protected tokenCache: Map<string, { token: Token; timestamp: number }> = new Map();
   protected readonly CACHE_TTL = 30 * 60 * 1000; // 30 minutes
   protected quotes: Map<string, { quote: SwapQuote; expiresAt: number }> = new Map();
   protected readonly QUOTE_EXPIRY = 5 * 60 * 1000; // 5 minutes
-  protected readonly GAS_BUFFER = ethers.parseEther('0.01'); // Default gas buffer
 
-  constructor(provider: Provider) {
-    this.provider = provider;
+  // Network-specific gas buffers
+  protected readonly GAS_BUFFERS: Record<NetworkName, bigint> = {
+    [NetworkName.ETHEREUM]: ethers.parseEther('0.001'), // 0.001 ETH
+    [NetworkName.POLYGON]: ethers.parseEther('0.1'), // 0.1 MATIC
+    [NetworkName.ARBITRUM]: ethers.parseEther('0.001'), // 0.001 ETH
+    [NetworkName.OPTIMISM]: ethers.parseEther('0.001'), // 0.001 ETH
+    [NetworkName.BNB]: ethers.parseEther('0.001'), // 0.001 BNB
+    [NetworkName.SOLANA]: BigInt(10000000), // 0.001 SOL in lamports
+    [NetworkName.SEPOLIA]: ethers.parseEther('0.001'), // 0.001 ETH
+    [NetworkName.SOLANA_DEVNET]: BigInt(10000000), // 0.001 SOL in lamports
+  };
+
+  constructor(providerConfig: Map<NetworkName, NetworkProvider>) {
+    // Validate providers against supported networks
+    const supportedNetworks = this.getSupportedNetworks();
+    for (const [network, provider] of providerConfig.entries()) {
+      if (!supportedNetworks.includes(network)) {
+        throw new Error(`Network ${network} is not supported by ${this.getName()}`);
+      }
+      // Validate provider type based on network
+      if (this.isSolanaNetwork(network) && !(provider instanceof Connection)) {
+        throw new Error(`Invalid provider type for Solana network ${network}`);
+      }
+      if (!this.isSolanaNetwork(network) && !this.isProviderInstance(provider)) {
+        throw new Error(`Invalid provider type for EVM network ${network}`);
+      }
+    }
+    this.providers = providerConfig;
+  }
+
+  protected isSolanaNetwork(network: NetworkName): boolean {
+    return network === NetworkName.SOLANA || network === NetworkName.SOLANA_DEVNET;
+  }
+
+  protected isProviderInstance(provider: NetworkProvider): provider is Provider {
+    return 'getNetwork' in provider && 'getBlockNumber' in provider;
+  }
+
+  protected isSolanaProvider(provider: NetworkProvider): provider is Connection {
+    return provider instanceof Connection;
+  }
+
+  /**
+   * Get the EVM provider for a specific network
+   * @param network The network to get the provider for
+   * @returns The EVM provider for the specified network
+   * @throws Error if the network is not supported or if it's not an EVM network
+   */
+  protected getEvmProviderForNetwork(network: NetworkName): Provider {
+    const provider = this.providers.get(network);
+    if (!provider) {
+      throw new Error(`Network ${network} is not supported by ${this.getName()}`);
+    }
+    if (!this.isProviderInstance(provider)) {
+      throw new Error(`Network ${network} does not have an EVM provider`);
+    }
+    return provider;
+  }
+
+  /**
+   * Get the Solana provider for a specific network
+   * @param network The network to get the provider for
+   * @returns The Solana provider for the specified network
+   * @throws Error if the network is not supported or if it's not a Solana network
+   */
+  protected getSolanaProviderForNetwork(network: NetworkName): Connection {
+    const provider = this.providers.get(network);
+    if (!provider) {
+      throw new Error(`Network ${network} is not supported by ${this.getName()}`);
+    }
+    if (!this.isSolanaProvider(provider)) {
+      throw new Error(`Network ${network} does not have a Solana provider`);
+    }
+    return provider;
+  }
+
+  /**
+   * Check if a network is supported by this provider
+   * @param network The network to check
+   * @returns True if the network is supported, false otherwise
+   */
+  protected isNetworkSupported(network: NetworkName): boolean {
+    return this.getSupportedNetworks().includes(network) && this.providers.has(network);
   }
 
   abstract getName(): string;
-  abstract getSupportedChains(): string[];
-  abstract getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote>;
+  abstract getQuote(params: SwapParams, walletAddress: string): Promise<SwapQuote>;
+  abstract getSupportedNetworks(): NetworkName[];
 
   getPrompt?(): string;
 
   protected abstract isNativeToken(tokenAddress: string): boolean;
 
   /**
+   * Validates if the network is supported
+   * @param network The network to validate
+   * @throws Error if the network is not supported
+   */
+  protected validateNetwork(network: NetworkName): void {
+    if (!this.isNetworkSupported(network)) {
+      throw new Error(`Network ${network} is not supported by ${this.getName()}`);
+    }
+  }
+
+  /**
+   * Get the gas buffer for a specific network
+   * @param network The network to get the gas buffer for
+   * @returns The gas buffer amount for the specified network
+   */
+  protected getGasBuffer(network: NetworkName): bigint {
+    const buffer = this.GAS_BUFFERS[network];
+    if (!buffer) {
+      throw new Error(`No gas buffer defined for network ${network}`);
+    }
+    return buffer;
+  }
+
+  /**
    * Adjusts the input amount for native token swaps to account for gas costs
    * @param amount The original amount to spend
    * @param decimals The decimals of the token
-   * @param userAddress The address of the user
+   * @param walletAddress The address of the user
+   * @param network The network to use
    * @returns The adjusted amount after accounting for gas buffer
    */
   protected async adjustNativeTokenAmount(
     amount: string,
     decimals: number,
-    userAddress: string,
+    walletAddress: string,
+    network: NetworkName,
   ): Promise<string> {
+    this.validateNetwork(network);
+    if (this.isSolanaNetwork(network)) {
+      // TODO: Implement Solana
+    }
+    const provider = this.getEvmProviderForNetwork(network);
     const amountBN = ethers.parseUnits(amount, decimals);
-    const balance = await this.provider.getBalance(userAddress);
+    const balance = await provider.getBalance(walletAddress);
+    const gasBuffer = this.getGasBuffer(network);
 
     // Check if user has enough balance for amount + gas buffer
-    if (balance < amountBN + this.GAS_BUFFER) {
+    if (balance < amountBN + gasBuffer) {
       // If not enough balance for both, ensure at least gas buffer is available
-      if (amountBN <= this.GAS_BUFFER) {
+      if (amountBN <= gasBuffer) {
         throw new Error(
-          `Amount too small. Minimum amount should be greater than ${ethers.formatEther(this.GAS_BUFFER)} native token to cover gas`,
+          `Amount too small. Minimum amount should be greater than ${ethers.formatEther(gasBuffer)} native token to cover gas`,
         );
       }
       // Subtract gas buffer from amount
-      const adjustedAmountBN = amountBN - this.GAS_BUFFER;
+      const adjustedAmountBN = amountBN - gasBuffer;
       const adjustedAmount = ethers.formatUnits(adjustedAmountBN, decimals);
       console.log(
         '🤖 Adjusted amount for gas buffer:',
         adjustedAmount,
-        '(insufficient balance for full amount + gas)',
+        `(insufficient balance for full amount + ${ethers.formatEther(gasBuffer)} gas)`,
       );
       return adjustedAmount;
     }
 
-    console.log('🤖 Using full amount:', amount, '(sufficient balance for amount + gas)');
+    console.log(
+      '🤖 Using full amount:',
+      amount,
+      `(sufficient balance for amount + ${ethers.formatEther(gasBuffer)} gas)`,
+    );
     return amount;
   }
 
-  protected async getTokenInfo(tokenAddress: string): Promise<Token> {
+  protected async getTokenInfo(tokenAddress: string, network: NetworkName): Promise<Token> {
+    this.validateNetwork(network);
+    if (this.isSolanaNetwork(network)) {
+      // TODO: Implement Solana
+    }
+    const provider = this.getEvmProviderForNetwork(network);
     const erc20Interface = new Interface([
       'function decimals() view returns (uint8)',
       'function symbol() view returns (string)',
     ]);
 
-    const contract = new Contract(tokenAddress, erc20Interface, this.provider);
+    const contract = new Contract(tokenAddress, erc20Interface, provider);
     const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
 
     return {
@@ -81,39 +200,50 @@ export abstract class BaseSwapProvider implements ISwapProvider {
     };
   }
 
-  protected async getToken(tokenAddress: string): Promise<Token> {
+  protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
+    this.validateNetwork(network);
+    if (this.isSolanaNetwork(network)) {
+      // TODO: Implement Solana
+    }
     const now = Date.now();
-    const cached = this.tokenCache.get(tokenAddress);
+    const cacheKey = `${network}:${tokenAddress}`;
+    const cached = this.tokenCache.get(cacheKey);
 
     if (cached && now - cached.timestamp < this.CACHE_TTL) {
       return cached.token;
     }
 
-    const info = await this.getTokenInfo(tokenAddress);
+    const info = await this.getTokenInfo(tokenAddress, network);
     const token = {
       address: info.address.toLowerCase() as `0x${string}`,
       decimals: info.decimals,
       symbol: info.symbol,
     };
 
-    this.tokenCache.set(tokenAddress, { token, timestamp: now });
+    this.tokenCache.set(cacheKey, { token, timestamp: now });
     return token;
   }
 
   async checkBalance(
     quote: SwapQuote,
-    userAddress: string,
+    walletAddress: string,
   ): Promise<{ isValid: boolean; message?: string }> {
     try {
+      this.validateNetwork(quote.network);
+      if (this.isSolanaNetwork(quote.network)) {
+        // TODO: Implement Solana
+      }
+      const provider = this.getEvmProviderForNetwork(quote.network);
       const tokenToCheck = quote.fromToken;
-      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromTokenDecimals);
+      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromToken.decimals);
+      const gasBuffer = this.getGasBuffer(quote.network);
 
       // Check if the token is native token
-      const isNativeToken = this.isNativeToken(tokenToCheck);
+      const isNativeToken = this.isNativeToken(tokenToCheck.address);
 
       if (isNativeToken) {
-        const balance = await this.provider.getBalance(userAddress);
-        const totalRequired = requiredAmount + this.GAS_BUFFER;
+        const balance = await provider.getBalance(walletAddress);
+        const totalRequired = requiredAmount + gasBuffer;
 
         if (balance < totalRequired) {
           const formattedBalance = ethers.formatEther(balance);
@@ -121,25 +251,28 @@ export abstract class BaseSwapProvider implements ISwapProvider {
           const formattedTotal = ethers.formatEther(totalRequired);
           return {
             isValid: false,
-            message: `Insufficient native token balance. Required: ${formattedRequired} (+ ~${ethers.formatEther(this.GAS_BUFFER)} for gas = ${formattedTotal}), Available: ${formattedBalance}`,
+            message: `Insufficient native token balance. Required: ${formattedRequired} (+ ~${ethers.formatEther(gasBuffer)} for gas = ${formattedTotal}), Available: ${formattedBalance}`,
           };
         }
       } else {
         // For other tokens, check ERC20 balance
         const erc20 = new Contract(
-          tokenToCheck,
+          tokenToCheck.address,
           [
             'function balanceOf(address) view returns (uint256)',
             'function symbol() view returns (string)',
           ],
-          this.provider,
+          provider,
         );
 
-        const [balance, symbol] = await Promise.all([erc20.balanceOf(userAddress), erc20.symbol()]);
+        const [balance, symbol] = await Promise.all([
+          erc20.balanceOf(walletAddress),
+          erc20.symbol(),
+        ]);
 
         if (balance < requiredAmount) {
-          const formattedBalance = ethers.formatUnits(balance, quote.fromTokenDecimals);
-          const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromTokenDecimals);
+          const formattedBalance = ethers.formatUnits(balance, quote.fromToken.decimals);
+          const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromToken.decimals);
           return {
             isValid: false,
             message: `Insufficient ${symbol} balance. Required: ${formattedRequired} ${symbol}, Available: ${formattedBalance} ${symbol}`,
@@ -147,12 +280,12 @@ export abstract class BaseSwapProvider implements ISwapProvider {
         }
 
         // Check if user has enough native token for gas
-        const nativeBalance = await this.provider.getBalance(userAddress);
-        if (nativeBalance < this.GAS_BUFFER) {
+        const nativeBalance = await provider.getBalance(walletAddress);
+        if (nativeBalance < gasBuffer) {
           const formattedBalance = ethers.formatEther(nativeBalance);
           return {
             isValid: false,
-            message: `Insufficient native token for gas fees. Required: ~${ethers.formatEther(this.GAS_BUFFER)}, Available: ${formattedBalance}`,
+            message: `Insufficient native token for gas fees. Required: ~${ethers.formatEther(gasBuffer)}, Available: ${formattedBalance}`,
           };
         }
       }
@@ -168,16 +301,21 @@ export abstract class BaseSwapProvider implements ISwapProvider {
   }
 
   async buildApproveTransaction(
+    network: NetworkName,
     token: string,
     spender: string,
     amount: string,
-    userAddress: string,
-  ): Promise<SwapTransaction> {
+    walletAddress: string,
+  ): Promise<Transaction> {
+    this.validateNetwork(network);
+    if (this.isSolanaNetwork(network)) {
+      // TODO: Implement Solana
+    }
     if (this.isNativeToken(token)) {
       throw new Error('Native token does not need approval');
     }
 
-    const tokenInfo = await this.getToken(token);
+    const tokenInfo = await this.getToken(token, network);
     const erc20Interface = new Interface([
       'function approve(address spender, uint256 amount) returns (bool)',
     ]);
@@ -191,19 +329,29 @@ export abstract class BaseSwapProvider implements ISwapProvider {
       to: token,
       data,
       value: '0',
-      gasLimit: '100000',
+      network,
     };
   }
 
-  async checkAllowance(token: string, owner: string, spender: string): Promise<bigint> {
-    if (this.isNativeToken(token)) {
+  async checkAllowance(
+    network: NetworkName,
+    tokenAddress: string,
+    owner: string,
+    spender: string,
+  ): Promise<bigint> {
+    this.validateNetwork(network);
+    if (this.isSolanaNetwork(network)) {
+      // TODO: Implement Solana
+    }
+    const provider = this.getEvmProviderForNetwork(network);
+    if (this.isNativeToken(tokenAddress)) {
       return BigInt(Number.MAX_SAFE_INTEGER) * BigInt(10 ** 18);
     }
 
     const erc20 = new Contract(
-      token,
+      tokenAddress,
       ['function allowance(address owner, address spender) view returns (uint256)'],
-      this.provider,
+      provider,
     );
     return await erc20.allowance(owner, spender);
   }
@@ -220,8 +368,12 @@ export abstract class BaseSwapProvider implements ISwapProvider {
     }, this.QUOTE_EXPIRY);
   }
 
-  async buildSwapTransaction(quote: SwapQuote, userAddress: string): Promise<SwapTransaction> {
+  async buildSwapTransaction(quote: SwapQuote, walletAddress: string): Promise<Transaction> {
     try {
+      this.validateNetwork(quote.network);
+      if (this.isSolanaNetwork(quote.network)) {
+        // TODO: Implement Solana
+      }
       const storedData = this.quotes.get(quote.quoteId);
       if (!storedData) {
         throw new Error('Quote expired or not found. Please get a new quote.');
@@ -231,7 +383,8 @@ export abstract class BaseSwapProvider implements ISwapProvider {
         to: storedData.quote.tx?.to || '',
         data: storedData.quote.tx?.data || '',
         value: storedData.quote.tx?.value || '0',
-        gasLimit: storedData.quote.tx?.gasLimit || '350000',
+        gasLimit: storedData.quote.tx?.gasLimit,
+        network: storedData.quote.network,
       };
     } catch (error) {
       console.error('Error building swap transaction:', error);

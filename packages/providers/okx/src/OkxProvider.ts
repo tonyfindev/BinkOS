@@ -1,4 +1,4 @@
-import { ISwapProvider, SwapQuote, SwapResult, SwapParams } from '@binkai/swap-plugin';
+import { ISwapProvider, SwapQuote, SwapParams } from '@binkai/swap-plugin';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import CryptoJS from 'crypto-js';
 
