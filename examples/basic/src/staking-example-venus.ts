@@ -8,15 +8,14 @@ import {
   NetworksConfig,
   NetworkName,
 } from '@binkai/core';
-import { SwapPlugin } from '@binkai/swap-plugin';
-import { FourMemeProvider } from '@binkai/four-meme-provider';
-
+import { StakingPlugin } from '@binkai/staking-plugin';
+import { VenusProvider } from '@binkai/venus-provider';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
 
 async function main() {
-  console.log('🚀 Starting BinkOS swap example...\n');
+  console.log('🚀 Starting BinkOS staking example...\n');
 
   // Check required environment variables
   if (!settings.has('OPENAI_API_KEY')) {
@@ -83,7 +82,6 @@ async function main() {
   console.log('✓ Wallet created\n');
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
-  console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
@@ -96,49 +94,44 @@ async function main() {
   );
   console.log('✓ Agent initialized\n');
 
-  // Create and configure the swap plugin
-  console.log('🔄 Initializing swap plugin...');
-  const swapPlugin = new SwapPlugin();
+  // Create and configure the staking plugin
+  console.log('🔄 Initializing staking plugin...');
+  const stakingPlugin = new StakingPlugin();
 
   // Create providers with proper chain IDs
-  const fourMeme = new FourMemeProvider(provider, 56);
+  const venus = new VenusProvider(provider, 56);
 
   // Configure the plugin with supported chains
-  await swapPlugin.initialize({
+  await stakingPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [fourMeme],
+    providers: [venus],
     supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
   });
-  console.log('✓ Swap plugin initialized\n');
+  console.log('✓ Staking plugin initialized\n');
 
   // Register the plugin with the agent
-  console.log('🔌 Registering swap plugin with agent...');
-  await agent.registerPlugin(swapPlugin);
+  console.log('🔌 Registering staking plugin with agent...');
+  await agent.registerPlugin(stakingPlugin);
   console.log('✓ Plugin registered\n');
 
-  console.log('💱 Example 1: Buy SAFUFOUR');
+  console.log('💱 Example 1: Stake 0.0002 BNB on Venus');
   const inputResult = await agent.execute({
     input: `
-      Buy 0.0001 BNB to SAFUFOUR on FourMeme bnb chain with 10 % slippage.
-      Use the following token addresses:
-      SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
+      Stake 0.0002 BNB on Venus.
     `,
   });
-  console.log('✓ Swap result (input):', inputResult, '\n');
+  console.log('✓ Staking result (input):', inputResult, '\n');
 
-  console.log('💱 Example 2: Sell SAFUFOUR');
+  console.log('💱 Example 2: Unstake 0.0001 BNB on Venus');
   const outputResult = await agent.execute({
     input: `
-      Sell 100 SAFUFOUR on FourMeme bnb chain with 10 % slippage.
-      Use the following token addresses:
-      SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
+      Unstake 0.0001 BNB on Venus.
     `,
   });
-  console.log('✓ Swap result (input):', outputResult, '\n');
-
+  console.log('✓ Staking result (input):', outputResult, '\n');
   // Get plugin information
-  const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
+  const registeredPlugin = agent.getPlugin('staking') as StakingPlugin;
 
   // Check available providers for each chain
   console.log('📊 Available providers by chain:');

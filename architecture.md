@@ -71,10 +71,15 @@ graph TD
    - Real-time updates
 
 4. **Knowledge Plugin** (@binkai/knowledge-plugin)
+
    - Natural language queries
    - Documentation access
    - Technical information
    - Context-aware responses
+
+5. **Staking Plugin** (@binkai/staking-plugin)
+   - Staking / Unstaking support
+   - APY optimization
 
 #### 2.2.3 Provider Layer
 
@@ -93,7 +98,12 @@ graph TD
    - Birdeye Provider
 
 4. **Knowledge Providers**
+
    - Bink Provider
+
+5. **Staking Providers**
+
+   - Venus Provider
 
 ## 3. Technical Architecture
 
@@ -174,7 +184,8 @@ binkos/
 │   │   ├── swap/
 │   │   ├── bridge/
 │   │   ├── token/
-│   │   └── knowledge/
+│   │   ├── knowledge/
+│   │   └── staking/
 │   └── providers/          # Provider implementations
 │       ├── pancakeswap/
 │       ├── okx/
@@ -182,6 +193,7 @@ binkos/
 │       ├── debridge/
 │       ├── birdeye/
 │       └── bink/
+│       └── venus/
 ├── examples/               # Usage examples
 └── docs/                   # Documentation
 ```
