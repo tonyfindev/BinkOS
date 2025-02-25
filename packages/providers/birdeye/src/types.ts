@@ -1,3 +1,5 @@
+import { NetworkName } from '@binkai/core';
+
 export interface BirdeyeTokenResponse {
   success: boolean;
   data: {
@@ -50,9 +52,9 @@ export interface BirdeyeConfig {
 }
 
 export const CHAIN_MAPPING = {
-  solana: 'solana',
-  base: 'base',
-  bnb: 'bsc', // BSC chain mapping
+  [NetworkName.SOLANA]: 'solana',
+  [NetworkName.ETHEREUM]: 'ethereum',
+  [NetworkName.BNB]: 'bsc', // BSC chain mapping
   // Add more chains as they become supported
 } as const;
 

@@ -7,7 +7,7 @@ import {
   PublicKey,
 } from '@solana/web3.js';
 import { Network } from '../../network';
-import { NetworksConfig, NetworkType } from '../../network/types';
+import { NetworkName, NetworksConfig, NetworkType } from '../../network/types';
 import { Wallet } from '../Wallet';
 import { WalletConfig } from '../types';
 
@@ -53,7 +53,7 @@ describe('Wallet', () => {
   });
 
   describe('EVM Functionality', () => {
-    const networkName = 'sepolia';
+    const networkName = NetworkName.SEPOLIA;
 
     it('should generate correct EVM address', async () => {
       const address = await wallet.getAddress(networkName);
@@ -107,7 +107,7 @@ describe('Wallet', () => {
   });
 
   describe('Solana Functionality', () => {
-    const networkName = 'solana-devnet';
+    const networkName = NetworkName.SOLANA_DEVNET;
 
     it('should generate correct Solana address', async () => {
       const address = await wallet.getAddress(networkName);
@@ -200,7 +200,7 @@ describe('Wallet', () => {
     it('should throw error for invalid transaction type', async () => {
       await expect(
         wallet.signTransaction({
-          network: 'solana-devnet',
+          network: NetworkName.SOLANA_DEVNET,
           transaction: {} as any,
         }),
       ).rejects.toThrow('Invalid Solana transaction type');

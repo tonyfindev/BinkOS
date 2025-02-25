@@ -1,4 +1,13 @@
-export type NetworkName = string;
+export enum NetworkName {
+  ETHEREUM = 'ethereum',
+  POLYGON = 'polygon',
+  ARBITRUM = 'arbitrum',
+  OPTIMISM = 'optimism',
+  BNB = 'bnb',
+  SOLANA = 'solana',
+  SEPOLIA = 'sepolia',
+  SOLANA_DEVNET = 'solana-devnet',
+}
 
 export interface BaseNetworkConfig {
   rpcUrl: string;
@@ -25,5 +34,5 @@ export interface NetworkConfig {
 }
 
 export interface NetworksConfig {
-  networks: Record<NetworkName, NetworkConfig>;
+  networks: Partial<Record<NetworkName, NetworkConfig>>;
 }
