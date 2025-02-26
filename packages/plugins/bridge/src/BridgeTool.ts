@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig } from '@binkai/core';
+import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IBridgeProvider, BridgeQuote, BridgeParams, BasicToken } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
@@ -163,7 +163,12 @@ export class BridgeTool extends BaseTool {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async args => {
+      func: async (
+        args: any,
+        runManager?: any,
+        config?: any,
+        onProgress?: (data: ToolProgress) => void,
+      ) => {
         try {
           const {
             fromNetwork,
@@ -211,6 +216,11 @@ export class BridgeTool extends BaseTool {
           };
           console.log('🚀 ~ BridgeTool ~ func: ~ bridgeParams:', bridgeParams);
 
+          onProgress?.({
+            progress: 20,
+            message: `Searching for the best bridge rate from ${fromNetwork} to ${toNetwork}.`,
+          });
+
           let selectedProvider: IBridgeProvider;
           let quote: BridgeQuote;
 
@@ -228,6 +238,11 @@ export class BridgeTool extends BaseTool {
               toWalletAddress,
             );
           } else {
+            onProgress?.({
+              progress: 30,
+              message: `Comparing rates across multiple bridge providers.`,
+            });
+
             const bestQuote = await this.findBestQuote(
               {
                 ...bridgeParams,
@@ -247,10 +262,28 @@ export class BridgeTool extends BaseTool {
             toWalletAddress,
           );
 
+          //const receipt = await wallet.signAndSendTransaction(fromNetwork, bridgeTx as any);
+          onProgress?.({
+            progress: 50,
+            message: `Found best rate with ${selectedProvider.getName()}. Preparing bridge transaction.`,
+          });
+
+          console.log('🚀 ~ BridgeTool ~ func: ~ bridgeTx:', bridgeTx);
+
+          onProgress?.({
+            progress: 70,
+            message: `Sending bridge transaction to move ${quote.fromAmount} ${quote.fromToken} from ${fromNetwork} to ${toNetwork}.`,
+          });
+
           const receipt = await wallet.signAndSendTransaction(fromNetwork, bridgeTx as any);
 
           // Wait for transaction to be mined
           const finalReceipt = await receipt?.wait();
+
+          onProgress?.({
+            progress: 100,
+            message: `Bridge complete! Successfully bridged ${quote.fromAmount} ${quote.fromToken} from ${fromNetwork} to ${toNetwork}. Transaction hash: ${finalReceipt?.hash}`,
+          });
 
           //Return result as JSON string
           return JSON.stringify({

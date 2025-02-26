@@ -6,6 +6,7 @@ import {
   adjustTokenAmount,
   isWithinTolerance,
   DEFAULT_TOLERANCE_PERCENTAGE,
+  parseTokenAmount,
 } from './utils/tokenUtils';
 import {
   isSolanaNetwork,
@@ -174,15 +175,8 @@ export abstract class BaseSwapProvider implements ISwapProvider {
       // TODO: Implement Solana
     }
 
-    const amountBN = ethers.parseUnits(amount, decimals);
+    const amountBN = parseTokenAmount(amount, decimals);
     const gasBuffer = this.getGasBuffer(network);
-
-    // If amount is too small compared to gas buffer
-    if (amountBN <= gasBuffer) {
-      throw new Error(
-        `Amount too small. Minimum amount should be greater than ${ethers.formatEther(gasBuffer)} native token to cover gas`,
-      );
-    }
 
     // Get balance using the cache
     const { balance } = await this.getTokenBalance(
@@ -190,6 +184,13 @@ export abstract class BaseSwapProvider implements ISwapProvider {
       walletAddress,
       network,
     );
+
+    // Check if user has enough balance for both amount and gas
+    if (balance < amountBN + gasBuffer) {
+      throw new Error(
+        `Insufficient balance. You need at least ${ethers.formatEther(amountBN + gasBuffer)} native token to cover amount + gas`,
+      );
+    }
 
     // Calculate maximum amount user can spend (balance - gas buffer)
     const maxSpendableBN = balance > gasBuffer ? balance - gasBuffer : BigInt(0);
@@ -266,7 +267,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
       }
 
       const tokenToCheck = quote.fromToken;
-      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromToken.decimals);
+      const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
       const gasBuffer = this.getGasBuffer(quote.network);
 
       // Check if the token is native token
@@ -355,7 +356,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
 
     const data = erc20Interface.encodeFunctionData('approve', [
       spender,
-      ethers.parseUnits(amount, tokenInfo.decimals),
+      parseTokenAmount(amount, tokenInfo.decimals),
     ]);
 
     // Invalidate the native token balance cache since gas will be spent
