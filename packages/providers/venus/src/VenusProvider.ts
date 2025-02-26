@@ -8,7 +8,7 @@ import { ethers, Contract, Provider } from 'ethers';
 import { VenusPoolABI } from './abis/VenusPool';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 import { isSolanaNetwork } from '@binkai/staking-plugin/src/utils/networkUtils';
-import { isWithinTolerance } from '@binkai/staking-plugin/src/utils/tokenUtils';
+import { isWithinTolerance, parseTokenAmount } from '@binkai/staking-plugin/src/utils/tokenUtils';
 
 // Core system constants
 const CONSTANTS = {
@@ -166,8 +166,24 @@ export class VenusProvider extends BaseStakingProvider {
           : this.getToken(params.tokenA, params.network),
       ]);
 
+      // If input token is native token and it's an exact input swap
+      let adjustedAmount = params.amountA;
+      if (params.type === 'supply' || params.type === 'stake') {
+        // Use the adjustAmount method for all tokens (both native and ERC20)
+        adjustedAmount = await this.adjustAmount(
+          params.tokenA,
+          params.amountA,
+          userAddress,
+          params.network,
+        );
+
+        if (adjustedAmount !== params.amountA) {
+          console.log(`🤖 Venus adjusted input amount from ${params.amountA} to ${adjustedAmount}`);
+        }
+      }
+
       // Calculate input amount based on decimals
-      const swapAmountA = BigInt(Math.floor(Number(params.amountA) * 10 ** tokenA.decimals));
+      const swapAmountA = BigInt(Math.floor(Number(adjustedAmount) * 10 ** tokenA.decimals));
       const swapAmountB = params.amountB
         ? BigInt(Math.floor(Number(params.amountB) * 10 ** tokenB.decimals))
         : swapAmountA;
@@ -328,12 +344,9 @@ export class VenusProvider extends BaseStakingProvider {
       if (isSolanaNetwork(quote.network)) {
         // TODO: Implement Solana
       }
+
       const tokenToCheck = quote.tokenA;
-      // Round to token decimals before parsing to avoid precision errors
-      const roundedAmount =
-        Math.floor(Number(quote.amountA) * Math.pow(10, tokenToCheck.decimals)) /
-        Math.pow(10, tokenToCheck.decimals);
-      const requiredAmount = ethers.parseUnits(roundedAmount.toString(), quote.tokenA.decimals);
+      const requiredAmount = parseTokenAmount(quote.amountA, quote.tokenA.decimals);
       const gasBuffer = this.getGasBuffer(quote.network);
 
       // Check if the token is native token

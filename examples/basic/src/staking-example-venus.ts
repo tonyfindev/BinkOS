@@ -7,6 +7,9 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  IToolExecutionCallback,
+  ToolExecutionState,
+  ToolExecutionData,
 } from '@binkai/core';
 import { StakingPlugin } from '@binkai/staking-plugin';
 import { VenusProvider } from '@binkai/venus-provider';
@@ -16,6 +19,35 @@ import { BirdeyeProvider } from '@binkai/birdeye-provider';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
+
+class ExampleToolExecutionCallback implements IToolExecutionCallback {
+  onToolExecution(data: ToolExecutionData): void {
+    const stateEmoji = {
+      [ToolExecutionState.STARTED]: '🚀',
+      [ToolExecutionState.IN_PROCESS]: '⏳',
+      [ToolExecutionState.COMPLETED]: '✅',
+      [ToolExecutionState.FAILED]: '❌',
+    };
+
+    const emoji = stateEmoji[data.state] || '🔄';
+
+    console.log(`${emoji} [${new Date(data.timestamp).toISOString()}] ${data.message}`);
+
+    if (data.state === ToolExecutionState.IN_PROCESS && data.data) {
+      console.log(`   Progress: ${data.data.progress || 0}%`);
+    }
+
+    if (data.state === ToolExecutionState.COMPLETED && data.data) {
+      console.log(
+        `   Result: ${JSON.stringify(data.data).substring(0, 100)}${JSON.stringify(data.data).length > 100 ? '...' : ''}`,
+      );
+    }
+
+    if (data.state === ToolExecutionState.FAILED && data.error) {
+      console.log(`   Error: ${data.error.message || String(data.error)}`);
+    }
+  }
+}
 
 async function main() {
   console.log('🚀 Starting BinkOS staking example...\n');
@@ -115,6 +147,11 @@ async function main() {
     networks,
   );
   console.log('✓ Agent initialized\n');
+
+  // Register the tool execution callback
+  console.log('🔔 Registering tool execution callback...');
+  agent.registerToolExecutionCallback(new ExampleToolExecutionCallback());
+  console.log('✓ Callback registered\n');
 
   // Register with agent
   console.log('🔌 Registering wallet plugin with agent...');
