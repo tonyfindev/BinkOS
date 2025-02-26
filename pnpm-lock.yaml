@@ -406,6 +406,9 @@ importers:
 
   packages/providers/bnb:
     dependencies:
+      '@binkai/core':
+        specifier: workspace:*
+        version: link:../../core
       '@binkai/wallet-plugin':
         specifier: workspace:*
         version: link:../../plugins/wallet
@@ -9024,7 +9027,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.2
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.7.9)
+      retry-axios: 2.6.0(axios@1.7.9(debug@4.4.0))
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -10820,7 +10823,7 @@ snapshots:
       onetime: 7.0.0
       signal-exit: 4.1.0
 
-  retry-axios@2.6.0(axios@1.7.9):
+  retry-axios@2.6.0(axios@1.7.9(debug@4.4.0)):
     dependencies:
       axios: 1.7.9(debug@4.4.0)
 

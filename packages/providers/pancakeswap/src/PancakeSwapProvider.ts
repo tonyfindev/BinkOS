@@ -102,13 +102,20 @@ export class PancakeSwapProvider extends BaseSwapProvider {
 
       // If input token is native token and it's an exact input swap
       let adjustedAmount = params.amount;
-      if (params.type === 'input' && this.isNativeToken(params.fromToken)) {
-        adjustedAmount = await this.adjustNativeTokenAmount(
+      if (params.type === 'input') {
+        // Use the adjustAmount method for all tokens (both native and ERC20)
+        adjustedAmount = await this.adjustAmount(
+          params.fromToken,
           params.amount,
-          tokenIn.decimals,
           userAddress,
           params.network,
         );
+
+        if (adjustedAmount !== params.amount) {
+          console.log(
+            `🤖 PancakeSwap adjusted input amount from ${params.amount} to ${adjustedAmount}`,
+          );
+        }
       }
 
       // Create currency amounts

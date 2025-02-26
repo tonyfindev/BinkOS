@@ -300,6 +300,14 @@ export class SwapTool extends BaseTool {
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
 
+          try {
+            // Clear token balance caches after successful swap
+            selectedProvider.invalidateBalanceCache(quote.fromToken.address, userAddress, network);
+            selectedProvider.invalidateBalanceCache(quote.toToken.address, userAddress, network);
+          } catch (error) {
+            console.error('Error clearing token balance caches:', error);
+          }
+
           // Return result as JSON string
           return JSON.stringify({
             provider: selectedProvider.getName(),

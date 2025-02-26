@@ -1,6 +1,6 @@
 import { IWalletProvider, WalletBalance, WalletInfo } from '@binkai/wallet-plugin';
 import { ethers } from 'ethers';
-import { NetworkName } from '../../../core/src';
+import { NetworkName } from '@binkai/core';
 
 interface BnbProviderConfig {
   rpcUrl?: string;
