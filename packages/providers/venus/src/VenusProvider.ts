@@ -7,7 +7,7 @@ import {
 import { ethers, Contract, Provider } from 'ethers';
 import { VenusPoolABI } from './abis/VenusPool';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
-import { isSolanaNetwork } from '@binkai/staking-plugin/src/utils/networkUtils';
+import { isSolanaNetwork } from '@binkai/staking-plugin';
 import { isWithinTolerance, parseTokenAmount } from '@binkai/staking-plugin';
 
 // Core system constants
