@@ -6,6 +6,7 @@ import {
   adjustTokenAmount,
   isWithinTolerance,
   DEFAULT_TOLERANCE_PERCENTAGE,
+  parseTokenAmount,
 } from './utils/tokenUtils';
 import {
   isSolanaNetwork,
@@ -174,7 +175,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
       // TODO: Implement Solana
     }
 
-    const amountBN = ethers.parseUnits(amount, decimals);
+    const amountBN = parseTokenAmount(amount, decimals);
     const gasBuffer = this.getGasBuffer(network);
 
     // If amount is too small compared to gas buffer
@@ -266,7 +267,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
       }
 
       const tokenToCheck = quote.fromToken;
-      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromToken.decimals);
+      const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
       const gasBuffer = this.getGasBuffer(quote.network);
 
       // Check if the token is native token
@@ -355,7 +356,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
 
     const data = erc20Interface.encodeFunctionData('approve', [
       spender,
-      ethers.parseUnits(amount, tokenInfo.decimals),
+      parseTokenAmount(amount, tokenInfo.decimals),
     ]);
 
     // Invalidate the native token balance cache since gas will be spent
