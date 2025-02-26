@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig } from '@binkai/core';
+import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IStakingProvider, StakingQuote, StakingParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
@@ -154,7 +154,12 @@ export class StakingTool extends BaseTool {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async (args: any) => {
+      func: async (
+        args: any,
+        runManager?: any,
+        config?: any,
+        onProgress?: (data: ToolProgress) => void,
+      ) => {
         try {
           const {
             fromToken,
@@ -198,6 +203,11 @@ export class StakingTool extends BaseTool {
           let selectedProvider: IStakingProvider;
           let quote: StakingQuote;
 
+          onProgress?.({
+            progress: 10,
+            message: `Searching for the best ${type} rate for your tokens.`,
+          });
+
           if (preferredProvider) {
             try {
               selectedProvider = this.registry.getProvider(preferredProvider);
@@ -238,6 +248,11 @@ export class StakingTool extends BaseTool {
 
           console.log('🤖 The selected provider is:', selectedProvider.getName());
 
+          onProgress?.({
+            progress: 20,
+            message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this ${type} operation.`,
+          });
+
           // Check user's balance before proceeding
           const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
 
@@ -245,8 +260,18 @@ export class StakingTool extends BaseTool {
             throw new Error(balanceCheck.message || 'Insufficient balance for staking');
           }
 
+          onProgress?.({
+            progress: 30,
+            message: `Preparing to ${type} ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
+          });
+
           // Build staking transaction
           const stakingTx = await selectedProvider.buildStakingTransaction(quote, userAddress);
+
+          onProgress?.({
+            progress: 40,
+            message: `Verifying if approval is needed for ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}.`,
+          });
 
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
@@ -269,7 +294,13 @@ export class StakingTool extends BaseTool {
               userAddress,
             );
             console.log('🤖 Approving...');
+
             // Sign and send approval transaction
+            onProgress?.({
+              progress: 60,
+              message: `Approving ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}`,
+            });
+
             const approveReceipt = await wallet.signAndSendTransaction(network, {
               to: approveTx.to,
               data: approveTx.data,
@@ -283,6 +314,11 @@ export class StakingTool extends BaseTool {
           }
           console.log('🤖 Staking...');
 
+          onProgress?.({
+            progress: 80,
+            message: `Executing ${type} operation for ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'}.`,
+          });
+
           // Sign and send Staking transaction
           const receipt = await wallet.signAndSendTransaction(network, {
             to: stakingTx.to,
@@ -291,6 +327,11 @@ export class StakingTool extends BaseTool {
           });
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
+
+          onProgress?.({
+            progress: 100,
+            message: `${type.charAt(0).toUpperCase() + type.slice(1)} operation complete! Successfully processed ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
+          });
 
           // Return result as JSON string
           return JSON.stringify({

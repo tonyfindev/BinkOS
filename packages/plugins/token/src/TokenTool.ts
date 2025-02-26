@@ -1,6 +1,12 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, IToolConfig, NetworkName } from '@binkai/core';
+import {
+  BaseTool,
+  CustomDynamicStructuredTool,
+  IToolConfig,
+  NetworkName,
+  ToolProgress,
+} from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ITokenProvider, TokenInfo, TokenQueryParams } from './types';
 import { DefaultTokenProvider } from './providers/DefaultTokenProvider';
@@ -337,17 +343,27 @@ export class GetTokenInfoTool extends BaseTool {
     }
   }
 
-  createTool(): DynamicStructuredTool<z.ZodObject<any>> {
+  createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
-    return new DynamicStructuredTool({
+    return {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async (args: any) => {
+      func: async (
+        args: any,
+        runManager?: any,
+        config?: any,
+        onProgress?: (data: ToolProgress) => void,
+      ) => {
         try {
           const { query, network, provider: preferredProvider, includePrice = true } = args;
 
           console.log('🤖 Token Tool Args:', args);
+
+          onProgress?.({
+            progress: 20,
+            message: `Searching for token information for "${query}" on ${network} network.`,
+          });
 
           // Validate network is supported
           const supportedNetworks = this.getSupportedNetworks();
@@ -360,6 +376,11 @@ export class GetTokenInfoTool extends BaseTool {
           let tokenInfo: TokenInfo;
 
           if (preferredProvider) {
+            onProgress?.({
+              progress: 50,
+              message: `Querying token information from ${preferredProvider} provider.`,
+            });
+
             const provider = this.registry.getProvider(preferredProvider);
             // Validate provider supports the network
             if (!provider.getSupportedNetworks().includes(network)) {
@@ -375,6 +396,11 @@ export class GetTokenInfoTool extends BaseTool {
               this.updateTokenCache(network, tokenInfo);
             }
           } else {
+            onProgress?.({
+              progress: 50,
+              message: `Searching for token information across all available providers.`,
+            });
+
             tokenInfo = await this.queryToken({
               query,
               network,
@@ -392,6 +418,11 @@ export class GetTokenInfoTool extends BaseTool {
 
           console.log('🤖 Token info:', tokenInfo);
 
+          onProgress?.({
+            progress: 100,
+            message: `Successfully retrieved information for ${tokenInfo.name || tokenInfo.symbol || query}${tokenInfo.price?.usd ? ` (Current price: $${tokenInfo.price.usd})` : ''}.`,
+          });
+
           // Return result as JSON string
           return JSON.stringify({
             status: 'success',
@@ -408,6 +439,6 @@ export class GetTokenInfoTool extends BaseTool {
           });
         }
       },
-    });
+    };
   }
 }
