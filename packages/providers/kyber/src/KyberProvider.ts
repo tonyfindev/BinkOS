@@ -76,16 +76,16 @@ export class KyberProvider extends BaseSwapProvider {
       ]);
 
       // Calculate input amount based on decimals
-      const swapAmount =
+      const amountIn =
         params.type === 'input'
-          ? Math.floor(Number(params.amount) * 10 ** sourceToken.decimals)
-          : undefined;
+          ? ethers.parseUnits(params.amount, sourceToken.decimals)
+          : ethers.parseUnits(params.amount, destinationToken.decimals);
 
       // Fetch optimal swap route
       const optimalRoute = await this.fetchOptimalRoute(
         sourceToken.address,
         destinationToken.address,
-        swapAmount,
+        amountIn.toString(),
       );
 
       // Build swap transaction
@@ -111,8 +111,9 @@ export class KyberProvider extends BaseSwapProvider {
   }
 
   // Helper methods for better separation of concerns
-  private async fetchOptimalRoute(sourceToken: string, destinationToken: string, amount?: number) {
+  private async fetchOptimalRoute(sourceToken: string, destinationToken: string, amount: string) {
     const routePath = `api/v1/routes?tokenIn=${sourceToken}&tokenOut=${destinationToken}&amountIn=${amount}&gasInclude=true`;
+    console.log('🤖 Kyber Path', routePath);
     const routeResponse = await fetch(`${CONSTANTS.KYBER_API_BASE}${routePath}`);
     const routeData = await routeResponse.json();
 

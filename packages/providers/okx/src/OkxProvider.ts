@@ -103,8 +103,8 @@ export class OkxProvider extends BaseSwapProvider {
 
       const amountIn =
         params.type === 'input'
-          ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
-          : Math.floor(Number(params.amount) * 10 ** tokenOut.decimals);
+          ? ethers.parseUnits(params.amount, tokenIn.decimals)
+          : ethers.parseUnits(params.amount, tokenOut.decimals);
 
       const now = new Date();
 
@@ -112,7 +112,7 @@ export class OkxProvider extends BaseSwapProvider {
 
       const slippageOKX = Number(params.slippage) / 100 || 0.1;
 
-      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn}&chainId=${this.chainId}&fromTokenAddress=${tokenIn.address}&toTokenAddress=${tokenOut.address}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
+      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn.toString()}&chainId=${this.chainId}&fromTokenAddress=${tokenIn.address}&toTokenAddress=${tokenOut.address}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
 
       console.log('🤖 OKX Path', path);
 

@@ -11,6 +11,7 @@ import { IPlugin } from '../plugin/types';
 import { DatabaseAdapter } from '../storage';
 import { MessageEntity } from '../types';
 import { EVM_NATIVE_TOKEN_ADDRESS, SOL_NATIVE_TOKEN_ADDRESS } from '../network';
+import { CallbackManager, IToolExecutionCallback } from './callbacks';
 
 export class Agent extends BaseAgent {
   private model: ChatOpenAI;
@@ -55,7 +56,12 @@ export class Agent extends BaseAgent {
 
   async registerTool(tool: ITool): Promise<void> {
     tool.setAgent(this);
-    this.tools.push(tool.createTool());
+    const dynamicTool = tool.createTool();
+
+    // Wrap the tool with our callback system
+    const wrappedTool = this.callbackManager.wrapTool(dynamicTool);
+
+    this.tools.push(wrappedTool);
     this.initializeExecutor();
   }
 
