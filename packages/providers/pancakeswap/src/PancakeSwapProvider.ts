@@ -14,7 +14,7 @@ import { ethers, Contract, Interface, Provider } from 'ethers';
 import { createPublicClient, http, PublicClient } from 'viem';
 import { bsc } from 'viem/chains';
 import { SMART_ROUTER_ADDRESSES, SwapRouter, V4Router } from '@pancakeswap/smart-router';
-import { parseTokenAmount } from '@binkai/swap-plugin/src/utils/tokenUtils';
+import { parseTokenAmount } from '@binkai/swap-plugin';
 
 export class PancakeSwapProvider extends BaseSwapProvider {
   private viemClient: PublicClient;
