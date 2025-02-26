@@ -1,18 +1,19 @@
-import { VersionedTransaction } from '@solana/web3.js';
+import { NetworkName, Token } from '@binkai/core';
 
 export interface BridgeQuote {
-  fromChain: string;
-  wallet: string;
-  toChain: string;
-  walletReceive: string;
-  fromToken: string;
-  fromTokenDecimals: number;
-  amount: string;
-  toToken: string;
-  toTokenDecimals: number;
+  quoteId: string;
+  fromNetwork: NetworkName;
+  toNetwork: NetworkName;
+  fromToken: Token;
+  // fromTokenDecimals: number;
+  fromAmount: string;
+  toAmount: string;
+  toToken: Token;
+  // toTokenDecimals: number;
   priceImpact: number;
   route: string[];
   type: 'input' | 'output';
+  tx?: Transaction;
 }
 
 export interface BridgeResult extends BridgeQuote {
@@ -22,22 +23,27 @@ export interface BridgeResult extends BridgeQuote {
 }
 
 export interface BridgeParams {
-  fromChain: string;
-  wallet: string;
-  toChain: string;
-  walletReceive: string;
+  fromNetwork: NetworkName;
+  toNetwork: NetworkName;
   fromToken: string;
   toToken: string;
   amount: string;
   type: 'input' | 'output';
-  slippage: number;
 }
 
-export interface BridgeTransaction {
+export interface BasicToken {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+export interface Transaction {
   to: string;
   data: string;
-  value: bigint;
-  gasLimit: bigint;
+  value?: string;
+  gasLimit?: bigint;
+  network: NetworkName;
 }
 
 export interface IBridgeProvider {
@@ -47,9 +53,9 @@ export interface IBridgeProvider {
   getName(): string;
 
   /**
-   * Get supported chains for this provider
+   * Get supported networks for this provider
    */
-  getSupportedChains(): string[];
+  getSupportedNetworks(): NetworkName[];
 
   /**
    * Get the provider-specific prompt that helps guide the AI in using this provider effectively
@@ -58,14 +64,34 @@ export interface IBridgeProvider {
   getPrompt?(): string;
 
   /**
+   * Check if user has sufficient balance for the bridge
+   * @param quote The bridge quote to check balance against
+   * @param walletAddress The address of the user
+   * @returns Promise<{ isValid: boolean; message?: string }> Returns if balance is sufficient and error message if not
+   */
+  checkBalance(
+    quote: BridgeQuote,
+    walletAddress: string,
+  ): Promise<{ isValid: boolean; message?: string }>;
+
+  /**
    * Get a quote for bridging tokens
    */
-  getQuote(params: BridgeParams): Promise<BridgeQuote>;
+  getQuote(
+    params: BridgeParams,
+    fromWalletAddress: string,
+    toWalletAddress: string,
+  ): Promise<BridgeQuote>;
 
   /**
    * Build a transaction for bridging tokens
    * @param quote The quote to execute
-   * @param userAddress The address of the user who will execute the bridge
+   * @param fromWalletAddress The address of the user who will send the tokens
+   * @param toWalletAddress The address of the user who will receive the tokens
    */
-  buildBridgeTransaction(quote: BridgeQuote, userAddress: string): Promise<BridgeTransaction>;
+  buildBridgeTransaction(
+    quote: BridgeQuote,
+    fromWalletAddress: string,
+    toWalletAddress: string,
+  ): Promise<Transaction>;
 }
