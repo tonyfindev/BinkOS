@@ -5,6 +5,8 @@ import { NetworksConfig } from '../network/types';
 import { BaseTool } from './tools/BaseTool';
 import { IPlugin } from '../plugin/types';
 import { UserEntity, UUID } from '../types';
+import { DatabaseAdapter } from '../storage';
+import { IToolExecutionCallback } from './callbacks';
 
 export interface AgentConfig {
   model: string;
@@ -40,6 +42,16 @@ export interface IAgent {
   getPlugin(name: string): IPlugin | undefined;
 
   /**
+   * Register a callback for tool execution events
+   */
+  registerToolExecutionCallback(callback: IToolExecutionCallback): void;
+
+  /**
+   * Unregister a callback for tool execution events
+   */
+  unregisterToolExecutionCallback(callback: IToolExecutionCallback): void;
+
+  /**
    * Execute a command using the agent's tools
    */
   execute(command: string): Promise<any>;
@@ -47,4 +59,5 @@ export interface IAgent {
   execute(params: AgentExecuteParams): Promise<string>;
   getWallet(): IWallet;
   getNetworks(): NetworksConfig['networks'];
+  registerDatabase(db: DatabaseAdapter): Promise<void>;
 }

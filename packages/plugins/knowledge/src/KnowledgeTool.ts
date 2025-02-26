@@ -1,4 +1,4 @@
-import { BaseTool, IToolConfig } from '@binkai/core';
+import { BaseTool, CustomDynamicStructuredTool, IToolConfig } from '@binkai/core';
 import { z } from 'zod';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { IKnowledgeProvider } from './types';
@@ -41,8 +41,8 @@ export class KnowledgeTool extends BaseTool {
     });
   }
 
-  createTool(): DynamicStructuredTool {
-    return new DynamicStructuredTool({
+  createTool(): CustomDynamicStructuredTool {
+    return {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
@@ -80,6 +80,6 @@ export class KnowledgeTool extends BaseTool {
           });
         }
       },
-    });
+    };
   }
 }

@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, IToolConfig } from '@binkai/core';
+import { BaseTool, CustomDynamicStructuredTool, IToolConfig } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IBridgeProvider, BridgeQuote, BridgeParams } from './types';
 
@@ -155,8 +155,8 @@ export class BridgeTool extends BaseTool {
     }, validQuotes[0]);
   }
 
-  createTool(): DynamicStructuredTool {
-    return new DynamicStructuredTool({
+  createTool(): CustomDynamicStructuredTool {
+    return {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
@@ -247,6 +247,6 @@ export class BridgeTool extends BaseTool {
           });
         }
       },
-    });
+    };
   }
 }
