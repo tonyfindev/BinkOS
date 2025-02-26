@@ -27,8 +27,8 @@ export function adjustTokenAmount(
     if (!availableAmount || availableAmount === '0') return '0';
 
     // Convert string amounts to BigInt for precise comparison
-    const requestedBN = ethers.parseUnits(requestedAmount, decimals);
-    const availableBN = ethers.parseUnits(availableAmount, decimals);
+    const requestedBN = parseTokenAmount(requestedAmount, decimals);
+    const availableBN = parseTokenAmount(availableAmount, decimals);
 
     // If available amount is greater than or equal to requested, no adjustment needed
     if (availableBN >= requestedBN) {
@@ -109,5 +109,23 @@ export function formatTokenAmount(amount: bigint, decimals: number): string {
  * @returns The parsed amount as a BigInt
  */
 export function parseTokenAmount(amount: string, decimals: number): bigint {
-  return ethers.parseUnits(amount, decimals);
+  try {
+    // Handle edge cases
+    if (!amount || amount === '0') return BigInt(0);
+
+    // Check if the amount has more decimal places than allowed
+    const parts = amount.split('.');
+    if (parts.length === 2 && parts[1].length > decimals) {
+      // Truncate the excess decimal places
+      const truncatedAmount = `${parts[0]}.${parts[1].substring(0, decimals)}`;
+      return ethers.parseUnits(truncatedAmount, decimals);
+    }
+
+    // Normal case - use ethers.parseUnits directly
+    return ethers.parseUnits(amount, decimals);
+  } catch (error) {
+    console.error('Error parsing token amount:', error);
+    // In case of any error, return zero
+    return BigInt(0);
+  }
 }

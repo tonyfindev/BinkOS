@@ -62,27 +62,50 @@ export interface IStakingProvider {
   getPrompt?(): string;
 
   /**
-   * Check if user has sufficient balance for the staking
-   * @param quote The staking quote to check balance against
-   * @param userAddress The address of the user
+   * Check if user has sufficient balance for the swap
+   * @param quote The swap quote to check balance against
+   * @param walletAddress The address of the user
    * @returns Promise<{ isValid: boolean; message?: string }> Returns if balance is sufficient and error message if not
    */
   checkBalance(
     quote: StakingQuote,
-    userAddress: string,
+    walletAddress: string,
   ): Promise<{ isValid: boolean; message?: string }>;
 
   /**
-   * Get a quote for staking tokens
+   * Adjusts a token amount based on user's balance to handle precision issues
+   * @param tokenAddress The address of the token to adjust
+   * @param amount The requested amount
+   * @param walletAddress The user's wallet address
+   * @param network The blockchain network
+   * @returns The adjusted amount that can be safely used
    */
-  getQuote(params: StakingParams, userAddress: string): Promise<StakingQuote>;
+  adjustAmount(
+    tokenAddress: string,
+    amount: string,
+    walletAddress: string,
+    network: NetworkName,
+  ): Promise<string>;
 
   /**
-   * Build a transaction for staking tokens
-   * @param quote The quote to execute
-   * @param userAddress The address of the user who will execute the staking
+   * Invalidates the balance cache for a specific token and wallet
+   * @param tokenAddress The address of the token
+   * @param walletAddress The address of the wallet
+   * @param network The blockchain network
    */
-  buildStakingTransaction(quote: StakingQuote, userAddress: string): Promise<Transaction>;
+  invalidateBalanceCache(tokenAddress: string, walletAddress: string, network: NetworkName): void;
+
+  /**
+   * Get a quote for swapping tokens
+   */
+  getQuote(params: StakingParams, walletAddress: string): Promise<StakingQuote>;
+
+  /**
+   * Build a transaction for swapping tokens
+   * @param quote The quote to execute
+   * @param walletAddress The address of the user who will execute the swap
+   */
+  buildStakingTransaction(quote: StakingQuote, walletAddress: string): Promise<Transaction>;
 
   /**
    * Build a transaction for approving token spending

@@ -1,9 +1,9 @@
-import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IStakingProvider, StakingQuote, StakingParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
+import { parseTokenAmount } from './utils/tokenUtils';
 export interface StakingToolConfig extends IToolConfig {
   defaultNetwork?: string;
   supportedNetworks?: string[];
@@ -239,7 +239,7 @@ export class StakingTool extends BaseTool {
 
           onProgress?.({
             progress: 20,
-            message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this ${type} operation.`,
+            message: `Verifying you have sufficient ${quote.tokenA.symbol || 'tokens'} for this ${type} operation.`,
           });
 
           // Check user's balance before proceeding
@@ -251,7 +251,7 @@ export class StakingTool extends BaseTool {
 
           onProgress?.({
             progress: 30,
-            message: `Preparing to ${type} ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
+            message: `Preparing to ${type} ${quote.amountA} ${quote.tokenA.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
           });
 
           // Build staking transaction
@@ -259,7 +259,7 @@ export class StakingTool extends BaseTool {
 
           onProgress?.({
             progress: 40,
-            message: `Verifying if approval is needed for ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}.`,
+            message: `Verifying if approval is needed for ${selectedProvider.getName()} to access your ${quote.tokenA.symbol || 'tokens'}.`,
           });
 
           // Check if approval is needed and handle it
@@ -270,7 +270,7 @@ export class StakingTool extends BaseTool {
             stakingTx.to,
           );
 
-          const requiredAmount = BigInt(Number(quote.amountA) * 10 ** quote.tokenA.decimals);
+          const requiredAmount = parseTokenAmount(quote.amountA, quote.tokenA.decimals);
 
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
@@ -287,7 +287,7 @@ export class StakingTool extends BaseTool {
             // Sign and send approval transaction
             onProgress?.({
               progress: 60,
-              message: `Approving ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}`,
+              message: `Approving ${selectedProvider.getName()} to access your ${quote.tokenA.symbol || 'tokens'}`,
             });
 
             const approveReceipt = await wallet.signAndSendTransaction(network, {
@@ -305,7 +305,7 @@ export class StakingTool extends BaseTool {
 
           onProgress?.({
             progress: 80,
-            message: `Executing ${type} operation for ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'}.`,
+            message: `Executing ${type} operation for ${quote.amountA} ${quote.tokenA.symbol || 'tokens'}.`,
           });
 
           // Sign and send Staking transaction
@@ -319,7 +319,7 @@ export class StakingTool extends BaseTool {
 
           onProgress?.({
             progress: 100,
-            message: `${type.charAt(0).toUpperCase() + type.slice(1)} operation complete! Successfully processed ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
+            message: `${type.charAt(0).toUpperCase() + type.slice(1)} operation complete! Successfully processed ${quote.amountA} ${quote.tokenA.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
           });
 
           // Return result as JSON string
