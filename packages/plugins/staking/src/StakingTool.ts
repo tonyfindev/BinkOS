@@ -3,6 +3,7 @@ import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from
 import { ProviderRegistry } from './ProviderRegistry';
 import { IStakingProvider, StakingQuote, StakingParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
+import { parseTokenAmount } from './utils/tokenUtils';
 export interface StakingToolConfig extends IToolConfig {
   defaultNetwork?: string;
   supportedNetworks?: string[];
@@ -191,6 +192,11 @@ export class StakingTool extends BaseTool {
           let selectedProvider: IStakingProvider;
           let quote: StakingQuote;
 
+          onProgress?.({
+            progress: 10,
+            message: `Searching for the best ${type} rate for your tokens.`,
+          });
+
           if (preferredProvider) {
             try {
               selectedProvider = this.registry.getProvider(preferredProvider);
@@ -231,6 +237,11 @@ export class StakingTool extends BaseTool {
 
           console.log('🤖 The selected provider is:', selectedProvider.getName());
 
+          onProgress?.({
+            progress: 20,
+            message: `Verifying you have sufficient ${quote.tokenA.symbol || 'tokens'} for this ${type} operation.`,
+          });
+
           // Check user's balance before proceeding
           const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
 
@@ -238,8 +249,18 @@ export class StakingTool extends BaseTool {
             throw new Error(balanceCheck.message || 'Insufficient balance for staking');
           }
 
+          onProgress?.({
+            progress: 30,
+            message: `Preparing to ${type} ${quote.amountA} ${quote.tokenA.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
+          });
+
           // Build staking transaction
           const stakingTx = await selectedProvider.buildStakingTransaction(quote, userAddress);
+
+          onProgress?.({
+            progress: 40,
+            message: `Verifying if approval is needed for ${selectedProvider.getName()} to access your ${quote.tokenA.symbol || 'tokens'}.`,
+          });
 
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
@@ -249,15 +270,11 @@ export class StakingTool extends BaseTool {
             stakingTx.to,
           );
 
-          const requiredAmount = BigInt(Number(quote.amountA) * 10 ** quote.tokenA.decimals);
+          const requiredAmount = parseTokenAmount(quote.amountA, quote.tokenA.decimals);
 
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
           if (allowance < requiredAmount) {
-            onProgress?.({
-              progress: 50,
-              message: 'Building approval transaction...',
-            });
             const approveTx = await selectedProvider.buildApproveTransaction(
               network,
               quote.tokenA.address,
@@ -266,6 +283,7 @@ export class StakingTool extends BaseTool {
               userAddress,
             );
             console.log('🤖 Approving...');
+
             // Sign and send approval transaction
             onProgress?.({
               progress: 60,
@@ -285,6 +303,11 @@ export class StakingTool extends BaseTool {
           }
           console.log('🤖 Staking...');
 
+          onProgress?.({
+            progress: 80,
+            message: `Executing ${type} operation for ${quote.amountA} ${quote.tokenA.symbol || 'tokens'}.`,
+          });
+
           // Sign and send Staking transaction
           const receipt = await wallet.signAndSendTransaction(network, {
             to: stakingTx.to,
@@ -293,6 +316,11 @@ export class StakingTool extends BaseTool {
           });
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
+
+          onProgress?.({
+            progress: 100,
+            message: `${type.charAt(0).toUpperCase() + type.slice(1)} operation complete! Successfully processed ${quote.amountA} ${quote.tokenA.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
+          });
 
           // Return result as JSON string
           return JSON.stringify({

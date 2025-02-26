@@ -4,6 +4,7 @@ import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
+import { parseTokenAmount } from './utils/tokenUtils';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -286,7 +287,8 @@ export class SwapTool extends BaseTool {
             userAddress,
             swapTx.to,
           );
-          const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromToken.decimals);
+
+          const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
 
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
