@@ -1,12 +1,16 @@
 import { NetworkName, Token } from '@binkai/core';
+import { Provider } from 'ethers';
+import { Connection } from '@solana/web3.js';
+
+export type NetworkProvider = Provider | Connection;
 
 export interface StakingQuote {
   network: NetworkName;
   quoteId: string;
-  fromToken: Token;
-  toToken: Token;
-  fromAmount: string;
-  toAmount: string;
+  tokenA: Token;
+  tokenB: Token;
+  amountA: string;
+  amountB: string;
   currentAPY: number;
   averageAPY?: number;
   maxSupply: number;
@@ -25,9 +29,10 @@ export interface StakingResult extends StakingQuote {
 
 export interface StakingParams {
   network: NetworkName;
-  fromToken: string;
-  toToken: string;
-  amount: string;
+  tokenA: string;
+  tokenB: string;
+  amountA: string;
+  amountB: string;
   type: 'supply' | 'withdraw' | 'stake' | 'unstake';
 }
 
