@@ -14,6 +14,7 @@ import { ethers, Contract, Interface, Provider } from 'ethers';
 import { createPublicClient, http, PublicClient } from 'viem';
 import { bsc } from 'viem/chains';
 import { SMART_ROUTER_ADDRESSES, SwapRouter, V4Router } from '@pancakeswap/smart-router';
+import { parseTokenAmount } from '@binkai/swap-plugin/src/utils/tokenUtils';
 
 export class PancakeSwapProvider extends BaseSwapProvider {
   private viemClient: PublicClient;
@@ -123,14 +124,14 @@ export class PancakeSwapProvider extends BaseSwapProvider {
         params.type === 'input'
           ? CurrencyAmount.fromRawAmount(
               tokenIn,
-              ethers.parseUnits(adjustedAmount, tokenIn.decimals).toString(),
+              parseTokenAmount(adjustedAmount, tokenIn.decimals).toString(),
             )
           : undefined;
       const amountOut =
         params.type === 'output'
           ? CurrencyAmount.fromRawAmount(
               tokenOut,
-              ethers.parseUnits(params.amount, tokenOut.decimals).toString(),
+              parseTokenAmount(params.amount, tokenOut.decimals).toString(),
             )
           : undefined;
 

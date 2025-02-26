@@ -7,6 +7,9 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  IToolExecutionCallback,
+  ToolExecutionData,
+  ToolExecutionState,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
@@ -20,6 +23,36 @@ import { BnbProvider } from '@binkai/bnb-provider';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
+
+// Example callback implementation
+class ExampleToolExecutionCallback implements IToolExecutionCallback {
+  onToolExecution(data: ToolExecutionData): void {
+    const stateEmoji = {
+      [ToolExecutionState.STARTED]: '🚀',
+      [ToolExecutionState.IN_PROCESS]: '⏳',
+      [ToolExecutionState.COMPLETED]: '✅',
+      [ToolExecutionState.FAILED]: '❌',
+    };
+
+    const emoji = stateEmoji[data.state] || '🔄';
+
+    console.log(`${emoji} [${new Date(data.timestamp).toISOString()}] ${data.message}`);
+
+    if (data.state === ToolExecutionState.IN_PROCESS && data.data) {
+      console.log(`   Progress: ${data.data.progress || 0}%`);
+    }
+
+    if (data.state === ToolExecutionState.COMPLETED && data.data) {
+      console.log(
+        `   Result: ${JSON.stringify(data.data).substring(0, 100)}${JSON.stringify(data.data).length > 100 ? '...' : ''}`,
+      );
+    }
+
+    if (data.state === ToolExecutionState.FAILED && data.error) {
+      console.log(`   Error: ${data.error.message || String(data.error)}`);
+    }
+  }
+}
 
 async function main() {
   console.log('🚀 Starting BinkOS swap example...\n');
@@ -102,6 +135,11 @@ async function main() {
     networks,
   );
   console.log('✓ Agent initialized\n');
+
+  // Register the tool execution callback
+  console.log('🔔 Registering tool execution callback...');
+  agent.registerToolExecutionCallback(new ExampleToolExecutionCallback());
+  console.log('✓ Callback registered\n');
 
   // Create and configure the swap plugin
   console.log('🔄 Initializing swap plugin...');

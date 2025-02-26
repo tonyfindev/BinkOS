@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, IToolConfig } from '@binkai/core';
+import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
@@ -156,13 +156,18 @@ export class SwapTool extends BaseTool {
     }, validQuotes[0]);
   }
 
-  createTool(): DynamicStructuredTool {
+  createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
-    return new DynamicStructuredTool({
+    return {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async (args: any) => {
+      func: async (
+        args: any,
+        runManager?: any,
+        config?: any,
+        onProgress?: (data: ToolProgress) => void,
+      ) => {
         try {
           const {
             fromToken,
@@ -208,6 +213,11 @@ export class SwapTool extends BaseTool {
           let selectedProvider: ISwapProvider;
           let quote: SwapQuote;
 
+          onProgress?.({
+            progress: 0,
+            message: 'Getting quote...',
+          });
+
           if (preferredProvider) {
             try {
               selectedProvider = this.registry.getProvider(preferredProvider);
@@ -248,15 +258,27 @@ export class SwapTool extends BaseTool {
 
           console.log('🤖 The selected provider is:', selectedProvider.getName());
 
+          onProgress?.({
+            progress: 10,
+            message: 'Checking balance...',
+          });
           // Check user's balance before proceeding
           const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
           if (!balanceCheck.isValid) {
             throw new Error(balanceCheck.message || 'Insufficient balance for swap');
           }
 
+          onProgress?.({
+            progress: 20,
+            message: 'Building swap transaction...',
+          });
           // Build swap transaction
           const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
 
+          onProgress?.({
+            progress: 40,
+            message: 'Checking allowance...',
+          });
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
             network,
@@ -269,6 +291,10 @@ export class SwapTool extends BaseTool {
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
           if (allowance < requiredAmount) {
+            onProgress?.({
+              progress: 50,
+              message: 'Building approval transaction...',
+            });
             const approveTx = await selectedProvider.buildApproveTransaction(
               network,
               quote.fromToken.address,
@@ -278,6 +304,10 @@ export class SwapTool extends BaseTool {
             );
             console.log('🤖 Approving...');
             // Sign and send approval transaction
+            onProgress?.({
+              progress: 60,
+              message: 'Signing and sending approval transaction...',
+            });
             const approveReceipt = await wallet.signAndSendTransaction(network, {
               to: approveTx.to,
               data: approveTx.data,
@@ -291,6 +321,10 @@ export class SwapTool extends BaseTool {
           }
           console.log('🤖 Swapping...');
 
+          onProgress?.({
+            progress: 80,
+            message: 'Signing and sending swap transaction...',
+          });
           // Sign and send swap transaction
           const receipt = await wallet.signAndSendTransaction(network, {
             to: swapTx.to,
@@ -328,6 +362,6 @@ export class SwapTool extends BaseTool {
           });
         }
       },
-    });
+    };
   }
 }
