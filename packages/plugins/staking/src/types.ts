@@ -1,4 +1,8 @@
 import { NetworkName, Token } from '@binkai/core';
+import { Provider } from 'ethers';
+import { Connection } from '@solana/web3.js';
+
+export type NetworkProvider = Provider | Connection;
 
 export interface StakingQuote {
   network: NetworkName;

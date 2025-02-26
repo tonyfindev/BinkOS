@@ -7,6 +7,8 @@ import {
 import { ethers, Contract, Provider } from 'ethers';
 import { VenusPoolABI } from './abis/VenusPool';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
+import { isSolanaNetwork } from '@binkai/staking-plugin/src/utils/networkUtils';
+import { isWithinTolerance } from '@binkai/staking-plugin/src/utils/tokenUtils';
 
 // Core system constants
 const CONSTANTS = {
@@ -310,26 +312,44 @@ export class VenusProvider extends BaseStakingProvider {
     walletAddress: string,
   ): Promise<{ isValid: boolean; message?: string }> {
     try {
-      if (quote.type === 'stake' || quote.type === 'supply') {
+      // Handle edge cases
+      if (!quote || !walletAddress) {
+        return { isValid: false, message: 'Invalid quote or wallet address' };
+      }
+      if (!quote.amountA || quote.amountA === '0') {
+        return { isValid: true }; // Zero amount is always valid
+      }
+
+      if (quote.type === 'withdraw' || quote.type === 'unstake') {
         return { isValid: true };
       }
+
       this.validateNetwork(quote.network);
-      if (this.isSolanaNetwork(quote.network)) {
+      if (isSolanaNetwork(quote.network)) {
         // TODO: Implement Solana
       }
-      const provider = this.getEvmProviderForNetwork(quote.network);
       const tokenToCheck = quote.tokenA;
-      const requiredAmount = ethers.parseUnits(quote.amountA, quote.tokenA.decimals);
+      // Round to token decimals before parsing to avoid precision errors
+      const roundedAmount =
+        Math.floor(Number(quote.amountA) * Math.pow(10, tokenToCheck.decimals)) /
+        Math.pow(10, tokenToCheck.decimals);
+      const requiredAmount = ethers.parseUnits(roundedAmount.toString(), quote.tokenA.decimals);
       const gasBuffer = this.getGasBuffer(quote.network);
 
       // Check if the token is native token
       const isNativeToken = this.isNativeToken(tokenToCheck.address);
 
       if (isNativeToken) {
-        const balance = await provider.getBalance(walletAddress);
+        // Get native token balance using the cache
+        const { balance } = await this.getTokenBalance(
+          EVM_NATIVE_TOKEN_ADDRESS,
+          walletAddress,
+          quote.network,
+        );
         const totalRequired = requiredAmount + gasBuffer;
 
-        if (balance < totalRequired) {
+        // Check if balance is sufficient with tolerance
+        if (!isWithinTolerance(totalRequired, balance, this.TOLERANCE_PERCENTAGE)) {
           const formattedBalance = ethers.formatEther(balance);
           const formattedRequired = ethers.formatEther(requiredAmount);
           const formattedTotal = ethers.formatEther(totalRequired);
@@ -339,32 +359,28 @@ export class VenusProvider extends BaseStakingProvider {
           };
         }
       } else {
-        // For other tokens, check ERC20 balance
-        const erc20 = new Contract(
+        // For other tokens, check ERC20 balance using the cache
+        const { balance, formattedBalance } = await this.getTokenBalance(
           tokenToCheck.address,
-          [
-            'function balanceOf(address) view returns (uint256)',
-            'function symbol() view returns (string)',
-          ],
-          provider,
+          walletAddress,
+          quote.network,
         );
 
-        const [balance, symbol] = await Promise.all([
-          erc20.balanceOf(walletAddress),
-          erc20.symbol(),
-        ]);
-
-        if (balance < requiredAmount) {
-          const formattedBalance = ethers.formatUnits(balance, quote.tokenA.decimals);
+        // Check if balance is sufficient with tolerance
+        if (!isWithinTolerance(requiredAmount, balance, this.TOLERANCE_PERCENTAGE)) {
           const formattedRequired = ethers.formatUnits(requiredAmount, quote.tokenA.decimals);
           return {
             isValid: false,
-            message: `Insufficient ${symbol} balance. Required: ${formattedRequired} ${symbol}, Available: ${formattedBalance} ${symbol}`,
+            message: `Insufficient ${quote.tokenA.symbol} balance. Required: ${formattedRequired} ${quote.tokenA.symbol}, Available: ${formattedBalance} ${quote.tokenA.symbol}`,
           };
         }
 
-        // Check if user has enough native token for gas
-        const nativeBalance = await provider.getBalance(walletAddress);
+        // Check if user has enough native token for gas using the cache
+        const { balance: nativeBalance } = await this.getTokenBalance(
+          EVM_NATIVE_TOKEN_ADDRESS,
+          walletAddress,
+          quote.network,
+        );
         if (nativeBalance < gasBuffer) {
           const formattedBalance = ethers.formatEther(nativeBalance);
           return {

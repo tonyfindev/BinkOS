@@ -10,6 +10,9 @@ import {
 } from '@binkai/core';
 import { StakingPlugin } from '@binkai/staking-plugin';
 import { VenusProvider } from '@binkai/venus-provider';
+import { WalletPlugin } from '@binkai/wallet-plugin';
+import { BnbProvider } from '@binkai/bnb-provider';
+import { BirdeyeProvider } from '@binkai/birdeye-provider';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
@@ -82,6 +85,25 @@ async function main() {
   console.log('✓ Wallet created\n');
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
+
+  // Create and configure the wallet plugin
+  console.log('🔄 Initializing wallet plugin...');
+  const walletPlugin = new WalletPlugin();
+  // Create provider with API key
+  const bnbProvider = new BnbProvider({
+    rpcUrl: BNB_RPC,
+  });
+  // Create Birdeye provider with API key
+  const birdeyeProvider = new BirdeyeProvider({
+    apiKey: settings.get('BIRDEYE_API_KEY'),
+  });
+
+  // Initialize plugin with provider
+  await walletPlugin.initialize({
+    defaultChain: 'bnb',
+    providers: [bnbProvider, birdeyeProvider],
+    supportedChains: ['bnb'],
+  });
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
@@ -93,6 +115,11 @@ async function main() {
     networks,
   );
   console.log('✓ Agent initialized\n');
+
+  // Register with agent
+  console.log('🔌 Registering wallet plugin with agent...');
+  await agent.registerPlugin(walletPlugin);
+  console.log('✓ Plugin registered\n');
 
   // Create and configure the staking plugin
   console.log('🔄 Initializing staking plugin...');
@@ -115,10 +142,10 @@ async function main() {
   await agent.registerPlugin(stakingPlugin);
   console.log('✓ Plugin registered\n');
 
-  console.log('💱 Example 1: Stake 0.0002 BNB on Venus');
+  console.log('💱 Example 1: Stake 10% BNB on Venus');
   const inputResult = await agent.execute({
     input: `
-      Supply 0.0001 BNB on Venus.
+      Supply 10% of my BNB balance on Venus.
     `,
   });
   console.log('✓ Staking result (input):', inputResult, '\n');
