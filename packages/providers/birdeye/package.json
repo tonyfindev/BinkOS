@@ -1,6 +1,6 @@
 {
   "name": "@binkai/birdeye-provider",
-  "version": "0.0.23",
+  "version": "0.1.0-alpha.2",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
@@ -22,6 +22,7 @@
   "dependencies": {
     "@binkai/core": "workspace:*",
     "@binkai/token-plugin": "workspace:*",
+    "@binkai/wallet-plugin": "workspace:*",
     "axios": "^1.6.7",
     "zod": "^3.22.4"
   },

@@ -70,6 +70,21 @@ export class OkuProvider extends BaseSwapProvider {
         this.getToken(params.toToken, params.network),
       ]);
 
+      let adjustedAmount = params.amount;
+      if (params.type === 'input') {
+        // Use the adjustAmount method for all tokens (both native and ERC20)
+        adjustedAmount = await this.adjustAmount(
+          params.fromToken,
+          params.amount,
+          userAddress,
+          params.network,
+        );
+
+        if (adjustedAmount !== params.amount) {
+          console.log(`🤖 OKu adjusted input amount from ${params.amount} to ${adjustedAmount}`);
+        }
+      }
+
       const tokenInAddress =
         tokenIn.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKU_BNB_ADDRESS : tokenIn.address;
 
@@ -84,7 +99,7 @@ export class OkuProvider extends BaseSwapProvider {
         outTokenAddress: tokenOut.address,
         isExactIn: true,
         slippage: slippageOKU,
-        inTokenAmount: params.amount,
+        inTokenAmount: adjustedAmount.toString(),
       });
       const response = await fetch(CONSTANTS.OKU_API_PATH, {
         method: 'POST',

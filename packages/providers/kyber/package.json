@@ -1,6 +1,6 @@
 {
   "name": "@binkai/kyber-provider",
-  "version": "0.0.23",
+  "version": "0.1.0-alpha.2",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -18,7 +18,6 @@
   "dependencies": {
     "@binkai/core": "workspace:*",
     "@binkai/swap-plugin": "workspace:*",
-    "@binkai/core": "workspace:*",
     "crypto-js": "^4.1.1",
     "ethers": "^6.0.0"
   },

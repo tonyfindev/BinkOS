@@ -82,10 +82,24 @@ export class ThenaProvider extends BaseSwapProvider {
           : sourceToken.address;
 
       // Calculate input amount based on decimals
-      const swapAmount =
+      let adjustedAmount = params.amount;
+      if (params.type === 'input') {
+        // Use the adjustAmount method for all tokens (both native and ERC20)
+        adjustedAmount = await this.adjustAmount(
+          params.fromToken,
+          params.amount,
+          userAddress,
+          params.network,
+        );
+
+        if (adjustedAmount !== params.amount) {
+          console.log(`🤖 OKu adjusted input amount from ${params.amount} to ${adjustedAmount}`);
+        }
+      }
+      const amountIn =
         params.type === 'input'
-          ? Math.floor(Number(params.amount) * 10 ** sourceToken.decimals)
-          : undefined;
+          ? ethers.parseUnits(adjustedAmount, sourceToken.decimals)
+          : ethers.parseUnits(adjustedAmount, destinationToken.decimals);
 
       // Fetch optimal swap route
       const optimalRoute = await this.fetchOptimalRoute(
@@ -93,7 +107,7 @@ export class ThenaProvider extends BaseSwapProvider {
         destinationToken.address,
         userAddress,
         params.slippage,
-        swapAmount?.toString(),
+        amountIn.toString(),
       );
 
       // Build swap transaction

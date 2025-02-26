@@ -5,14 +5,19 @@ import { IWallet } from '../wallet/types';
 import { NetworksConfig } from '../network/types';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { DatabaseAdapter } from '../storage';
+import { CallbackManager, IToolExecutionCallback } from './callbacks';
 
 export abstract class BaseAgent implements IAgent {
   protected tools: DynamicStructuredTool[] = [];
   protected plugins: Map<string, IPlugin> = new Map();
+  protected callbackManager: CallbackManager = new CallbackManager();
 
   async registerTool(tool: ITool): Promise<void> {
     tool.setAgent(this);
-    this.tools.push(tool.createTool());
+    // Wrap the tool with our callback system
+    const wrappedTool = this.callbackManager.wrapTool(tool.createTool());
+
+    this.tools.push(wrappedTool);
     await this.onToolsUpdated();
   }
 
@@ -58,6 +63,22 @@ export abstract class BaseAgent implements IAgent {
 
   // Hook for subclasses to handle tool updates
   protected abstract onToolsUpdated(): Promise<void>;
+
+  /**
+   * Register a callback for tool execution events
+   * @param callback The callback to register
+   */
+  registerToolExecutionCallback(callback: IToolExecutionCallback): void {
+    this.callbackManager.registerToolExecutionCallback(callback);
+  }
+
+  /**
+   * Unregister a callback for tool execution events
+   * @param callback The callback to unregister
+   */
+  unregisterToolExecutionCallback(callback: IToolExecutionCallback): void {
+    this.callbackManager.unregisterToolExecutionCallback(callback);
+  }
 
   // Core agent functionality that must be implemented
   abstract execute(command: string): Promise<any>;

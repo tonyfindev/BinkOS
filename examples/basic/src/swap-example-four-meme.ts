@@ -120,7 +120,7 @@ async function main() {
   console.log('💱 Example 1: Buy SAFUFOUR');
   const inputResult = await agent.execute({
     input: `
-      Buy 0.0001 BNB to SAFUFOUR on FourMeme bnb chain with 10 % slippage.
+      Buy 0.001 BNB to SAFUFOUR on FourMeme bnb chain with 10 % slippage.
       Use the following token addresses:
       SAFUFOUR: 0xcf4eef00d87488d523de9c54bf1ba3166532ddb0
     `,

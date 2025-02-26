@@ -100,11 +100,24 @@ export class OkxProvider extends BaseSwapProvider {
         this.getToken(params.fromToken, params.network),
         this.getToken(params.toToken, params.network),
       ]);
+      let adjustedAmount = params.amount;
+      if (params.type === 'input') {
+        // Use the adjustAmount method for all tokens (both native and ERC20)
+        adjustedAmount = await this.adjustAmount(
+          params.fromToken,
+          params.amount,
+          userAddress,
+          params.network,
+        );
 
+        if (adjustedAmount !== params.amount) {
+          console.log(`🤖 Okx adjusted input amount from ${params.amount} to ${adjustedAmount}`);
+        }
+      }
       const amountIn =
         params.type === 'input'
-          ? Math.floor(Number(params.amount) * 10 ** tokenIn.decimals)
-          : Math.floor(Number(params.amount) * 10 ** tokenOut.decimals);
+          ? ethers.parseUnits(adjustedAmount, tokenIn.decimals)
+          : ethers.parseUnits(adjustedAmount, tokenOut.decimals);
 
       const now = new Date();
 
@@ -112,7 +125,7 @@ export class OkxProvider extends BaseSwapProvider {
 
       const slippageOKX = Number(params.slippage) / 100 || 0.1;
 
-      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn}&chainId=${this.chainId}&fromTokenAddress=${tokenIn.address}&toTokenAddress=${tokenOut.address}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
+      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn.toString()}&chainId=${this.chainId}&fromTokenAddress=${tokenIn.address}&toTokenAddress=${tokenOut.address}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
 
       console.log('🤖 OKX Path', path);
 

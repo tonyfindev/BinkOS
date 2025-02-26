@@ -1,6 +1,7 @@
 import { SwapQuote, SwapParams, BaseSwapProvider, NetworkProvider } from '@binkai/swap-plugin';
 import { ethers, Provider } from 'ethers';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
+import { parseTokenAmount } from '@binkai/swap-plugin/src/utils/tokenUtils';
 
 // Core system constants
 const CONSTANTS = {
@@ -114,17 +115,32 @@ export class KyberProvider extends BaseSwapProvider {
         this.getToken(params.toToken, params.network),
       ]);
 
-      // Calculate input amount based on decimals
-      const swapAmount =
+      let adjustedAmount = params.amount;
+      if (params.type === 'input') {
+        // Use the adjustAmount method for all tokens (both native and ERC20)
+        adjustedAmount = await this.adjustAmount(
+          params.fromToken,
+          params.amount,
+          userAddress,
+          params.network,
+        );
+
+        if (adjustedAmount !== params.amount) {
+          console.log(`🤖 Kyber adjusted input amount from ${params.amount} to ${adjustedAmount}`);
+        }
+      }
+
+      // Create currency amounts
+      const amountIn =
         params.type === 'input'
-          ? Math.floor(Number(params.amount) * 10 ** sourceToken.decimals)
-          : undefined;
+          ? ethers.parseUnits(adjustedAmount, sourceToken.decimals)
+          : ethers.parseUnits(adjustedAmount, destinationToken.decimals);
 
       // Fetch optimal swap route
       const optimalRoute = await this.fetchOptimalRoute(
         sourceToken.address,
         destinationToken.address,
-        swapAmount,
+        amountIn.toString(),
       );
 
       // Build swap transaction
@@ -150,8 +166,9 @@ export class KyberProvider extends BaseSwapProvider {
   }
 
   // Helper methods for better separation of concerns
-  private async fetchOptimalRoute(sourceToken: string, destinationToken: string, amount?: number) {
+  private async fetchOptimalRoute(sourceToken: string, destinationToken: string, amount: string) {
     const routePath = `api/v1/routes?tokenIn=${sourceToken}&tokenOut=${destinationToken}&amountIn=${amount}&gasInclude=true`;
+    console.log('🤖 Kyber Path', routePath);
     const routeResponse = await fetch(`${CONSTANTS.KYBER_API_BASE}${routePath}`);
     const routeData = await routeResponse.json();
 

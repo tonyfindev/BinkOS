@@ -1,7 +1,7 @@
-import { DynamicStructuredTool } from '@langchain/core/tools';
+import { DynamicStructuredTool, DynamicStructuredToolInput } from '@langchain/core/tools';
 import { z } from 'zod';
 import { IAgent } from '../types';
-import { ITool, IToolConfig } from './types';
+import { CustomDynamicStructuredTool, ITool, IToolConfig } from './types';
 
 export abstract class BaseTool implements ITool {
   protected agent!: IAgent;
@@ -14,7 +14,7 @@ export abstract class BaseTool implements ITool {
   abstract getName(): string;
   abstract getDescription(): string;
   abstract getSchema(): z.ZodObject<any>;
-  abstract createTool(): DynamicStructuredTool<z.ZodObject<any>>;
+  abstract createTool(): CustomDynamicStructuredTool;
 
   setAgent(agent: IAgent): void {
     this.agent = agent;
