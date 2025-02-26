@@ -179,7 +179,7 @@ async function main() {
   console.log('💱 Example 2: Sell exactly 50% BINK');
   const result2 = await agent.execute({
     input: `
-      Sell exactly 50% BINK
+      Sell exactly 100% BINK
     `,
   });
 
