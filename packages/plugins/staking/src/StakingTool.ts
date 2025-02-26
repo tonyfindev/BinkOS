@@ -78,9 +78,10 @@ export class StakingTool extends BaseTool {
     }
 
     return z.object({
-      fromToken: z.string().describe('The token address staking from'),
-      toToken: z.string().describe('The token address staking to'),
-      amount: z.string().describe('The amount of tokens to staking'),
+      tokenA: z.string().describe('The token A address staking'),
+      tokenB: z.string().optional().describe('The token B address staking'),
+      amountA: z.string().describe('The amount of token A to stake'),
+      amountB: z.string().optional().describe('The amount of token B to stake'),
       type: z
         .enum(['supply', 'withdraw', 'stake', 'unstake'])
         .describe('The type of staking operation to perform'),
@@ -128,23 +129,12 @@ export class StakingTool extends BaseTool {
 
     // Find the best quote based on amount type
     return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
-      if (params.type === 'supply' || params.type === 'stake') {
-        // For input amount, find highest output amount
-        const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals);
-        const currentAmount = BigInt(
-          Number(current.quote.toAmount) * 10 ** current.quote.toToken.decimals,
-        );
-        return currentAmount > bestAmount ? current : best;
-      } else {
-        // For output amount, find lowest input amount
-        const bestAmount = BigInt(
-          Number(best.quote.fromAmount) * 10 ** best.quote.fromToken.decimals,
-        );
-        const currentAmount = BigInt(
-          Number(current.quote.fromAmount) * 10 ** current.quote.fromToken.decimals,
-        );
-        return currentAmount < bestAmount ? current : best;
-      }
+      // For output amount, find lowest input amount
+      const bestAmount = BigInt(Number(best.quote.amountA) * 10 ** best.quote.tokenA.decimals);
+      const currentAmount = BigInt(
+        Number(current.quote.amountA) * 10 ** current.quote.tokenA.decimals,
+      );
+      return currentAmount < bestAmount ? current : best;
     }, validQuotes[0]);
   }
 
@@ -162,9 +152,10 @@ export class StakingTool extends BaseTool {
       ) => {
         try {
           const {
-            fromToken,
-            toToken,
-            amount,
+            tokenA,
+            tokenB,
+            amountA,
+            amountB,
             type,
             network = this.defaultNetwork,
             provider: preferredProvider,
@@ -173,11 +164,8 @@ export class StakingTool extends BaseTool {
           console.log('🤖 Staking Args:', args);
 
           // Validate token addresses
-          if (!validateTokenAddress(fromToken, network)) {
-            throw new Error(`Invalid fromToken address for network ${network}: ${fromToken}`);
-          }
-          if (!validateTokenAddress(toToken, network)) {
-            throw new Error(`Invalid toToken address for network ${network}: ${toToken}`);
+          if (!validateTokenAddress(tokenA, network)) {
+            throw new Error(`Invalid tokenA address for network ${network}: ${tokenA}`);
           }
 
           // Get agent's wallet and address
@@ -194,9 +182,10 @@ export class StakingTool extends BaseTool {
 
           const stakingParams: StakingParams = {
             network,
-            fromToken,
-            toToken,
-            amount,
+            tokenA,
+            tokenB,
+            amountA,
+            amountB,
             type,
           };
 
@@ -276,21 +265,21 @@ export class StakingTool extends BaseTool {
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
             network,
-            quote.fromToken.address,
+            quote.tokenA.address,
             userAddress,
             stakingTx.to,
           );
 
-          const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromToken.decimals);
+          const requiredAmount = BigInt(Number(quote.amountA) * 10 ** quote.tokenA.decimals);
 
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
           if (allowance < requiredAmount) {
             const approveTx = await selectedProvider.buildApproveTransaction(
               network,
-              quote.fromToken.address,
+              quote.tokenA.address,
               stakingTx.to,
-              quote.fromAmount,
+              quote.amountA,
               userAddress,
             );
             console.log('🤖 Approving...');
@@ -336,10 +325,10 @@ export class StakingTool extends BaseTool {
           // Return result as JSON string
           return JSON.stringify({
             provider: selectedProvider.getName(),
-            fromToken: quote.fromToken,
-            toToken: quote.toToken,
-            fromAmount: quote.fromAmount.toString(),
-            toAmount: quote.toAmount.toString(),
+            tokenA: quote.tokenA,
+            tokenB: quote.tokenB,
+            amountA: quote.amountA.toString(),
+            amountB: quote.amountB.toString(),
             transactionHash: finalReceipt.hash,
             type: quote.type,
             network,
