@@ -4,6 +4,7 @@ import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
+import { parseTokenAmount } from './utils/tokenUtils';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -215,7 +216,7 @@ export class SwapTool extends BaseTool {
 
           onProgress?.({
             progress: 0,
-            message: 'Getting quote...',
+            message: 'Searching for the best exchange rate for your swap.',
           });
 
           if (preferredProvider) {
@@ -260,7 +261,7 @@ export class SwapTool extends BaseTool {
 
           onProgress?.({
             progress: 10,
-            message: 'Checking balance...',
+            message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this swap.`,
           });
           // Check user's balance before proceeding
           const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
@@ -270,14 +271,14 @@ export class SwapTool extends BaseTool {
 
           onProgress?.({
             progress: 20,
-            message: 'Building swap transaction...',
+            message: `Preparing to swap ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
           });
           // Build swap transaction
           const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
 
           onProgress?.({
             progress: 40,
-            message: 'Checking allowance...',
+            message: `Checking allowance... Verifying if approval is needed for ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}.`,
           });
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
@@ -286,15 +287,12 @@ export class SwapTool extends BaseTool {
             userAddress,
             swapTx.to,
           );
-          const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromToken.decimals);
+
+          const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
 
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
           if (allowance < requiredAmount) {
-            onProgress?.({
-              progress: 50,
-              message: 'Building approval transaction...',
-            });
             const approveTx = await selectedProvider.buildApproveTransaction(
               network,
               quote.fromToken.address,
@@ -306,7 +304,7 @@ export class SwapTool extends BaseTool {
             // Sign and send approval transaction
             onProgress?.({
               progress: 60,
-              message: 'Signing and sending approval transaction...',
+              message: `Approving ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}`,
             });
             const approveReceipt = await wallet.signAndSendTransaction(network, {
               to: approveTx.to,
@@ -323,7 +321,7 @@ export class SwapTool extends BaseTool {
 
           onProgress?.({
             progress: 80,
-            message: 'Signing and sending swap transaction...',
+            message: `Swapping ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} with ${slippage}% max slippage.`,
           });
           // Sign and send swap transaction
           const receipt = await wallet.signAndSendTransaction(network, {
@@ -341,6 +339,11 @@ export class SwapTool extends BaseTool {
           } catch (error) {
             console.error('Error clearing token balance caches:', error);
           }
+
+          onProgress?.({
+            progress: 100,
+            message: `Swap complete! Successfully swapped ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
+          });
 
           // Return result as JSON string
           return JSON.stringify({

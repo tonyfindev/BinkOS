@@ -90,9 +90,7 @@ export class CallbackManager {
         let data = output;
         try {
           data = JSON.parse(output);
-        } catch (error) {
-          console.error('Error in tool execution callback:', error);
-        }
+        } catch (error) {}
 
         // Notify tool execution completed
         await manager.notifyToolExecution({
