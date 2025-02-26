@@ -4,9 +4,11 @@ import {
   StakingQuote,
   NetworkProvider,
 } from '@binkai/staking-plugin';
-import { ethers, Contract, Interface, Provider } from 'ethers';
+import { ethers, Contract, Provider } from 'ethers';
 import { VenusPoolABI } from './abis/VenusPool';
-import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName } from '@binkai/core';
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
+import { isSolanaNetwork } from '@binkai/staking-plugin/src/utils/networkUtils';
+import { isWithinTolerance, parseTokenAmount } from '@binkai/staking-plugin/src/utils/tokenUtils';
 
 // Core system constants
 const CONSTANTS = {
@@ -17,20 +19,6 @@ const CONSTANTS = {
   VENUS_API_BASE: 'https://api.venus.io/',
   VENUS_POOL_ADDRESS: '0xa07c5b74c9b40447a954e1466938b865b6bbea36',
 } as const;
-
-export interface Transaction {
-  to: string;
-  data: string;
-  value: string;
-  gasLimit: string;
-}
-
-export interface Token {
-  address: `0x${string}`;
-  decimals: number;
-  symbol: string;
-  chainId: number;
-}
 
 enum ChainId {
   BSC = 56,
@@ -146,7 +134,6 @@ export class VenusProvider extends BaseStakingProvider {
   protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
     if (this.isNativeToken(tokenAddress)) {
       return {
-        chainId: this.chainId,
         address: tokenAddress as `0x${string}`,
         decimals: 18,
         symbol: 'BNB',
@@ -166,15 +153,40 @@ export class VenusProvider extends BaseStakingProvider {
 
   async getQuote(params: StakingParams, userAddress: string): Promise<StakingQuote> {
     try {
-      if (params.fromToken.toLowerCase() !== CONSTANTS.BNB_ADDRESS.toLowerCase()) {
-        throw new Error('Venus does not support this token');
+      // Check if tokenA is BNB
+      if (params.tokenA.toLowerCase() !== CONSTANTS.BNB_ADDRESS.toLowerCase() || params.tokenB) {
+        throw new Error(`Venus does not support supplying BNB tokens`);
       }
 
       // Fetch input and output token information
-      const sourceToken = await this.getToken(params.fromToken, params.network);
+      const [tokenA, tokenB] = await Promise.all([
+        this.getToken(params.tokenA, params.network),
+        params.tokenB
+          ? this.getToken(params.tokenB, params.network)
+          : this.getToken(params.tokenA, params.network),
+      ]);
+
+      // If input token is native token and it's an exact input swap
+      let adjustedAmount = params.amountA;
+      if (params.type === 'supply' || params.type === 'stake') {
+        // Use the adjustAmount method for all tokens (both native and ERC20)
+        adjustedAmount = await this.adjustAmount(
+          params.tokenA,
+          params.amountA,
+          userAddress,
+          params.network,
+        );
+
+        if (adjustedAmount !== params.amountA) {
+          console.log(`🤖 Venus adjusted input amount from ${params.amountA} to ${adjustedAmount}`);
+        }
+      }
 
       // Calculate input amount based on decimals
-      const swapAmount = BigInt(Math.floor(Number(params.amount) * 10 ** sourceToken.decimals));
+      const swapAmountA = BigInt(Math.floor(Number(adjustedAmount) * 10 ** tokenA.decimals));
+      const swapAmountB = params.amountB
+        ? BigInt(Math.floor(Number(params.amountB) * 10 ** tokenB.decimals))
+        : swapAmountA;
 
       // Fetch optimal swap route
       const optimalRoute: VenusMarket = await this.fetchOptimalRoute(CONSTANTS.VENUS_POOL_ADDRESS);
@@ -182,12 +194,13 @@ export class VenusProvider extends BaseStakingProvider {
       // Build swap transaction
       const buildTransactionData = await this.buildStakingRouteTransaction(
         optimalRoute,
-        swapAmount,
+        swapAmountA,
+        swapAmountB,
         params.type,
       );
 
       // Create and store quote
-      const quote = this.createQuote(params, sourceToken, optimalRoute, buildTransactionData);
+      const quote = this.createQuote(params, tokenA, tokenB, optimalRoute, buildTransactionData);
 
       this.storeQuoteWithExpiry(quote);
 
@@ -231,7 +244,8 @@ export class VenusProvider extends BaseStakingProvider {
 
   private async buildStakingRouteTransaction(
     routeData: VenusMarket,
-    amount: bigint,
+    amountA: bigint,
+    amountB: bigint,
     type: 'stake' | 'unstake' | 'supply' | 'withdraw' = 'stake',
   ) {
     try {
@@ -244,13 +258,13 @@ export class VenusProvider extends BaseStakingProvider {
         return {
           to: routeData.address,
           data: txData,
-          value: amount.toString(), // For BNB, the value field is used
+          value: amountA.toString(), // For BNB, the value field is used
           gasLimit: CONSTANTS.DEFAULT_GAS_LIMIT,
         };
       }
       // Handle unstaking/withdraw
       else {
-        txData = this.factory.interface.encodeFunctionData('redeemUnderlying', [amount]);
+        txData = this.factory.interface.encodeFunctionData('redeemUnderlying', [amountA]);
 
         return {
           to: routeData.address,
@@ -269,7 +283,8 @@ export class VenusProvider extends BaseStakingProvider {
 
   private createQuote(
     params: StakingParams,
-    sourceToken: Token,
+    tokenA: Token,
+    tokenB: Token,
     swapTransactionData: any,
     buildTransactionData: any,
   ): StakingQuote {
@@ -278,10 +293,10 @@ export class VenusProvider extends BaseStakingProvider {
     return {
       network: params.network,
       quoteId,
-      fromToken: sourceToken,
-      toToken: sourceToken,
-      fromAmount: params.amount,
-      toAmount: params.amount,
+      tokenA: tokenA,
+      tokenB: tokenB || null,
+      amountA: params.amountA,
+      amountB: params.amountB || '0',
       type: params.type,
       currentAPY: Number(swapTransactionData.supplyApy),
       averageAPY: Number(swapTransactionData.supplyApy),
@@ -313,26 +328,41 @@ export class VenusProvider extends BaseStakingProvider {
     walletAddress: string,
   ): Promise<{ isValid: boolean; message?: string }> {
     try {
-      if (quote.type === 'stake' || quote.type === 'supply') {
+      // Handle edge cases
+      if (!quote || !walletAddress) {
+        return { isValid: false, message: 'Invalid quote or wallet address' };
+      }
+      if (!quote.amountA || quote.amountA === '0') {
+        return { isValid: true }; // Zero amount is always valid
+      }
+
+      if (quote.type === 'withdraw' || quote.type === 'unstake') {
         return { isValid: true };
       }
+
       this.validateNetwork(quote.network);
-      if (this.isSolanaNetwork(quote.network)) {
+      if (isSolanaNetwork(quote.network)) {
         // TODO: Implement Solana
       }
-      const provider = this.getEvmProviderForNetwork(quote.network);
-      const tokenToCheck = quote.fromToken;
-      const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromToken.decimals);
+
+      const tokenToCheck = quote.tokenA;
+      const requiredAmount = parseTokenAmount(quote.amountA, quote.tokenA.decimals);
       const gasBuffer = this.getGasBuffer(quote.network);
 
       // Check if the token is native token
       const isNativeToken = this.isNativeToken(tokenToCheck.address);
 
       if (isNativeToken) {
-        const balance = await provider.getBalance(walletAddress);
+        // Get native token balance using the cache
+        const { balance } = await this.getTokenBalance(
+          EVM_NATIVE_TOKEN_ADDRESS,
+          walletAddress,
+          quote.network,
+        );
         const totalRequired = requiredAmount + gasBuffer;
 
-        if (balance < totalRequired) {
+        // Check if balance is sufficient with tolerance
+        if (!isWithinTolerance(totalRequired, balance, this.TOLERANCE_PERCENTAGE)) {
           const formattedBalance = ethers.formatEther(balance);
           const formattedRequired = ethers.formatEther(requiredAmount);
           const formattedTotal = ethers.formatEther(totalRequired);
@@ -342,32 +372,28 @@ export class VenusProvider extends BaseStakingProvider {
           };
         }
       } else {
-        // For other tokens, check ERC20 balance
-        const erc20 = new Contract(
+        // For other tokens, check ERC20 balance using the cache
+        const { balance, formattedBalance } = await this.getTokenBalance(
           tokenToCheck.address,
-          [
-            'function balanceOf(address) view returns (uint256)',
-            'function symbol() view returns (string)',
-          ],
-          provider,
+          walletAddress,
+          quote.network,
         );
 
-        const [balance, symbol] = await Promise.all([
-          erc20.balanceOf(walletAddress),
-          erc20.symbol(),
-        ]);
-
-        if (balance < requiredAmount) {
-          const formattedBalance = ethers.formatUnits(balance, quote.fromToken.decimals);
-          const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromToken.decimals);
+        // Check if balance is sufficient with tolerance
+        if (!isWithinTolerance(requiredAmount, balance, this.TOLERANCE_PERCENTAGE)) {
+          const formattedRequired = ethers.formatUnits(requiredAmount, quote.tokenA.decimals);
           return {
             isValid: false,
-            message: `Insufficient ${symbol} balance. Required: ${formattedRequired} ${symbol}, Available: ${formattedBalance} ${symbol}`,
+            message: `Insufficient ${quote.tokenA.symbol} balance. Required: ${formattedRequired} ${quote.tokenA.symbol}, Available: ${formattedBalance} ${quote.tokenA.symbol}`,
           };
         }
 
-        // Check if user has enough native token for gas
-        const nativeBalance = await provider.getBalance(walletAddress);
+        // Check if user has enough native token for gas using the cache
+        const { balance: nativeBalance } = await this.getTokenBalance(
+          EVM_NATIVE_TOKEN_ADDRESS,
+          walletAddress,
+          quote.network,
+        );
         if (nativeBalance < gasBuffer) {
           const formattedBalance = ethers.formatEther(nativeBalance);
           return {

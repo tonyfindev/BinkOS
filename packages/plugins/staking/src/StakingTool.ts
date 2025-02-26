@@ -1,9 +1,9 @@
-import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig } from '@binkai/core';
+import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IStakingProvider, StakingQuote, StakingParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
+import { parseTokenAmount } from './utils/tokenUtils';
 export interface StakingToolConfig extends IToolConfig {
   defaultNetwork?: string;
   supportedNetworks?: string[];
@@ -78,9 +78,10 @@ export class StakingTool extends BaseTool {
     }
 
     return z.object({
-      fromToken: z.string().describe('The token address staking from'),
-      toToken: z.string().describe('The token address staking to'),
-      amount: z.string().describe('The amount of tokens to staking'),
+      tokenA: z.string().describe('The token A address staking'),
+      tokenB: z.string().optional().describe('The token B address staking'),
+      amountA: z.string().describe('The amount of token A to stake'),
+      amountB: z.string().optional().describe('The amount of token B to stake'),
       type: z
         .enum(['supply', 'withdraw', 'stake', 'unstake'])
         .describe('The type of staking operation to perform'),
@@ -128,23 +129,12 @@ export class StakingTool extends BaseTool {
 
     // Find the best quote based on amount type
     return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
-      if (params.type === 'supply' || params.type === 'stake') {
-        // For input amount, find highest output amount
-        const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals);
-        const currentAmount = BigInt(
-          Number(current.quote.toAmount) * 10 ** current.quote.toToken.decimals,
-        );
-        return currentAmount > bestAmount ? current : best;
-      } else {
-        // For output amount, find lowest input amount
-        const bestAmount = BigInt(
-          Number(best.quote.fromAmount) * 10 ** best.quote.fromToken.decimals,
-        );
-        const currentAmount = BigInt(
-          Number(current.quote.fromAmount) * 10 ** current.quote.fromToken.decimals,
-        );
-        return currentAmount < bestAmount ? current : best;
-      }
+      // For output amount, find lowest input amount
+      const bestAmount = BigInt(Number(best.quote.amountA) * 10 ** best.quote.tokenA.decimals);
+      const currentAmount = BigInt(
+        Number(current.quote.amountA) * 10 ** current.quote.tokenA.decimals,
+      );
+      return currentAmount < bestAmount ? current : best;
     }, validQuotes[0]);
   }
 
@@ -154,12 +144,18 @@ export class StakingTool extends BaseTool {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async (args: any) => {
+      func: async (
+        args: any,
+        runManager?: any,
+        config?: any,
+        onProgress?: (data: ToolProgress) => void,
+      ) => {
         try {
           const {
-            fromToken,
-            toToken,
-            amount,
+            tokenA,
+            tokenB,
+            amountA,
+            amountB,
             type,
             network = this.defaultNetwork,
             provider: preferredProvider,
@@ -168,11 +164,8 @@ export class StakingTool extends BaseTool {
           console.log('🤖 Staking Args:', args);
 
           // Validate token addresses
-          if (!validateTokenAddress(fromToken, network)) {
-            throw new Error(`Invalid fromToken address for network ${network}: ${fromToken}`);
-          }
-          if (!validateTokenAddress(toToken, network)) {
-            throw new Error(`Invalid toToken address for network ${network}: ${toToken}`);
+          if (!validateTokenAddress(tokenA, network)) {
+            throw new Error(`Invalid tokenA address for network ${network}: ${tokenA}`);
           }
 
           // Get agent's wallet and address
@@ -189,14 +182,20 @@ export class StakingTool extends BaseTool {
 
           const stakingParams: StakingParams = {
             network,
-            fromToken,
-            toToken,
-            amount,
+            tokenA,
+            tokenB,
+            amountA,
+            amountB,
             type,
           };
 
           let selectedProvider: IStakingProvider;
           let quote: StakingQuote;
+
+          onProgress?.({
+            progress: 10,
+            message: `Searching for the best ${type} rate for your tokens.`,
+          });
 
           if (preferredProvider) {
             try {
@@ -238,6 +237,11 @@ export class StakingTool extends BaseTool {
 
           console.log('🤖 The selected provider is:', selectedProvider.getName());
 
+          onProgress?.({
+            progress: 20,
+            message: `Verifying you have sufficient ${quote.tokenA.symbol || 'tokens'} for this ${type} operation.`,
+          });
+
           // Check user's balance before proceeding
           const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
 
@@ -245,31 +249,47 @@ export class StakingTool extends BaseTool {
             throw new Error(balanceCheck.message || 'Insufficient balance for staking');
           }
 
+          onProgress?.({
+            progress: 30,
+            message: `Preparing to ${type} ${quote.amountA} ${quote.tokenA.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
+          });
+
           // Build staking transaction
           const stakingTx = await selectedProvider.buildStakingTransaction(quote, userAddress);
+
+          onProgress?.({
+            progress: 40,
+            message: `Verifying if approval is needed for ${selectedProvider.getName()} to access your ${quote.tokenA.symbol || 'tokens'}.`,
+          });
 
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
             network,
-            quote.fromToken.address,
+            quote.tokenA.address,
             userAddress,
             stakingTx.to,
           );
 
-          const requiredAmount = BigInt(Number(quote.fromAmount) * 10 ** quote.fromToken.decimals);
+          const requiredAmount = parseTokenAmount(quote.amountA, quote.tokenA.decimals);
 
           console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
           if (allowance < requiredAmount) {
             const approveTx = await selectedProvider.buildApproveTransaction(
               network,
-              quote.fromToken.address,
+              quote.tokenA.address,
               stakingTx.to,
-              quote.fromAmount,
+              quote.amountA,
               userAddress,
             );
             console.log('🤖 Approving...');
+
             // Sign and send approval transaction
+            onProgress?.({
+              progress: 60,
+              message: `Approving ${selectedProvider.getName()} to access your ${quote.tokenA.symbol || 'tokens'}`,
+            });
+
             const approveReceipt = await wallet.signAndSendTransaction(network, {
               to: approveTx.to,
               data: approveTx.data,
@@ -283,6 +303,11 @@ export class StakingTool extends BaseTool {
           }
           console.log('🤖 Staking...');
 
+          onProgress?.({
+            progress: 80,
+            message: `Executing ${type} operation for ${quote.amountA} ${quote.tokenA.symbol || 'tokens'}.`,
+          });
+
           // Sign and send Staking transaction
           const receipt = await wallet.signAndSendTransaction(network, {
             to: stakingTx.to,
@@ -292,13 +317,18 @@ export class StakingTool extends BaseTool {
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
 
+          onProgress?.({
+            progress: 100,
+            message: `${type.charAt(0).toUpperCase() + type.slice(1)} operation complete! Successfully processed ${quote.amountA} ${quote.tokenA.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
+          });
+
           // Return result as JSON string
           return JSON.stringify({
             provider: selectedProvider.getName(),
-            fromToken: quote.fromToken,
-            toToken: quote.toToken,
-            fromAmount: quote.fromAmount.toString(),
-            toAmount: quote.toAmount.toString(),
+            tokenA: quote.tokenA,
+            tokenB: quote.tokenB,
+            amountA: quote.amountA.toString(),
+            amountB: quote.amountB.toString(),
             transactionHash: finalReceipt.hash,
             type: quote.type,
             network,

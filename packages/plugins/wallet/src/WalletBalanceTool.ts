@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, IToolConfig } from '@binkai/core';
+import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, WalletInfo } from './types';
 
@@ -97,12 +97,17 @@ export class GetWalletBalanceTool extends BaseTool {
     });
   }
 
-  createTool(): DynamicStructuredTool<z.ZodObject<any>> {
-    return new DynamicStructuredTool({
+  createTool(): CustomDynamicStructuredTool {
+    return {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async (args: any) => {
+      func: async (
+        args: any,
+        runManager?: any,
+        config?: any,
+        onProgress?: (data: ToolProgress) => void,
+      ) => {
         try {
           const network = args.network || this.defaultNetwork;
           let address = args.address;
@@ -111,6 +116,11 @@ export class GetWalletBalanceTool extends BaseTool {
           if (!address) {
             address = await this.agent.getWallet().getAddress(network);
           }
+
+          onProgress?.({
+            progress: 20,
+            message: `Retrieving wallet information for ${address} on ${network} network.`,
+          });
 
           const providers = this.registry.getProvidersByNetwork(network);
           if (providers.length === 0) {
@@ -139,6 +149,11 @@ export class GetWalletBalanceTool extends BaseTool {
           }
           console.log('🤖 Wallet info:', results);
 
+          onProgress?.({
+            progress: 100,
+            message: `Successfully retrieved wallet information for ${address} on ${network} network.`,
+          });
+
           return JSON.stringify({
             status: Object.keys(results).length === 0 ? 'error' : 'success',
             data: results,
@@ -154,6 +169,6 @@ export class GetWalletBalanceTool extends BaseTool {
           });
         }
       },
-    });
+    };
   }
 }
