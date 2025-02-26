@@ -191,11 +191,6 @@ export class StakingTool extends BaseTool {
           let selectedProvider: IStakingProvider;
           let quote: StakingQuote;
 
-          onProgress?.({
-            progress: 0,
-            message: 'Getting quote...',
-          });
-
           if (preferredProvider) {
             try {
               selectedProvider = this.registry.getProvider(preferredProvider);
@@ -236,11 +231,6 @@ export class StakingTool extends BaseTool {
 
           console.log('🤖 The selected provider is:', selectedProvider.getName());
 
-          onProgress?.({
-            progress: 10,
-            message: 'Checking balance...',
-          });
-
           // Check user's balance before proceeding
           const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
 
@@ -248,18 +238,8 @@ export class StakingTool extends BaseTool {
             throw new Error(balanceCheck.message || 'Insufficient balance for staking');
           }
 
-          onProgress?.({
-            progress: 20,
-            message: 'Building staking transaction...',
-          });
-
           // Build staking transaction
           const stakingTx = await selectedProvider.buildStakingTransaction(quote, userAddress);
-
-          onProgress?.({
-            progress: 40,
-            message: 'Checking allowance...',
-          });
 
           // Check if approval is needed and handle it
           const allowance = await selectedProvider.checkAllowance(
@@ -289,9 +269,9 @@ export class StakingTool extends BaseTool {
             // Sign and send approval transaction
             onProgress?.({
               progress: 60,
-              message: 'Signing and sending approval transaction...',
+              message: `Approving ${selectedProvider.getName()} to access your ${quote.tokenA.symbol || 'tokens'}`,
             });
-            // Sign and send approval transaction
+
             const approveReceipt = await wallet.signAndSendTransaction(network, {
               to: approveTx.to,
               data: approveTx.data,
@@ -305,11 +285,6 @@ export class StakingTool extends BaseTool {
           }
           console.log('🤖 Staking...');
 
-          onProgress?.({
-            progress: 80,
-            message: 'Signing and sending staking transaction...',
-          });
-
           // Sign and send Staking transaction
           const receipt = await wallet.signAndSendTransaction(network, {
             to: stakingTx.to,
@@ -318,14 +293,6 @@ export class StakingTool extends BaseTool {
           });
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
-
-          try {
-            // Clear token balance caches after successful swap
-            selectedProvider.invalidateBalanceCache(quote.tokenA.address, userAddress, network);
-            selectedProvider.invalidateBalanceCache(quote.tokenB.address, userAddress, network);
-          } catch (error) {
-            console.error('Error clearing token balance caches:', error);
-          }
 
           // Return result as JSON string
           return JSON.stringify({
