@@ -1,4 +1,8 @@
 import { NetworkName, Token } from '@binkai/core';
+import { Provider } from 'ethers';
+import { Connection } from '@solana/web3.js';
+
+export type NetworkProvider = Provider | Connection;
 
 export interface SwapQuote {
   network: NetworkName;
@@ -59,6 +63,29 @@ export interface ISwapProvider {
     quote: SwapQuote,
     walletAddress: string,
   ): Promise<{ isValid: boolean; message?: string }>;
+
+  /**
+   * Adjusts a token amount based on user's balance to handle precision issues
+   * @param tokenAddress The address of the token to adjust
+   * @param amount The requested amount
+   * @param walletAddress The user's wallet address
+   * @param network The blockchain network
+   * @returns The adjusted amount that can be safely used
+   */
+  adjustAmount(
+    tokenAddress: string,
+    amount: string,
+    walletAddress: string,
+    network: NetworkName,
+  ): Promise<string>;
+
+  /**
+   * Invalidates the balance cache for a specific token and wallet
+   * @param tokenAddress The address of the token
+   * @param walletAddress The address of the wallet
+   * @param network The blockchain network
+   */
+  invalidateBalanceCache(tokenAddress: string, walletAddress: string, network: NetworkName): void;
 
   /**
    * Get a quote for swapping tokens
