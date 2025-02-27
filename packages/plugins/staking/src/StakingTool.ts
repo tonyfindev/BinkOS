@@ -37,7 +37,7 @@ export class StakingTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    let description = `Swap tokens using various DEX providers (${providers}). Supports networks: ${networks}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
+    let description = `Stake and unstake tokens using various staking providers (${providers}). Supports networks: ${networks}. You can specify either input amount (how much to stake) or output amount (how much to receive).`;
 
     // Add provider-specific prompts if they exist
     const providerPrompts = this.registry
@@ -84,7 +84,9 @@ export class StakingTool extends BaseTool {
       amountB: z.string().optional().describe('The amount of token B to stake'),
       type: z
         .enum(['supply', 'withdraw', 'stake', 'unstake'])
-        .describe('The type of staking operation to perform'),
+        .describe(
+          'The type of staking operation to perform. For "unstake" or "withdraw" operations, you may need to use provider-specific tokens (e.g., for Venus, use "vBNB" to unstake BNB, "vBUSD" to unstake BUSD, etc.). Each provider has its own token representation for staked assets.',
+        ),
       network: z
         .enum(supportedNetworks as [string, ...string[]])
         .default(this.defaultNetwork)
