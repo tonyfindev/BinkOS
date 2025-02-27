@@ -2,7 +2,12 @@ import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 import { IBridgeProvider, BridgeQuote, BridgeParams, Transaction } from './types';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { clusterApiUrl, Connection, PublicKey } from '@solana/web3.js';
-import { adjustTokenAmount, DEFAULT_TOLERANCE_PERCENTAGE } from './utils/tokenUtils';
+import {
+  adjustTokenAmount,
+  DEFAULT_TOLERANCE_PERCENTAGE,
+  isWithinTolerance,
+  parseTokenAmount,
+} from './utils/tokenUtils';
 import { createTokenBalanceCache, createTokenCache, getTokenInfo } from './utils/tokenOperations';
 
 export type NetworkProvider = Provider | Connection;
@@ -178,7 +183,7 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
   }
 
   /**
-   * Adjusts the input amount for native token swaps to account for gas costs
+   * Adjusts the input amount for native token bridge to account for gas costs
    * @param amount The original amount to spend
    * @param decimals The decimals of the token
    * @param walletAddress The address of the user
@@ -274,10 +279,6 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
 
   protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
     this.validateNetwork(network);
-    if (this.isSolanaNetwork(network)) {
-      console.log('isSolanaNetwork');
-      // TODO: Implement Solana
-    }
     // Use the tokenCache utility instead of manual caching
     return await this.tokenCache.getToken(tokenAddress, network, this.providers, this.getName());
   }
@@ -359,65 +360,41 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
 
         return { isValid: true };
       } else {
-        const provider = this.getEvmProviderForNetwork(quote.fromNetwork);
+        // For other tokens, check ERC20 balance using the cache
         const tokenToCheck = quote.fromToken;
-        const requiredAmount = ethers.parseUnits(quote.fromAmount, quote.fromToken.decimals);
+        const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
         const gasBuffer = this.getGasBuffer(quote.fromNetwork);
 
-        // Check if the token is native token
-        const isNativeToken = this.isNativeToken(tokenToCheck.address);
+        const { balance, formattedBalance } = await this.getTokenBalance(
+          quote.fromToken.address,
+          walletAddress,
+          quote.fromNetwork,
+        );
 
-        if (isNativeToken) {
-          const balance = await provider.getBalance(walletAddress);
-          const totalRequired = requiredAmount + gasBuffer;
-
-          if (balance < totalRequired) {
-            const formattedBalance = ethers.formatEther(balance);
-            const formattedRequired = ethers.formatEther(requiredAmount);
-            const formattedTotal = ethers.formatEther(totalRequired);
-            return {
-              isValid: false,
-              message: `Insufficient native token balance. Required: ${formattedRequired} (+ ~${ethers.formatEther(gasBuffer)} for gas = ${formattedTotal}), Available: ${formattedBalance}`,
-            };
-          }
-        } else {
-          // For other tokens, check ERC20 balance
-          const erc20 = new Contract(
-            tokenToCheck.address,
-            [
-              'function balanceOf(address) view returns (uint256)',
-              'function symbol() view returns (string)',
-            ],
-            provider,
-          );
-
-          const [balance, symbol] = await Promise.all([
-            erc20.balanceOf(walletAddress),
-            erc20.symbol(),
-          ]);
-
-          if (balance < requiredAmount) {
-            const formattedBalance = ethers.formatUnits(balance, quote.fromToken.decimals);
-            const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromToken.decimals);
-            return {
-              isValid: false,
-              message: `Insufficient ${symbol} balance. Required: ${formattedRequired} ${symbol}, Available: ${formattedBalance} ${symbol}`,
-            };
-          }
-
-          // Check if user has enough native token for gas
-          const nativeBalance = await provider.getBalance(walletAddress);
-          if (nativeBalance < gasBuffer) {
-            const formattedBalance = ethers.formatEther(nativeBalance);
-            return {
-              isValid: false,
-              message: `Insufficient native token for gas fees. Required: ~${ethers.formatEther(gasBuffer)}, Available: ${formattedBalance}`,
-            };
-          }
+        // Check if balance is sufficient with tolerance
+        if (!isWithinTolerance(requiredAmount, balance, this.TOLERANCE_PERCENTAGE)) {
+          const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromToken.decimals);
+          return {
+            isValid: false,
+            message: `Insufficient ${quote.fromToken.symbol} balance. Required: ${formattedRequired} ${quote.fromToken.symbol}, Available: ${formattedBalance} ${quote.fromToken.symbol}`,
+          };
         }
 
-        return { isValid: true };
+        // Check if user has enough native token for gas using the cache
+        const { balance: nativeBalance } = await this.getTokenBalance(
+          EVM_NATIVE_TOKEN_ADDRESS,
+          walletAddress,
+          quote.fromNetwork,
+        );
+        if (nativeBalance < gasBuffer) {
+          const formattedBalance = ethers.formatEther(nativeBalance);
+          return {
+            isValid: false,
+            message: `Insufficient native token for gas fees. Required: ~${ethers.formatEther(gasBuffer)}, Available: ${formattedBalance}`,
+          };
+        }
       }
+      return { isValid: true };
     } catch (error) {
       console.error('Error checking balance:', error);
       return {
@@ -457,14 +434,14 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
     } catch (error) {
       console.error('Error building bridge transaction:', error);
       throw new Error(
-        `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to build bridge transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
 
   /**
    * Public method to adjust token amount based on user's balance
-   * This can be called directly from the SwapTool to handle precision issues
+   * This can be called directly from the BridgeTool to handle precision issues
    *
    * @param tokenAddress The address of the token to adjust
    * @param amount The requested amount
