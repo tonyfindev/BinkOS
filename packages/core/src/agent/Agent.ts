@@ -139,7 +139,6 @@ export class Agent extends BaseAgent {
       .map(network => network.config.name)
       .join(', ')}): ${EVM_NATIVE_TOKEN_ADDRESS}
     - Solana: ${SOL_NATIVE_TOKEN_ADDRESS}
-    if don't know the token address, use the symbol to query the get_token_info
     Available networks include: ${Object.keys(this.networks).join(', ')}`;
 
     const defaultSystemPrompt = `You are a helpful blockchain agent. You can help users interact with different blockchain networks.`;
