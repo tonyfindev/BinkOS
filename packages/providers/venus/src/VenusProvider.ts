@@ -127,6 +127,15 @@ export class VenusProvider extends BaseStakingProvider {
     return [NetworkName.BNB];
   }
 
+  getPrompt(): string {
+    return `
+      Venus Protocol Information:
+      - For unstaking from Venus, use the token with "v" prefix (e.g., vBNB for BNB, vBUSD for BUSD).
+      - When a user asks to "unstake all BNB on Venus", you should use vBNB as tokenA.
+      - The "v" prefix indicates a Venus-supplied token that represents the staked position.
+    `;
+  }
+
   protected isNativeToken(tokenAddress: string): boolean {
     return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
   }
@@ -139,7 +148,6 @@ export class VenusProvider extends BaseStakingProvider {
         symbol: 'BNB',
       };
     }
-
     const token = await super.getToken(tokenAddress, network);
 
     const tokenInfo = {
@@ -148,14 +156,22 @@ export class VenusProvider extends BaseStakingProvider {
       decimals: token.decimals,
       symbol: token.symbol,
     };
+    console.log('🤖 Venus token info:', tokenInfo);
     return tokenInfo;
   }
 
   async getQuote(params: StakingParams, userAddress: string): Promise<StakingQuote> {
     try {
       // Check if tokenA is BNB
-      if (params.tokenA.toLowerCase() !== CONSTANTS.BNB_ADDRESS.toLowerCase() || params.tokenB) {
+      if (
+        (params.type === 'supply' || params.type === 'stake') &&
+        params.tokenA.toLowerCase() !== CONSTANTS.BNB_ADDRESS.toLowerCase()
+      ) {
         throw new Error(`Venus does not support supplying BNB tokens`);
+      }
+
+      if (params.tokenB) {
+        throw new Error(`Venus does not support supplying other tokens without BNB`);
       }
 
       // Fetch input and output token information
@@ -264,7 +280,7 @@ export class VenusProvider extends BaseStakingProvider {
       }
       // Handle unstaking/withdraw
       else {
-        txData = this.factory.interface.encodeFunctionData('redeemUnderlying', [amountA]);
+        txData = this.factory.interface.encodeFunctionData('redeem', [amountA]);
 
         return {
           to: routeData.address,
@@ -334,10 +350,6 @@ export class VenusProvider extends BaseStakingProvider {
       }
       if (!quote.amountA || quote.amountA === '0') {
         return { isValid: true }; // Zero amount is always valid
-      }
-
-      if (quote.type === 'withdraw' || quote.type === 'unstake') {
-        return { isValid: true };
       }
 
       this.validateNetwork(quote.network);
