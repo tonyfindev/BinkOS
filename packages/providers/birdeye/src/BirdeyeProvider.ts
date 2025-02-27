@@ -63,7 +63,7 @@ export class BirdeyeProvider implements ITokenProvider, IWalletProvider {
         headers: this.getHeaders(network),
         params: {
           keyword: query,
-          sort_by: 'volume_24h_usd',
+          sort_by: 'marketcap',
           sort_type: 'desc',
           limit: 10,
           chain: this.mapChain(network),

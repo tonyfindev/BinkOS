@@ -121,7 +121,7 @@ async function main() {
 
   // Execute token transfer through natural language
   const result = await agent.execute({
-    input: 'transfer 10000 BINK to 0xbC278D6583b97399014F3B3c64D295135660C629',
+    input: 'transfer 10000 BINK to',
   });
   console.log('🤖 Result:', result);
 }
