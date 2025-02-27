@@ -131,6 +131,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
         toWalletAddress,
         tokenIn,
         tokenOut,
+        adjustedAmount,
       );
       // calculate amount out
       // Generate a unique quote ID
@@ -174,6 +175,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
     toWalletAddress: string,
     tokenIn: Token,
     tokenOut: Token,
+    adjustedAmount: string,
   ): Promise<Transaction> {
     console.log('🚀 ~ deBridgeProvider ~ buildBridgeData: ~ params:', params);
 
@@ -182,7 +184,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
       this.isNativeToken(params.fromToken) || this.isNativeSolana(params.fromToken)
         ? MAPPING_TOKEN[params.fromNetwork as SupportedToken]
         : params.fromToken; //params.fromNetwork === 'solana' ? Tokens.SOL : Tokens.BNB; // sol
-    const srcChainTokenInAmount = parseTokenAmount(params.amount, tokenIn.decimals);
+    const srcChainTokenInAmount = parseTokenAmount(adjustedAmount, tokenIn.decimals);
     const dstChainId = MAPPING_CHAIN_ID[params.toNetwork as SupportedChain];
     const dstChainTokenOut =
       this.isNativeToken(params.toToken) || this.isNativeSolana(params.toToken)
