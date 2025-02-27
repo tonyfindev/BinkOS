@@ -106,6 +106,24 @@ export class deBridgeProvider extends BaseBridgeProvider {
         this.getToken(params.fromToken, params.fromNetwork),
         this.getToken(params.toToken, params.toNetwork),
       ]);
+      let adjustedAmount = params.amount;
+
+      if (params.type === 'input') {
+        // Use the adjustAmount method for all tokens (both native and ERC20)
+        adjustedAmount = await this.adjustAmount(
+          params.fromToken,
+          params.amount,
+          fromWalletAddress,
+          params.fromNetwork,
+        );
+
+        if (adjustedAmount !== params.amount) {
+          console.log(
+            `🤖 deBridge adjusted input amount from ${params.amount} to ${adjustedAmount}`,
+          );
+        }
+      }
+
       // build bridge data
       const bridgeData = await this.buildBridgeData(
         params,
@@ -121,8 +139,14 @@ export class deBridgeProvider extends BaseBridgeProvider {
         quoteId: quoteId,
         fromNetwork: params.fromNetwork,
         toNetwork: params.toNetwork,
-        fromAmount: params.amount,
-        toAmount: params.amount,
+        fromAmount:
+          params.type === 'input'
+            ? adjustedAmount
+            : ethers.formatUnits(bridgeData?.amountOut || 0, tokenIn.decimals),
+        toAmount:
+          params.type === 'output'
+            ? params.amount
+            : ethers.formatUnits(bridgeData?.amountOut || 0, tokenOut.decimals),
         fromToken: tokenIn,
         toToken: tokenOut,
         type: params.type,
@@ -213,6 +237,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
       value: params.fromNetwork === 'solana' ? srcChainTokenInAmount : data.tx.value,
       gasLimit: BigInt(700000), // solana not needed gas limit
       network: params.fromNetwork,
+      amountOut: data?.estimation?.costsDetails[0]?.amountOut,
     };
   }
 

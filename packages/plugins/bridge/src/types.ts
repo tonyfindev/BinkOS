@@ -46,6 +46,7 @@ export interface Transaction {
   value?: string;
   gasLimit?: bigint;
   network: NetworkName;
+  amountOut?: string;
 }
 
 export interface IBridgeProvider {
