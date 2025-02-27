@@ -142,7 +142,7 @@ async function main() {
   const inputResult = await agent.execute({
     //input: `Bridge 10 USDC from SOL to BNB`,
     //input: `Bridge 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on BNB to amount 5 Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB on solana`, // usdc bnb to usdt sol
-    input: `Bridge 10 BNB to SOL`, // bridge and swap
+    input: `Bridge 10 BNB on BNB to Solana`, // bridge and swap
     //input: `Bridge 5 USDC on SOL to 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on solana`,
   });
   console.log('✓ Bridge result (input):', inputResult, '\n');

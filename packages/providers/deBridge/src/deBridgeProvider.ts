@@ -76,6 +76,14 @@ export class deBridgeProvider extends BaseBridgeProvider {
       };
     }
 
+    if (this.isNativeSolana(tokenAddress)) {
+      return {
+        address: tokenAddress,
+        decimals: 9,
+        symbol: 'SOL',
+      };
+    }
+
     const token = await super.getToken(tokenAddress, network);
 
     const tokenInfo = {

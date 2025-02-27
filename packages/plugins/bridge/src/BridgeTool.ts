@@ -89,11 +89,9 @@ export class BridgeTool extends BaseTool {
       toNetwork: z
         .enum(supportedNetworks as [string, ...string[]])
         .default(this.defaultNetwork)
-        .describe('The blockchain network bridge to'),
+        .describe('The blockchain network to execute the bridge to. Example: Solana similar SOL'),
       fromToken: z.string().describe('The token address to bridge from'),
-      toToken: z
-        .string()
-        .describe('The token address on the destination network toreceive after bridging'),
+      toToken: z.string().describe('The token address to bridge to'),
       amount: z.string().describe('The amount of tokens to bridge'),
       amountType: z
         .enum(['input', 'output'])
