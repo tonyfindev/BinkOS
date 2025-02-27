@@ -142,6 +142,8 @@ async function main() {
     {
       model: 'gpt-4o',
       temperature: 0,
+      systemPrompt:
+        'You are a BINK AI agent. You are able to perform swaps and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a staking or unstaking.',
     },
     wallet,
     networks,
@@ -174,7 +176,7 @@ async function main() {
   });
   console.log('✓ Staking plugin initialized\n');
 
-  // Register the plugin with the agent
+  // // Register the plugin with the agent
   console.log('🔌 Registering staking plugin with agent...');
   await agent.registerPlugin(stakingPlugin);
   console.log('✓ Plugin registered\n');
@@ -187,23 +189,23 @@ async function main() {
   });
   console.log('✓ Staking result (input):', inputResult, '\n');
 
-  console.log('💱 Example 2: Unstake 0.0001 BNB on Venus');
+  console.log('💱 Example 2: Unstake all BNB on Venus');
   const outputResult = await agent.execute({
     input: `
-      Withdraw 0.0001 BNB on Venus.
+      Withdraw all BNB from Venus.
     `,
   });
   console.log('✓ Staking result (input):', outputResult, '\n');
   // Get plugin information
-  const registeredPlugin = agent.getPlugin('staking') as StakingPlugin;
+  // const registeredPlugin = agent.getPlugin('staking') as StakingPlugin;
 
-  // Check available providers for each chain
-  console.log('📊 Available providers by chain:');
-  const chains = registeredPlugin.getSupportedNetworks();
-  for (const chain of chains) {
-    const providers = registeredPlugin.getProvidersForNetwork(chain);
-    console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
-  }
+  // // Check available providers for each chain
+  // console.log('📊 Available providers by chain:');
+  // const chains = registeredPlugin.getSupportedNetworks();
+  // for (const chain of chains) {
+  //   const providers = registeredPlugin.getProvidersForNetwork(chain);
+  //   console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
+  // }
   // console.log();
 }
 
