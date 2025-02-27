@@ -1,4 +1,4 @@
-import { BaseBridgeProvider } from '@binkai/bridge-plugin';
+import { BaseBridgeProvider, parseTokenAmount } from '@binkai/bridge-plugin';
 
 import { Provider, ethers, Contract, Interface } from 'ethers';
 import axios from 'axios';
@@ -52,9 +52,9 @@ export class deBridgeProvider extends BaseBridgeProvider {
     return [NetworkName.BNB, NetworkName.SOLANA];
   }
 
-  getPrompt(): string {
-    return `If you are using deBridge, You can use BNB with address ${Tokens.BNB}, and you can use solana with address ${Tokens.SOL}`;
-  }
+  // getPrompt(): string {
+  //   return `If you are using deBridge, You can use BNB with address ${Tokens.BNB}, and you can use solana with address ${Tokens.SOL}`;
+  // }
 
   protected isNativeToken(tokenAddress: string): boolean {
     return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
@@ -158,8 +158,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
       this.isNativeToken(params.fromToken) || this.isNativeSolana(params.fromToken)
         ? MAPPING_TOKEN[params.fromNetwork as SupportedToken]
         : params.fromToken; //params.fromNetwork === 'solana' ? Tokens.SOL : Tokens.BNB; // sol
-    const srcChainTokenInAmount = Number(params.amount) * 10 ** tokenIn.decimals;
-
+    const srcChainTokenInAmount = parseTokenAmount(params.amount, tokenIn.decimals);
     const dstChainId = MAPPING_CHAIN_ID[params.toNetwork as SupportedChain];
     const dstChainTokenOut =
       this.isNativeToken(params.toToken) || this.isNativeSolana(params.toToken)
@@ -174,6 +173,20 @@ export class deBridgeProvider extends BaseBridgeProvider {
     const srcChainRefundAddress = senderAddress;
     const allowedTaker = MAPPING_TOKEN_TAKER[params.fromNetwork as SupportedTokenTaker];
     //params.fromNetwork === 'solana' ? Addresses.allowedTakerSOL : Addresses.allowedTakerBNB; // default debridge
+
+    console.log(
+      '🚀 ~ deBridgeProvider ~ after data:',
+      srcChainId,
+      srcChainTokenIn,
+      srcChainTokenInAmount,
+      dstChainId,
+      dstChainTokenOut,
+      dstChainTokenOutRecipient,
+      senderAddress,
+      srcChainOrderAuthorityAddress,
+      srcChainRefundAddress,
+      allowedTaker,
+    );
 
     const url = `https://deswap.debridge.finance/v1.0/dln/order/create-tx?srcChainId=${srcChainId}&srcChainTokenIn=${srcChainTokenIn}&srcChainTokenInAmount=${srcChainTokenInAmount}&dstChainId=${dstChainId}&dstChainTokenOut=${dstChainTokenOut}&dstChainTokenOutRecipient=${dstChainTokenOutRecipient}&senderAddress=${senderAddress}&srcChainOrderAuthorityAddress=${srcChainOrderAuthorityAddress}&srcChainRefundAddress=${srcChainRefundAddress}&dstChainOrderAuthorityAddress=${dstChainOrderAuthorityAddress}&enableEstimate=false&prependOperatingExpenses=true&additionalTakerRewardBps=0&allowedTaker=${allowedTaker}&deBridgeApp=DESWAP&ptp=false&tab=1739871311714`;
 

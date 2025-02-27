@@ -114,14 +114,14 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
   // Solana tokens
   [NetworkName.SOLANA]: {
     // SOL - Native token
-    So11111111111111111111111111111111111111112: {
-      address: 'So11111111111111111111111111111111111111112',
+    So11111111111111111111111111111111111111111: {
+      address: 'So11111111111111111111111111111111111111111',
       symbol: 'SOL',
       name: 'Solana',
       decimals: 9,
       network: NetworkName.SOLANA,
       logoURI:
-        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111111/logo.png',
       verified: true,
     },
     // USDC
