@@ -1,11 +1,4 @@
-import {
-  BridgeParams,
-  BridgeQuote,
-  Transaction,
-  IBridgeProvider,
-  BasicToken,
-  BaseBridgeProvider,
-} from '@binkai/bridge-plugin';
+import { BaseBridgeProvider } from '@binkai/bridge-plugin';
 
 import { Provider, ethers, Contract, Interface } from 'ethers';
 import axios from 'axios';
@@ -30,6 +23,8 @@ import {
   Token,
 } from '@binkai/core';
 import { NetworkProvider } from '@binkai/bridge-plugin/src/BaseBridgeProvider';
+import { BridgeQuote, Transaction } from '@binkai/bridge-plugin/src/types';
+import { BridgeParams } from '@binkai/bridge-plugin/src/types';
 
 export class deBridgeProvider extends BaseBridgeProvider {
   private fromChainId: ChainID;
@@ -85,7 +80,8 @@ export class deBridgeProvider extends BaseBridgeProvider {
 
     const tokenInfo = {
       chainId: MAPPING_CHAIN_ID[network as SupportedChain],
-      address: token.address.toLowerCase() as `0x${string}`,
+      address:
+        network === 'solana' ? token.address : (token.address.toLowerCase() as `0x${string}`),
       decimals: token.decimals,
       symbol: token.symbol,
     };

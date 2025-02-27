@@ -21,7 +21,6 @@ export class BridgeTool extends BaseTool {
     this.registry = new ProviderRegistry();
     this.defaultNetwork = config.defaultNetwork || 'solana';
     this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
-    console.log('BridgeTool constructor', this.defaultNetwork);
   }
 
   registerProvider(provider: IBridgeProvider): void {
@@ -31,7 +30,6 @@ export class BridgeTool extends BaseTool {
     provider.getSupportedNetworks().forEach(network => {
       this.supportedNetworks.add(network);
     });
-    console.log('supportedNetworks', Array.from(this.supportedNetworks));
   }
 
   getName(): string {
@@ -87,13 +85,15 @@ export class BridgeTool extends BaseTool {
       fromNetwork: z
         .enum(supportedNetworks as [string, ...string[]])
         .default(this.defaultNetwork)
-        .describe('The network to bridge from'),
+        .describe('The blockchain network to execute the bridge from'),
       toNetwork: z
         .enum(supportedNetworks as [string, ...string[]])
         .default(this.defaultNetwork)
-        .describe('The network to bridge to'),
-      fromToken: z.string().describe('The token address to bridge from network'),
-      toToken: z.string().describe('The token address to bridge to on the destination network'),
+        .describe('The blockchain network bridge to'),
+      fromToken: z.string().describe('The token address to bridge from'),
+      toToken: z
+        .string()
+        .describe('The token address on the destination network toreceive after bridging'),
       amount: z.string().describe('The amount of tokens to bridge'),
       amountType: z
         .enum(['input', 'output'])
@@ -131,13 +131,14 @@ export class BridgeTool extends BaseTool {
       }),
     );
 
-    const validQuotes = quotes.filter((q): q is NonNullable<typeof q> => q !== null);
+    type QuoteResult = { provider: IBridgeProvider; quote: BridgeQuote };
+    const validQuotes = quotes.filter((q): q is QuoteResult => q !== null);
     if (validQuotes.length === 0) {
       throw new Error('No valid quotes found');
     }
 
     // Find the best quote based on amount type
-    return validQuotes.reduce((best, current) => {
+    return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
       if (params.type === 'input') {
         // For input amount, find highest output amount
         const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals);
@@ -159,6 +160,7 @@ export class BridgeTool extends BaseTool {
   }
 
   createTool(): CustomDynamicStructuredTool {
+    console.log('✓ Creating tool', this.getName());
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -216,33 +218,45 @@ export class BridgeTool extends BaseTool {
           };
           console.log('🚀 ~ BridgeTool ~ func: ~ bridgeParams:', bridgeParams);
 
-          onProgress?.({
-            progress: 20,
-            message: `Searching for the best bridge rate from ${fromNetwork} to ${toNetwork}.`,
-          });
-
           let selectedProvider: IBridgeProvider;
           let quote: BridgeQuote;
 
-          if (preferredProvider) {
-            selectedProvider = this.registry.getProvider(preferredProvider);
-            // Validate provider supports the chain
-            if (!selectedProvider.getSupportedNetworks().includes(fromNetwork)) {
-              throw new Error(
-                `Provider ${preferredProvider} does not support network ${fromNetwork}`,
-              );
-            }
-            quote = await selectedProvider.getQuote(
-              bridgeParams,
-              fromWalletAddress,
-              toWalletAddress,
-            );
-          } else {
-            onProgress?.({
-              progress: 30,
-              message: `Comparing rates across multiple bridge providers.`,
-            });
+          onProgress?.({
+            progress: 0,
+            message: `Searching for the best bridge rate from ${fromNetwork} to ${toNetwork}.`,
+          });
 
+          if (preferredProvider) {
+            try {
+              selectedProvider = this.registry.getProvider(preferredProvider);
+              // Validate provider supports the chain
+              if (!selectedProvider.getSupportedNetworks().includes(fromNetwork)) {
+                throw new Error(
+                  `Provider ${preferredProvider} does not support network ${fromNetwork}`,
+                );
+              }
+              quote = await selectedProvider.getQuote(
+                bridgeParams,
+                fromWalletAddress,
+                toWalletAddress,
+              );
+            } catch (error) {
+              console.warn(
+                `Failed to get quote from preferred provider ${preferredProvider}:`,
+                error,
+              );
+              const bestQuote = await this.findBestQuote(
+                {
+                  ...bridgeParams,
+                  network: fromNetwork,
+                },
+                fromWalletAddress,
+                toWalletAddress,
+              );
+              selectedProvider = bestQuote.provider;
+              quote = bestQuote.quote;
+            }
+          } else {
             const bestQuote = await this.findBestQuote(
               {
                 ...bridgeParams,
@@ -254,6 +268,22 @@ export class BridgeTool extends BaseTool {
             selectedProvider = bestQuote.provider;
             quote = bestQuote.quote;
           }
+
+          onProgress?.({
+            progress: 10,
+            message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this bridge.`,
+          });
+
+          // Check user's balance before proceeding
+          const balanceCheck = await selectedProvider.checkBalance(quote, fromWalletAddress);
+          if (!balanceCheck.isValid) {
+            throw new Error(balanceCheck.message || 'Insufficient balance for swap');
+          }
+
+          onProgress?.({
+            progress: 30,
+            message: `Preparing to bridge ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
+          });
 
           // Build bridge transaction call to provider
           const bridgeTx = await selectedProvider.buildBridgeTransaction(
