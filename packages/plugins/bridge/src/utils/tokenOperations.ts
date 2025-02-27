@@ -36,6 +36,32 @@ export async function getTokenInfo(
   };
 }
 
+export async function getTokenInfoSolana(
+  tokenAddress: string,
+  network: NetworkName,
+): Promise<Token> {
+  const connection = new Connection(clusterApiUrl('mainnet-beta'));
+  const tokenMint = new PublicKey(tokenAddress);
+  const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
+
+  if (!tokenInfo.value || !('parsed' in tokenInfo.value.data)) {
+    throw new Error(`Invalid token info for ${tokenAddress} on ${network}`);
+  }
+
+  const parsedData = tokenInfo.value.data.parsed;
+  if (!('info' in parsedData)) {
+    throw new Error(`Missing token info for ${tokenAddress}`);
+  }
+
+  const { decimals, symbol } = parsedData.info;
+
+  return {
+    address: tokenAddress,
+    decimals: Number(decimals),
+    symbol,
+  };
+}
+
 /**
  * Creates a token cache manager
  * @param cacheTTL The time-to-live for cache entries in milliseconds

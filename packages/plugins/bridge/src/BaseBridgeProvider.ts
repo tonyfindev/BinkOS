@@ -8,7 +8,12 @@ import {
   isWithinTolerance,
   parseTokenAmount,
 } from './utils/tokenUtils';
-import { createTokenBalanceCache, createTokenCache, getTokenInfo } from './utils/tokenOperations';
+import {
+  createTokenBalanceCache,
+  createTokenCache,
+  getTokenInfo,
+  getTokenInfoSolana,
+} from './utils/tokenOperations';
 
 export type NetworkProvider = Provider | Connection;
 
@@ -237,44 +242,10 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
   protected async getTokenInfo(tokenAddress: string, network: NetworkName): Promise<Token> {
     this.validateNetwork(network);
     if (this.isSolanaNetwork(network)) {
-      // TODO: Implement Solana
-
-      const connection = new Connection(clusterApiUrl('mainnet-beta'));
-      const tokenMint = new PublicKey(tokenAddress);
-      const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
-
-      if (!tokenInfo.value || !('parsed' in tokenInfo.value.data)) {
-        throw new Error(`Invalid token info for ${tokenAddress} on ${network}`);
-      }
-
-      const parsedData = tokenInfo.value.data.parsed;
-      if (!('info' in parsedData)) {
-        throw new Error(`Missing token info for ${tokenAddress}`);
-      }
-
-      const { decimals, symbol } = parsedData.info;
-
-      return {
-        address: tokenAddress,
-        decimals: Number(decimals),
-        symbol,
-      };
+      return await getTokenInfoSolana(tokenAddress, network);
     }
-    // For EVM tokens
     const provider = this.getEvmProviderForNetwork(network);
-    const erc20Interface = new Interface([
-      'function decimals() view returns (uint8)',
-      'function symbol() view returns (string)',
-    ]);
-
-    const contract = new Contract(tokenAddress, erc20Interface, provider);
-    const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
-
-    return {
-      address: tokenAddress.toLowerCase() as `0x${string}`,
-      decimals: Number(decimals),
-      symbol,
-    };
+    return await getTokenInfo(tokenAddress, network, provider);
   }
 
   protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
