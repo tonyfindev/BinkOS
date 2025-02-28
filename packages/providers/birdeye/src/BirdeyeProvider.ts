@@ -243,7 +243,7 @@ export class BirdeyeProvider implements ITokenProvider, IWalletProvider {
         address: address,
         nativeBalance: undefined,
         tokens: response.data.data.items.map((token: any) => ({
-          address: token.address,
+          tokenAddress: token.address,
           symbol: token.symbol,
           name: token.name,
           decimals: token.decimals,
