@@ -1,4 +1,12 @@
-import { SwapQuote, SwapParams, NetworkProvider, BaseSwapProvider } from '@binkai/swap-plugin';
+import {
+  SwapQuote,
+  SwapParams,
+  NetworkProvider,
+  BaseSwapProvider,
+  parseTokenAmount,
+  Transaction,
+  isSolanaNetwork,
+} from '@binkai/swap-plugin';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 // Enhanced interface with better type safety
@@ -14,6 +22,7 @@ const CONSTANTS = {
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
   OKU_BNB_ADDRESS: '0x0000000000000000000000000000000000000000',
   OKU_API_PATH: 'https://canoe.v2.icarus.tools/market/zeroex/swap_quote',
+  OKU_APPROVE_ADDRESS: '0x80EbA3855878739F4710233A8a19d89Bdd2ffB8E',
 } as const;
 
 enum ChainId {
@@ -88,7 +97,11 @@ export class OkuProvider extends BaseSwapProvider {
       const tokenInAddress =
         tokenIn.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKU_BNB_ADDRESS : tokenIn.address;
 
+      const tokenOutAddress =
+        tokenOut.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKU_BNB_ADDRESS : tokenOut.address;
+
       const slippageOKU = Number(params.slippage) * 100 || 0.1;
+
       const headers = {
         'Content-Type': 'application/json',
       };
@@ -96,7 +109,7 @@ export class OkuProvider extends BaseSwapProvider {
         chain: 'bsc',
         account: userAddress,
         inTokenAddress: tokenInAddress,
-        outTokenAddress: tokenOut.address,
+        outTokenAddress: tokenOutAddress,
         isExactIn: true,
         slippage: slippageOKU,
         inTokenAmount: adjustedAmount.toString(),
@@ -138,9 +151,7 @@ export class OkuProvider extends BaseSwapProvider {
           to: tx?.to || '',
           data: tx?.data || '',
           value: tx?.value || '0',
-          gasLimit:
-            ethers.parseUnits((tx.gas * 1.5).toString(), 'wei') ||
-            ethers.parseUnits('350000', 'wei'),
+          // gasLimit: BigInt(CONSTANTS.DEFAULT_GAS_LIMIT),
           network: params.network,
         },
       };
@@ -162,26 +173,39 @@ export class OkuProvider extends BaseSwapProvider {
     }
   }
 
-  //   async buildSwapTransaction(quote: SwapQuote, userAddress: string): Promise<SwapTransaction> {
-  //     try {
-  //       // Get the stored quote and trade
-  //       const storedData = this.quotes.get(quote.quoteId);
+  async buildApproveTransaction(
+    network: NetworkName,
+    token: string,
+    spender: string,
+    amount: string,
+    walletAddress: string,
+  ): Promise<Transaction> {
+    this.validateNetwork(network);
+    if (isSolanaNetwork(network)) {
+      // TODO: Implement Solana
+    }
+    if (this.isNativeToken(token)) {
+      throw new Error('Native token does not need approval');
+    }
 
-  //       if (!storedData) {
-  //         throw new Error('Quote expired or not found. Please get a new quote.');
-  //       }
+    const tokenInfo = await this.getToken(token, network);
+    const erc20Interface = new Interface([
+      'function approve(address spender, uint256 amount) returns (bool)',
+    ]);
 
-  //       return {
-  //         to: storedData?.quote.tx?.to || '',
-  //         data: storedData?.quote?.tx?.data || '',
-  //         value: storedData?.quote?.tx?.value || '0',
-  //         gasLimit: '350000',
-  //       };
-  //     } catch (error: unknown) {
-  //       console.error('Error building swap transaction:', error);
-  //       throw new Error(
-  //         `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
-  //       );
-  //     }
-  //   }
+    const data = erc20Interface.encodeFunctionData('approve', [
+      CONSTANTS.OKU_APPROVE_ADDRESS,
+      parseTokenAmount(amount, tokenInfo.decimals),
+    ]);
+
+    // Invalidate the native token balance cache since gas will be spent
+    this.invalidateBalanceCache(EVM_NATIVE_TOKEN_ADDRESS, walletAddress, network);
+
+    return {
+      to: token,
+      data,
+      value: '0',
+      network,
+    };
+  }
 }
