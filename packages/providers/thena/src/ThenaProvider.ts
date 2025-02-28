@@ -1,7 +1,6 @@
 import { SwapQuote, SwapParams, BaseSwapProvider, NetworkProvider } from '@binkai/swap-plugin';
 import { ethers, Provider } from 'ethers';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
-import { Cipher } from 'crypto';
 
 // Core system constants
 const CONSTANTS = {
@@ -81,6 +80,11 @@ export class ThenaProvider extends BaseSwapProvider {
           ? CONSTANTS.THENA_BNB_ADDRESS
           : sourceToken.address;
 
+      const tokenOutAddress =
+        destinationToken.address === CONSTANTS.BNB_ADDRESS
+          ? CONSTANTS.THENA_BNB_ADDRESS
+          : destinationToken.address;
+
       // Calculate input amount based on decimals
       let adjustedAmount = params.amount;
       if (params.type === 'input') {
@@ -104,7 +108,7 @@ export class ThenaProvider extends BaseSwapProvider {
       // Fetch optimal swap route
       const optimalRoute = await this.fetchOptimalRoute(
         tokenInAddress,
-        destinationToken.address,
+        tokenOutAddress,
         userAddress,
         params.slippage,
         amountIn.toString(),
@@ -112,7 +116,11 @@ export class ThenaProvider extends BaseSwapProvider {
 
       // Build swap transaction
       const swapTransactionData = await this.buildSwapRouteTransaction(optimalRoute, userAddress);
-      console.log('swapTransactionData', swapTransactionData);
+
+      if (!swapTransactionData) {
+        throw new Error('No swap routes available from Thena');
+      }
+
       // Create and store quote
       const swapQuote = this.createSwapQuote(
         params,
@@ -122,7 +130,6 @@ export class ThenaProvider extends BaseSwapProvider {
         optimalRoute,
       );
       this.storeQuoteWithExpiry(swapQuote);
-      console.log('log', swapQuote);
       return swapQuote;
     } catch (error: unknown) {
       console.error('Error getting quote:', error);
@@ -140,8 +147,6 @@ export class ThenaProvider extends BaseSwapProvider {
     slippage: number,
     amount?: string,
   ) {
-    const routePath = `quote/v2`;
-
     const body = JSON.stringify({
       chainId: this.chainId,
       inputTokens: [
@@ -167,17 +172,17 @@ export class ThenaProvider extends BaseSwapProvider {
       },
     });
 
-    console.log('body', body);
-    const routeResponse = await fetch(`${CONSTANTS.THENA_API_BASE}${routePath}`, {
+    const routeResponse = await fetch(`${CONSTANTS.THENA_API_BASE}quote/v2`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: body,
     });
+
     const routeData = await routeResponse.json();
-    console.log('routeData', routeData);
-    if (!routeData || routeData.length === 0) {
+
+    if (routeData.errorCode === 2000) {
       throw new Error('No swap routes available from Thena');
     }
     return routeData;
@@ -196,7 +201,6 @@ export class ThenaProvider extends BaseSwapProvider {
       }),
       redirect: 'follow',
     });
-    // console.log('transactionResponse', transactionResponse.json());
     return await transactionResponse.json();
   }
 

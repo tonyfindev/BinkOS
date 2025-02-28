@@ -155,7 +155,6 @@ export class KyberProvider extends BaseSwapProvider {
         optimalRoute,
       );
       this.storeQuoteWithExpiry(swapQuote);
-      console.log('log', swapQuote);
       return swapQuote;
     } catch (error: unknown) {
       console.error('Error getting quote:', error);
