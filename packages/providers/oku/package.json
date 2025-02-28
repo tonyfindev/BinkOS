@@ -1,6 +1,6 @@
 {
   "name": "@binkai/oku-provider",
-  "version": "0.0.22",
+  "version": "0.1.2-alpha.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -16,8 +16,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@binkai/swap-plugin": "workspace:*",
     "@binkai/core": "workspace:*",
+    "@binkai/swap-plugin": "workspace:*",
     "crypto-js": "^4.1.1",
     "ethers": "^6.0.0"
   },
