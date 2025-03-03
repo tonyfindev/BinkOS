@@ -25,6 +25,7 @@ import { deBridgeProvider } from '@binkai/debridge-provider';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
+const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 
 // Example callback implementation
 class ExampleToolExecutionCallback implements IToolExecutionCallback {
@@ -96,6 +97,18 @@ async function main() {
         },
       },
     },
+    [NetworkName.SOLANA]: {
+      type: 'solana' as NetworkType,
+      config: {
+        rpcUrl: SOL_RPC,
+        name: 'Solana',
+        nativeCurrency: {
+          name: 'Solana',
+          symbol: 'SOL',
+          decimals: 9,
+        },
+      },
+    },
   };
   console.log('✓ Networks configured:', Object.keys(networks).join(', '), '\n');
 
@@ -131,7 +144,7 @@ async function main() {
       model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
-        'You are a BINK AI agent. You are able to perform swaps and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a swap.',
+        'You are a BINK AI agent. You are able to perform swaps, bridges and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge or swap.',
     },
     wallet,
     networks,
@@ -225,30 +238,30 @@ async function main() {
   console.log('✓ Plugin registered\n');
 
   // Example 1: Buy with exact input amount on BNB Chain
-  console.log('💱 Example 1: Buy BINK from exactly 0.0001 BNB with 0.5% slippage on bnb chain.');
-  const result1 = await agent.execute({
-    input: `
-      Buy BINK from exactly 0.0001 BNB with 0.5% slippage on bnb chain.
-    `,
-    //input: `swap crosschain 5 WETH on BNB to JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN on solana`,
-  });
-  console.log('✓ Swap result:', result1, '\n');
+  // console.log('💱 Example 1: Buy BINK from exactly 0.0001 BNB with 0.5% slippage on bnb chain.');
+  // const result1 = await agent.execute({
+  //   input: `
+  //     Buy BINK from exactly 0.0001 BNB with 0.5% slippage on bnb chain.
+  //   `,
+  //   //input: `swap crosschain 5 WETH on BNB to JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN on solana`,
+  // });
+  // console.log('✓ Swap result:', result1, '\n');
 
   // Example 2: Sell with exact output amount on BNB Chain
-  console.log('💱 Example 2: Sell exactly 50% BINK');
+  console.log('💱 Example 2: buy BINK from 10 USDC on solana');
   const result2 = await agent.execute({
     input: `
-      Sell exactly 100% BINK
+     buy BINK on BNB from 10 USDC on solana
     `,
   });
 
-  //console.log('✓ Swap result:', result2, '\n');
+  console.log('✓ Swap result:', result2, '\n');
 
   // Get plugin information
-  const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
-  //const registeredPlugin = agent.getPlugin('bridge') as BridgePlugin;
+  // const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
+  const registeredPlugin = agent.getPlugin('bridge') as BridgePlugin;
 
-  // Check available providers for each chain
+  // // Check available providers for each chain
   console.log('📊 Available providers by chain:');
   const chains = registeredPlugin.getSupportedNetworks();
   for (const chain of chains) {

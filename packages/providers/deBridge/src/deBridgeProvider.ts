@@ -177,70 +177,71 @@ export class deBridgeProvider extends BaseBridgeProvider {
     tokenOut: Token,
     adjustedAmount: string,
   ): Promise<Transaction> {
-    console.log('🚀 ~ deBridgeProvider ~ buildBridgeData: ~ params:', params);
+    try {
+      console.log('🚀 ~ deBridgeProvider ~ buildBridgeData: ~ params:', params);
 
-    const srcChainId = MAPPING_CHAIN_ID[params.fromNetwork as SupportedChain];
-    const srcChainTokenIn =
-      this.isNativeToken(params.fromToken) || this.isNativeSolana(params.fromToken)
-        ? MAPPING_TOKEN[params.fromNetwork as SupportedToken]
-        : params.fromToken; //params.fromNetwork === 'solana' ? Tokens.SOL : Tokens.BNB; // sol
-    const srcChainTokenInAmount = parseTokenAmount(adjustedAmount, tokenIn.decimals);
-    const dstChainId = MAPPING_CHAIN_ID[params.toNetwork as SupportedChain];
-    const dstChainTokenOut =
-      this.isNativeToken(params.toToken) || this.isNativeSolana(params.toToken)
-        ? MAPPING_TOKEN[params.toNetwork as SupportedToken]
-        : params.toToken;
-    //params.toNetwork === 'bnb' ? Tokens.BNB : Tokens.SOL; // bnb
+      const srcChainId = MAPPING_CHAIN_ID[params.fromNetwork as SupportedChain];
+      const srcChainTokenIn =
+        this.isNativeToken(params.fromToken) || this.isNativeSolana(params.fromToken)
+          ? MAPPING_TOKEN[params.fromNetwork as SupportedToken]
+          : params.fromToken;
+      const srcChainTokenInAmount = parseTokenAmount(adjustedAmount, tokenIn.decimals);
+      const dstChainId = MAPPING_CHAIN_ID[params.toNetwork as SupportedChain];
+      const dstChainTokenOut =
+        this.isNativeToken(params.toToken) || this.isNativeSolana(params.toToken)
+          ? MAPPING_TOKEN[params.toNetwork as SupportedToken]
+          : params.toToken;
 
-    const dstChainTokenOutRecipient = toWalletAddress;
-    const senderAddress = fromWalletAddress;
-    const srcChainOrderAuthorityAddress = senderAddress;
-    const dstChainOrderAuthorityAddress = toWalletAddress;
-    const srcChainRefundAddress = senderAddress;
-    const allowedTaker = MAPPING_TOKEN_TAKER[params.fromNetwork as SupportedTokenTaker];
-    //params.fromNetwork === 'solana' ? Addresses.allowedTakerSOL : Addresses.allowedTakerBNB; // default debridge
+      const dstChainTokenOutRecipient = toWalletAddress;
+      const senderAddress = fromWalletAddress;
+      const srcChainOrderAuthorityAddress = senderAddress;
+      const dstChainOrderAuthorityAddress = toWalletAddress;
+      const srcChainRefundAddress = senderAddress;
+      const allowedTaker = MAPPING_TOKEN_TAKER[params.fromNetwork as SupportedTokenTaker];
 
-    console.log(
-      '🚀 ~ deBridgeProvider ~ after data:',
-      srcChainId,
-      srcChainTokenIn,
-      srcChainTokenInAmount,
-      dstChainId,
-      dstChainTokenOut,
-      dstChainTokenOutRecipient,
-      senderAddress,
-      srcChainOrderAuthorityAddress,
-      srcChainRefundAddress,
-      allowedTaker,
-    );
+      console.log(
+        '🚀 ~ deBridgeProvider ~ after data: from: ',
+        srcChainId,
+        srcChainTokenInAmount,
+        'to: ',
+        dstChainId,
+        senderAddress,
+        allowedTaker,
+      );
 
-    const url = `https://deswap.debridge.finance/v1.0/dln/order/create-tx?srcChainId=${srcChainId}&srcChainTokenIn=${srcChainTokenIn}&srcChainTokenInAmount=${srcChainTokenInAmount}&dstChainId=${dstChainId}&dstChainTokenOut=${dstChainTokenOut}&dstChainTokenOutRecipient=${dstChainTokenOutRecipient}&senderAddress=${senderAddress}&srcChainOrderAuthorityAddress=${srcChainOrderAuthorityAddress}&srcChainRefundAddress=${srcChainRefundAddress}&dstChainOrderAuthorityAddress=${dstChainOrderAuthorityAddress}&enableEstimate=false&prependOperatingExpenses=true&additionalTakerRewardBps=0&allowedTaker=${allowedTaker}&deBridgeApp=DESWAP&ptp=false&tab=1739871311714`;
+      const url = `https://deswap.debridge.finance/v1.0/dln/order/create-tx?srcChainId=${srcChainId}&srcChainTokenIn=${srcChainTokenIn}&srcChainTokenInAmount=${srcChainTokenInAmount}&dstChainId=${dstChainId}&dstChainTokenOut=${dstChainTokenOut}&dstChainTokenOutRecipient=${dstChainTokenOutRecipient}&senderAddress=${senderAddress}&srcChainOrderAuthorityAddress=${srcChainOrderAuthorityAddress}&srcChainRefundAddress=${srcChainRefundAddress}&dstChainOrderAuthorityAddress=${dstChainOrderAuthorityAddress}&enableEstimate=false&prependOperatingExpenses=true&additionalTakerRewardBps=0&allowedTaker=${allowedTaker}&deBridgeApp=DESWAP&ptp=false&tab=1739871311714`;
 
-    const response = await axios.get(url);
+      const response = await axios.get(url);
 
-    const data = response.data;
-    let dataTx;
-    if (params.fromNetwork === 'solana') {
-      const connection = new Connection(clusterApiUrl('mainnet-beta'));
-      const txBuffer = Buffer.from(data.tx.data.slice(2), 'hex');
-      const versionedTx = VersionedTransaction.deserialize(txBuffer);
-      // add blockhash to versionedTx
-      const { blockhash } = await connection.getLatestBlockhash();
-      versionedTx.message.recentBlockhash = blockhash;
-      dataTx = Buffer.from(versionedTx.serialize()).toString('base64');
-      // Update blockhash!
-    } else {
-      dataTx = data.tx.data;
+      const data = response.data;
+      let dataTx;
+      if (params.fromNetwork === 'solana') {
+        const connection = new Connection(clusterApiUrl('mainnet-beta'));
+        const txBuffer = Buffer.from(data.tx.data.slice(2), 'hex');
+        const versionedTx = VersionedTransaction.deserialize(txBuffer);
+        // add blockhash to versionedTx
+        const { blockhash } = await connection.getLatestBlockhash();
+        versionedTx.message.recentBlockhash = blockhash;
+        dataTx = Buffer.from(versionedTx.serialize()).toString('base64');
+        // Update blockhash!
+      } else {
+        dataTx = data.tx.data;
+      }
+
+      return {
+        to: params.fromNetwork === 'solana' ? dstChainTokenOutRecipient : data.tx.to,
+        data: dataTx,
+        value: params.fromNetwork === 'solana' ? srcChainTokenInAmount : data.tx.value,
+        gasLimit: BigInt(700000), // solana not needed gas limit
+        network: params.fromNetwork,
+        amountOut: data?.estimation?.costsDetails[0]?.amountOut,
+      };
+    } catch (e) {
+      console.error('Error building bridge data:', e);
+      throw new Error(
+        `Failed to build bridge data: ${e instanceof Error ? e.message : 'Unknown error'}`,
+      );
     }
-
-    return {
-      to: params.fromNetwork === 'solana' ? dstChainTokenOutRecipient : data.tx.to,
-      data: dataTx,
-      value: params.fromNetwork === 'solana' ? srcChainTokenInAmount : data.tx.value,
-      gasLimit: BigInt(700000), // solana not needed gas limit
-      network: params.fromNetwork,
-      amountOut: data?.estimation?.costsDetails[0]?.amountOut,
-    };
   }
 
   async cleanup(): Promise<void> {

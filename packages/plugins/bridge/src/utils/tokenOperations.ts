@@ -1,7 +1,18 @@
-import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
+import {
+  EVM_NATIVE_TOKEN_ADDRESS,
+  NetworkName,
+  SOL_NATIVE_TOKEN_ADDRESS,
+  SOL_NATIVE_TOKEN_ADDRESS2,
+  Token,
+} from '@binkai/core';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { clusterApiUrl, Connection, PublicKey } from '@solana/web3.js';
-import { getEvmProviderForNetwork, isSolanaNetwork, validateNetwork } from './networkUtils';
+import {
+  getEvmProviderForNetwork,
+  getSolanaProviderForNetwork,
+  isSolanaNetwork,
+  validateNetwork,
+} from './networkUtils';
 
 // Default cache TTL (30 minutes)
 export const DEFAULT_CACHE_TTL = 30 * 60 * 1000;
@@ -203,11 +214,6 @@ export function createTokenBalanceCache(balanceCacheTTL: number = DEFAULT_BALANC
     ): Promise<{ balance: bigint; formattedBalance: string }> {
       validateNetwork(Array.from(providers.keys()), providers, network, providerName);
 
-      if (isSolanaNetwork(network)) {
-        // TODO: Implement Solana
-        throw new Error('Solana not implemented yet');
-      }
-
       const now = Date.now();
       const cacheKey = `${network}:${tokenAddress}:${walletAddress}`;
       const cached = balanceCache.get(cacheKey);
@@ -220,47 +226,89 @@ export function createTokenBalanceCache(balanceCacheTTL: number = DEFAULT_BALANC
         };
       }
 
-      const provider = getEvmProviderForNetwork(providers, network, providerName);
+      if (isSolanaNetwork(network)) {
+        // const connection = new Connection(process.env.RPC_SOLANA || '');
+        const provider = getSolanaProviderForNetwork(providers, network, providerName);
+        const isNative =
+          tokenAddress.toLowerCase() === SOL_NATIVE_TOKEN_ADDRESS.toLowerCase() ||
+          tokenAddress.toLowerCase() === SOL_NATIVE_TOKEN_ADDRESS2.toLowerCase();
+        const wallet = new PublicKey(walletAddress);
+        const tokenMint = new PublicKey(tokenAddress);
+        let rawBalance;
+        let decimals;
+        if (isNative) {
+          // For native tokens
+          decimals = 9;
+          rawBalance = await provider.getBalance(wallet);
+        } else {
+          const tokenAccounts = await provider.getParsedTokenAccountsByOwner(wallet, {
+            mint: tokenMint,
+          });
 
-      // Check if it's a native token (using address comparison)
-      const isNative =
-        tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase() ||
-        tokenAddress.toLowerCase() === '0x0000000000000000000000000000000000000000';
+          const mintInfo = await provider.getParsedAccountInfo(tokenMint);
 
-      let balance: bigint;
-      let tokenDecimals = decimals;
+          if (!mintInfo.value || !('parsed' in mintInfo.value.data)) {
+            throw new Error('Invalid mint account');
+          }
 
-      if (isNative) {
-        // For native tokens
-        balance = await provider.getBalance(walletAddress);
-        tokenDecimals = tokenDecimals || 18; // Default to 18 decimals for native tokens
+          decimals = mintInfo?.value?.data?.parsed?.info?.decimals;
+          rawBalance = tokenAccounts?.value[0]?.account?.data?.parsed?.info?.tokenAmount?.amount;
+        }
+        const balance = ethers.formatUnits(rawBalance, decimals);
+        // Cache the result
+        balanceCache.set(cacheKey, {
+          balance: BigInt(rawBalance),
+          formattedBalance: balance,
+          timestamp: now,
+        });
+
+        return {
+          balance: BigInt(rawBalance),
+          formattedBalance: balance,
+        };
       } else {
-        // For ERC20 tokens
-        const erc20Interface = new Interface([
-          'function balanceOf(address) view returns (uint256)',
-          'function decimals() view returns (uint8)',
-        ]);
+        const provider = getEvmProviderForNetwork(providers, network, providerName);
 
-        const contract = new Contract(tokenAddress, erc20Interface, provider);
+        // Check if it's a native token (using address comparison)
+        const isNative =
+          tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase() ||
+          tokenAddress.toLowerCase() === '0x0000000000000000000000000000000000000000';
 
-        // If decimals not provided, fetch them
-        if (!tokenDecimals) {
-          tokenDecimals = Number(await contract.decimals());
+        let balance: bigint;
+        let tokenDecimals = decimals;
+
+        if (isNative) {
+          // For native tokens
+          balance = await provider.getBalance(walletAddress);
+          tokenDecimals = tokenDecimals || 18; // Default to 18 decimals for native tokens
+        } else {
+          // For ERC20 tokens
+          const erc20Interface = new Interface([
+            'function balanceOf(address) view returns (uint256)',
+            'function decimals() view returns (uint8)',
+          ]);
+
+          const contract = new Contract(tokenAddress, erc20Interface, provider);
+
+          // If decimals not provided, fetch them
+          if (!tokenDecimals) {
+            tokenDecimals = Number(await contract.decimals());
+          }
+
+          balance = await contract.balanceOf(walletAddress);
         }
 
-        balance = await contract.balanceOf(walletAddress);
+        const formattedBalance = ethers.formatUnits(balance, tokenDecimals);
+
+        // Cache the result
+        balanceCache.set(cacheKey, {
+          balance,
+          formattedBalance,
+          timestamp: now,
+        });
+
+        return { balance, formattedBalance };
       }
-
-      const formattedBalance = ethers.formatUnits(balance, tokenDecimals);
-
-      // Cache the result
-      balanceCache.set(cacheKey, {
-        balance,
-        formattedBalance,
-        timestamp: now,
-      });
-
-      return { balance, formattedBalance };
     },
 
     /**

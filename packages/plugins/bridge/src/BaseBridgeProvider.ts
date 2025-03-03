@@ -202,14 +202,18 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
     network: NetworkName,
   ): Promise<string> {
     this.validateNetwork(network);
+    let balance;
+    let amountBN;
     if (this.isSolanaNetwork(network)) {
-      // TODO: Implement Solana
-
-      console.log('isSolanaNetwork');
+      const provider = this.getSolanaProviderForNetwork(network);
+      amountBN = ethers.parseUnits(amount, decimals);
+      balance = await provider.getBalance(new PublicKey(walletAddress));
+    } else {
+      const provider = this.getEvmProviderForNetwork(network);
+      amountBN = ethers.parseUnits(amount, decimals);
+      balance = await provider.getBalance(walletAddress);
     }
-    const provider = this.getEvmProviderForNetwork(network);
-    const amountBN = ethers.parseUnits(amount, decimals);
-    const balance = await provider.getBalance(walletAddress);
+
     const gasBuffer = this.getGasBuffer(network);
 
     // Check if user has enough balance for amount + gas buffer
@@ -439,8 +443,9 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
 
       // Check if it's a native token
       const isNativeToken = this.isNativeToken(tokenAddress);
+      const isNativeSolana = this.isNativeSolana(tokenAddress);
 
-      if (isNativeToken) {
+      if (isNativeToken || isNativeSolana) {
         // For native tokens, use adjustNativeTokenAmount which handles gas buffer
         return this.adjustNativeTokenAmount(amount, decimals, walletAddress, network);
       } else {
@@ -450,7 +455,6 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
           walletAddress,
           network,
         );
-
         // Adjust the amount if needed
         return adjustTokenAmount(amount, formattedBalance, decimals, this.TOLERANCE_PERCENTAGE);
       }
