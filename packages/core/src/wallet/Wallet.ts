@@ -93,13 +93,14 @@ export class Wallet implements IWallet {
     }
   }
 
+  // TODO: THIS METHOD WILL BE REMOVED IN THE FUTURE
   public getPrivateKey(network: NetworkName): string {
     const networkType = this.#network.getNetworkType(network);
 
     if (networkType === 'evm') {
       return this.#evmWallet.privateKey;
     } else {
-      return bs58.encode(this.#solanaKeypair.secretKey.slice(0, 32));
+      return bs58.encode(this.#solanaKeypair.secretKey);
     }
   }
 
