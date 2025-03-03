@@ -194,6 +194,7 @@ export class FourMemeProvider extends BaseSwapProvider {
           value,
           gasLimit: BigInt(CONSTANTS.DEFAULT_GAS_LIMIT),
           network: params.network,
+          spender: CONSTANTS.FOUR_MEME_FACTORY_V2,
         },
       };
 

@@ -42,6 +42,7 @@ export interface Transaction {
   value: string;
   gasLimit?: bigint;
   network: NetworkName;
+  spender: string;
 }
 
 export interface IStakingProvider {

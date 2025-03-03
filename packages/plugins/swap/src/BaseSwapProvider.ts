@@ -367,6 +367,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
       data,
       value: '0',
       network,
+      spender: token,
     };
   }
 
@@ -427,6 +428,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
         value: storedData.quote.tx?.value || '0',
         gasLimit: storedData.quote.tx?.gasLimit,
         network: storedData.quote.network,
+        spender: storedData.quote.tx?.to || '',
       };
     } catch (error) {
       console.error('Error building swap transaction:', error);

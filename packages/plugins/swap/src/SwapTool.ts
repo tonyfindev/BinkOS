@@ -285,7 +285,7 @@ export class SwapTool extends BaseTool {
             network,
             quote.fromToken.address,
             userAddress,
-            swapTx.to,
+            swapTx.spender,
           );
 
           const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
@@ -296,7 +296,7 @@ export class SwapTool extends BaseTool {
             const approveTx = await selectedProvider.buildApproveTransaction(
               network,
               quote.fromToken.address,
-              swapTx.to,
+              swapTx.spender,
               quote.fromAmount,
               userAddress,
             );
