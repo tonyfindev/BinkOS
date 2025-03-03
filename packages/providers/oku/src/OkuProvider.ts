@@ -21,8 +21,8 @@ const CONSTANTS = {
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
   OKU_BNB_ADDRESS: '0x0000000000000000000000000000000000000000',
-  OKU_API_PATH: 'https://canoe.v2.icarus.tools/market/zeroex/swap_quote',
-  OKU_APPROVE_ADDRESS: '0x80EbA3855878739F4710233A8a19d89Bdd2ffB8E',
+  OKU_API_PATH: (protocol: string) => `https://canoe.v2.icarus.tools/market/${protocol}/swap_quote`,
+  OKU_APPROVE_ADDRESS: '0x6131b5fae19ea4f9d964eac0408e4408b66337b5',
 } as const;
 
 enum ChainId {
@@ -105,6 +105,16 @@ export class OkuProvider extends BaseSwapProvider {
       const headers = {
         'Content-Type': 'application/json',
       };
+      const response_api = await fetch('https://canoe.v2.icarus.tools/market/overview', {
+        method: 'GET',
+        headers,
+      });
+      const market_route = await response_api.json();
+
+      const list_route = market_route.status.map((item: any) => item.name);
+
+      const protocol = this.findFirstMatch(list_route);
+
       const body = JSON.stringify({
         chain: 'bsc',
         account: userAddress,
@@ -112,16 +122,16 @@ export class OkuProvider extends BaseSwapProvider {
         outTokenAddress: tokenOutAddress,
         isExactIn: true,
         slippage: slippageOKU,
-        inTokenAmount: adjustedAmount.toString(),
+        inTokenAmount: adjustedAmount,
       });
-      const response = await fetch(CONSTANTS.OKU_API_PATH, {
+      const response = await fetch(CONSTANTS.OKU_API_PATH(protocol), {
         method: 'POST',
         headers,
         body,
       });
 
       const data = await response.json();
-      console.log('Response:', data);
+
       if (!data || data.length === 0) {
         throw new Error('No data returned from OKU');
       }
@@ -130,7 +140,12 @@ export class OkuProvider extends BaseSwapProvider {
       const outputAmount = data.outAmount;
       const estimatedGas = data.fees.gas;
       const priceImpact = 0;
-      const tx = data.coupon.raw.quote.transaction;
+
+      const tx = data.candidateTrade;
+      let spender =
+        tokenInAddress === CONSTANTS.OKU_BNB_ADDRESS
+          ? tx.to
+          : data.coupon.raw?.executionInformation?.approvals[0]?.approvee;
 
       // Generate a unique quote ID
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
@@ -151,8 +166,9 @@ export class OkuProvider extends BaseSwapProvider {
           to: tx?.to || '',
           data: tx?.data || '',
           value: tx?.value || '0',
-          // gasLimit: BigInt(CONSTANTS.DEFAULT_GAS_LIMIT),
+          gasLimit: BigInt(CONSTANTS.DEFAULT_GAS_LIMIT),
           network: params.network,
+          spender,
         },
       };
       console.log('log', quote);
@@ -173,39 +189,9 @@ export class OkuProvider extends BaseSwapProvider {
     }
   }
 
-  async buildApproveTransaction(
-    network: NetworkName,
-    token: string,
-    spender: string,
-    amount: string,
-    walletAddress: string,
-  ): Promise<Transaction> {
-    this.validateNetwork(network);
-    if (isSolanaNetwork(network)) {
-      // TODO: Implement Solana
-    }
-    if (this.isNativeToken(token)) {
-      throw new Error('Native token does not need approval');
-    }
+  private findFirstMatch(inputList: string[]) {
+    const priorityList = ['kyberswap', 'okx', 'zeroex', 'odos', 'enso'];
 
-    const tokenInfo = await this.getToken(token, network);
-    const erc20Interface = new Interface([
-      'function approve(address spender, uint256 amount) returns (bool)',
-    ]);
-
-    const data = erc20Interface.encodeFunctionData('approve', [
-      CONSTANTS.OKU_APPROVE_ADDRESS,
-      parseTokenAmount(amount, tokenInfo.decimals),
-    ]);
-
-    // Invalidate the native token balance cache since gas will be spent
-    this.invalidateBalanceCache(EVM_NATIVE_TOKEN_ADDRESS, walletAddress, network);
-
-    return {
-      to: token,
-      data,
-      value: '0',
-      network,
-    };
+    return priorityList.find(item => inputList.includes(item)) || 'kyberswap';
   }
 }

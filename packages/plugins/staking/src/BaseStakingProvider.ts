@@ -373,6 +373,7 @@ export abstract class BaseStakingProvider implements IStakingProvider {
       data,
       value: '0',
       network,
+      spender: token,
     };
   }
 
@@ -433,6 +434,7 @@ export abstract class BaseStakingProvider implements IStakingProvider {
         value: storedData.quote.tx?.value || '0',
         gasLimit: storedData.quote.tx?.gasLimit,
         network: storedData.quote.network,
+        spender: storedData.quote.tx?.to || '',
       };
     } catch (error) {
       console.error('Error building Staking transaction:', error);
