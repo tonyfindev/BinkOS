@@ -212,6 +212,7 @@ export class PancakeSwapProvider extends BaseSwapProvider {
         network: params.network,
         tx: {
           to: SMART_ROUTER_ADDRESSES[this.chainId as keyof typeof SMART_ROUTER_ADDRESSES],
+          spender: SMART_ROUTER_ADDRESSES[this.chainId as keyof typeof SMART_ROUTER_ADDRESSES],
           data: calldata,
           value: value.toString(),
           network: params.network,

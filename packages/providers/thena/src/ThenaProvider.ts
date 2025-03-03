@@ -230,6 +230,7 @@ export class ThenaProvider extends BaseSwapProvider {
         value: swapTransactionData.transaction.value || '0',
         gasLimit: ethers.parseUnits(CONSTANTS.DEFAULT_GAS_LIMIT, 'wei'),
         network: params.network,
+        spender: swapTransactionData.transaction.to,
       },
     };
   }

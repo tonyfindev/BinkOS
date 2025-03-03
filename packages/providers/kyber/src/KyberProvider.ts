@@ -218,6 +218,7 @@ export class KyberProvider extends BaseSwapProvider {
         value: swapTransactionData.transactionValue || '0',
         gasLimit: ethers.parseUnits(CONSTANTS.DEFAULT_GAS_LIMIT, 'wei'),
         network: params.network,
+        spender: swapTransactionData.routerAddress,
       },
     };
   }

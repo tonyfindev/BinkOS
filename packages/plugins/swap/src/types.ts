@@ -33,6 +33,7 @@ export interface Transaction {
   data: string;
   value: string;
   gasLimit?: bigint;
+  spender: string;
   network: NetworkName;
 }
 

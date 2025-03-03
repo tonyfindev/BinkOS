@@ -326,6 +326,7 @@ export class VenusProvider extends BaseStakingProvider {
         value: buildTransactionData.value,
         gasLimit: buildTransactionData.gasLimit,
         network: params.network,
+        spender: buildTransactionData.to,
       },
     };
   }
