@@ -170,6 +170,7 @@ export class OkxProvider extends BaseSwapProvider {
             ethers.parseUnits((tx.gas * 1.5).toString(), 'wei') ||
             ethers.parseUnits('350000', 'wei'),
           network: params.network,
+          spender: CONSTANTS.OKX_APPROVE_ADDRESS,
         },
       };
       // Store the quote and trade for later use
