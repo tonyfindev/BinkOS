@@ -51,7 +51,7 @@ export async function getTokenInfoSolana(
   tokenAddress: string,
   network: NetworkName,
 ): Promise<Token> {
-  const connection = new Connection(clusterApiUrl('mainnet-beta'));
+  const connection = new Connection('https://api.mainnet-beta.solana.com');
   const tokenMint = new PublicKey(tokenAddress);
   const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
 
@@ -110,7 +110,7 @@ export function createTokenCache(cacheTTL: number = DEFAULT_CACHE_TTL) {
           return cached.token;
         }
 
-        const connection = new Connection(clusterApiUrl('mainnet-beta'));
+        const connection = new Connection('https://api.mainnet-beta.solana.com');
         const tokenMint = new PublicKey(tokenAddress);
         const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
 

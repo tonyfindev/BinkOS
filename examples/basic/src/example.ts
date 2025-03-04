@@ -251,7 +251,7 @@ async function main() {
   console.log('💱 Example 2: buy BINK from 10 USDC on solana');
   const result2 = await agent.execute({
     input: `
-     buy BINK on BNB from 10 USDC on solana
+     buy CAKE on BNB from 10 USDC on solana 
     `,
   });
 

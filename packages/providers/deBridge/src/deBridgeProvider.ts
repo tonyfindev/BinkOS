@@ -37,7 +37,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
     // Create a Map with BNB network and the provider
     const providerMap = new Map<NetworkName, NetworkProvider>();
     providerMap.set(NetworkName.BNB, provider);
-    providerMap.set(NetworkName.SOLANA, new Connection(clusterApiUrl('mainnet-beta')));
+    providerMap.set(NetworkName.SOLANA, new Connection('https://api.mainnet-beta.solana.com'));
 
     super(providerMap);
     this.fromChainId = fromChainId;
@@ -216,7 +216,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
       const data = response.data;
       let dataTx;
       if (params.fromNetwork === 'solana') {
-        const connection = new Connection(clusterApiUrl('mainnet-beta'));
+        const connection = new Connection('https://api.mainnet-beta.solana.com');
         const txBuffer = Buffer.from(data.tx.data.slice(2), 'hex');
         const versionedTx = VersionedTransaction.deserialize(txBuffer);
         // add blockhash to versionedTx

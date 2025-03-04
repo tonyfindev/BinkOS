@@ -294,12 +294,24 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
           return { isValid: true };
         } else {
           // For SPL tokens
-          const tokenAccount = await provider.getParsedTokenAccountsByOwner(
+          const connection = new Connection('https://api.mainnet-beta.solana.com');
+          const tokenAccount = await connection.getParsedTokenAccountsByOwner(
             new PublicKey(walletAddress),
             {
               mint: new PublicKey(quote.fromToken.address),
             },
           );
+          const mintInfo = await provider.getParsedAccountInfo(
+            new PublicKey(quote.fromToken.address),
+          );
+
+          if (!mintInfo.value || !('parsed' in mintInfo.value.data)) {
+            return {
+              isValid: false,
+              message: `Invalid token address: ${quote.fromToken.address}`,
+            };
+          }
+
           if (tokenAccount.value.length === 0) {
             return {
               isValid: false,
@@ -310,25 +322,22 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
           const balance = BigInt(tokenAccount.value[0].account.data.parsed.info.tokenAmount.amount);
 
           if (balance < requiredAmount) {
-            const formattedBalance = (
-              Number(balance) / Math.pow(10, quote.fromToken.decimals)
-            ).toFixed(quote.fromToken.decimals);
-            const formattedRequired = (
-              Number(requiredAmount) / Math.pow(10, quote.fromToken.decimals)
-            ).toFixed(quote.fromToken.decimals);
+            const formattedBalance = ethers.formatUnits(balance, quote.fromToken.decimals);
+            const formattedRequired = ethers.formatUnits(requiredAmount, quote.fromToken.decimals);
+
             return {
               isValid: false,
-              message: `Insufficient ${tokenToCheck.symbol} balance. Required: ${formattedRequired} ${tokenToCheck.symbol}, Available: ${formattedBalance} ${tokenToCheck.symbol}`,
+              message: `Insufficient ${tokenToCheck.symbol ? tokenToCheck.symbol : ''} balance. Required: ${formattedRequired} ${tokenToCheck.symbol ? tokenToCheck.symbol : ''}, Available: ${formattedBalance} ${tokenToCheck.symbol ? tokenToCheck.symbol : ''}`,
             };
           }
 
           // Check if user has enough SOL for gas
           const nativeBalance = await provider.getBalance(new PublicKey(walletAddress));
           if (BigInt(nativeBalance) < gasBuffer) {
-            const formattedBalance = (Number(nativeBalance) / Math.pow(10, 9)).toFixed(9);
+            const formattedBalance = ethers.formatUnits(nativeBalance, 9);
             return {
               isValid: false,
-              message: `Insufficient SOL for gas fees. Required: ~${(Number(gasBuffer) / Math.pow(10, 9)).toFixed(9)}, Available: ${formattedBalance}`,
+              message: `Insufficient SOL for gas fees. Required: ~${ethers.formatUnits(gasBuffer, 9)}, Available: ${formattedBalance}`,
             };
           }
         }

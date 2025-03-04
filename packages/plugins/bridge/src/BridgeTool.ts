@@ -41,7 +41,10 @@ export class BridgeTool extends BaseTool {
     const networks = Array.from(this.supportedNetworks).join(', ');
 
     let description = `Bridge or swap crosschain tokens using various DEX providers (${providers}).Supports networks: ${networks}.
-     You can specify either input amount (how much to spend) or to output amount (how much to receive).`;
+     You can specify either input amount (how much to spend) or to output amount (how much to receive).
+     Token address need found in the token list between two networks.
+     Don't retry if there is insufficient balance.
+     If user input buy token with symbol and empty network, need check exactly the token symbol input user with token symbol found`;
 
     // Add provider-specific prompts if they exist
     const providerPrompts = this.registry
@@ -89,9 +92,13 @@ export class BridgeTool extends BaseTool {
       toNetwork: z
         .enum(supportedNetworks as [string, ...string[]])
         .default(this.defaultNetwork)
-        .describe('The blockchain network to execute the bridge to. Example: Solana similar SOL'),
-      fromToken: z.string().describe('The token address to bridge from'),
-      toToken: z.string().describe('The token address to bridge to'),
+        .describe(
+          'The blockchain network to execute the bridge to or on symbor native token. Example: Solana similar SOL or on BNB',
+        ),
+      fromToken: z.string().describe('The token address to bridge from. Example: from USDC'),
+      toToken: z
+        .string()
+        .describe(`The token address to bridge to or buy token with symbol. Example: buy BINK`),
       amount: z.string().describe('The amount of tokens to bridge'),
       amountType: z
         .enum(['input', 'output'])
@@ -190,6 +197,14 @@ export class BridgeTool extends BaseTool {
             throw new Error(`Invalid toToken address for network ${toNetwork}: ${toToken}`);
           }
 
+          if (fromNetwork === toNetwork) {
+            throw new Error('From and to networks cannot be the same');
+          }
+
+          if (fromToken === toToken) {
+            throw new Error('From and to tokens cannot be the same');
+          }
+
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();
           const fromWalletAddress = await wallet.getAddress(fromNetwork);
@@ -275,7 +290,7 @@ export class BridgeTool extends BaseTool {
           // Check user's balance before proceeding
           const balanceCheck = await selectedProvider.checkBalance(quote, fromWalletAddress);
           if (!balanceCheck.isValid) {
-            throw new Error(balanceCheck.message || 'Insufficient balance for swap');
+            throw new Error(balanceCheck.message || 'Insufficient balance for bridge');
           }
 
           onProgress?.({
