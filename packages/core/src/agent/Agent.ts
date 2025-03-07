@@ -77,6 +77,20 @@ export class Agent extends BaseAgent {
     this.initializeExecutor();
   }
 
+  // initialize all plugins at once with all tools in the plugins
+  async registerListPlugins(plugins: IPlugin[]): Promise<void> {
+    for (const plugin of plugins) {
+      const pluginName = plugin.getName();
+      this.plugins.set(pluginName, plugin);
+      const tools = plugin.getTools();
+      for (const tool of tools) {
+        await this.registerTool(tool);
+      }
+    }
+    console.log('✓ Plugins registered\n');
+    this.initializeExecutor();
+  }
+
   getPlugin(name: string): IPlugin | undefined {
     return this.plugins.get(name);
   }
@@ -171,6 +185,7 @@ export class Agent extends BaseAgent {
       await this.initializeContext();
     }
     let _history: MessageEntity[] = [];
+
     if (this.db) {
       if (typeof commandOrParams === 'string') {
         if (this.context?.user?.id) {
@@ -181,7 +196,12 @@ export class Agent extends BaseAgent {
           _history = await this.db?.getMessagesByThreadId(commandOrParams?.threadId);
         }
       }
+      // } else {
+      //   if (typeof commandOrParams !== 'string' && commandOrParams?.history) {
+      //     _history = commandOrParams.history;
+      //   }
     }
+
     const history = _history.map((message: MessageEntity) =>
       message?.message_type === 'human'
         ? new HumanMessage(message?.content)

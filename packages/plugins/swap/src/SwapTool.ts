@@ -42,7 +42,11 @@ export class SwapTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    let description = `Swap tokens using various DEX providers (${providers}). Supports networks: ${networks}. You can specify either input amount (how much to spend) or output amount (how much to receive).`;
+    let description = `The SwapTool enables users to exchange one cryptocurrency token for another using various Decentralized Exchange (DEX) 
+    providers across supported blockchain networks. This tool facilitates token swaps, 
+    allowing users to specify either the input amount (the amount they wish to spend) 
+    or the output amount (the amount they wish to receive). Supported networks include ${networks}. 
+    Providers include ${providers}.`;
 
     // Add provider-specific prompts if they exist
     const providerPrompts = this.registry
@@ -83,16 +87,25 @@ export class SwapTool extends BaseTool {
     }
 
     return z.object({
-      fromToken: z.string().describe('The token address swap from'),
-      toToken: z.string().describe('The token address swap to'),
+      fromToken: z.string().describe(
+        `The token contract address you wish to swap from. This should be a string. 
+        For instance, the DAI token contract address on Ethereum is '0x6B175474E89094C44Da98b954EedeAC495271d0F'. 
+        Note: Avoid mistaken for token names or symbols, as they can be ambiguous.`,
+      ),
+      toToken: z.string().describe(
+        `The token contract address you wish to swap to. This should be a string. 
+          For instance, the DAI token contract address on Ethereum is '0x6B175474E89094C44Da98b954EedeAC495271d0F'. 
+          Note: Avoid mistaken for token names or symbols, as they can be ambiguous.`,
+      ),
       amount: z.string().describe('The amount of tokens to swap'),
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
-      network: z
-        .enum(supportedNetworks as [string, ...string[]])
-        .default(this.defaultNetwork)
-        .describe('The blockchain network to execute the swap on'),
+      network: z.enum(supportedNetworks as [string, ...string[]]).default(this.defaultNetwork)
+        .describe(`Blockchain Network for Token Swap Execution: 
+          Specify the blockchain network on which to execute the token swap. 
+          If not specified, the default network is ${this.defaultNetwork}. 
+          Ensure that the token contract addresses correspond to the selected network. `),
       provider: z
         .enum(providers as [string, ...string[]])
         .optional()
@@ -175,7 +188,7 @@ export class SwapTool extends BaseTool {
             toToken,
             amount,
             amountType,
-            network = this.defaultNetwork,
+            network,
             provider: preferredProvider,
             slippage = this.defaultSlippage,
           } = args;
