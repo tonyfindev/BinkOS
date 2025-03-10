@@ -218,7 +218,7 @@ export class JupiterProvider extends BaseSwapProvider {
           to: userAddress,
           spender: userAddress,
           data: getSwapBuyAggregator?.swapTransaction || '',
-          value: ethers.parseUnits(params.amount, sourceToken.decimals).toString(),
+          value: ethers.parseUnits(adjustedAmount, sourceToken.decimals).toString(),
           network: params.network,
         },
       };
