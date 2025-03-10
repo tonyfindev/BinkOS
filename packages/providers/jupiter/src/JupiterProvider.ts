@@ -126,7 +126,7 @@ export class JupiterProvider extends BaseSwapProvider {
   async getQuoteJupiter(
     params: JupiterQuoteParams,
     userAddress: string,
-  ): Promise<JupiterResponse<JupiterQuoteResponse>> {
+  ): Promise<JupiterQuoteResponse> {
     try {
       const queryParams = {
         inputMint: params.inputMint.toString(),
@@ -160,7 +160,7 @@ export class JupiterProvider extends BaseSwapProvider {
 
       return response.data;
     } catch (error) {
-      return this.handleError(error);
+      throw new Error('Failed to get quote');
     }
   }
 
@@ -206,8 +206,8 @@ export class JupiterProvider extends BaseSwapProvider {
         quoteId: quoteId,
         fromToken: sourceToken,
         toToken: destinationToken,
-        fromAmount: params.amount,
-        toAmount: params.amount,
+        fromAmount: adjustedAmount,
+        toAmount: swapData.outAmount,
         priceImpact: 0,
         route: [],
         estimatedGas: '',
