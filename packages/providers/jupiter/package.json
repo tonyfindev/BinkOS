@@ -1,6 +1,6 @@
 {
   "name": "@binkai/jupiter-provider",
-  "version": "0.1.5-alpha.0",
+  "version": "0.1.6-alpha.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
@@ -20,11 +20,11 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@binkai/swap-plugin": "workspace:*",
     "@binkai/core": "workspace:*",
+    "@binkai/swap-plugin": "workspace:*",
+    "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.98.0",
     "axios": "^1.7.9",
-    "@solana/spl-token": "^0.4.0",
     "ethers": "^6.0.0"
   },
   "devDependencies": {
