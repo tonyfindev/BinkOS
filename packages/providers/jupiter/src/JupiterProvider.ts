@@ -103,7 +103,6 @@ export class JupiterProvider extends BaseSwapProvider {
       });
       return response?.data;
     } catch (error) {
-      console.log('🚀 ~ JupiterProvider ~ getSwapBuyAggregator ~ error:', error);
       throw new Error('Failed to get swap buy aggregator');
     }
   }
@@ -129,7 +128,6 @@ export class JupiterProvider extends BaseSwapProvider {
 
       return response.data;
     } catch (error) {
-      console.log('🚀 ~ JupiterProvider ~ getSwapTransactions ~ error:', error);
       return this.handleError(error);
     }
   }

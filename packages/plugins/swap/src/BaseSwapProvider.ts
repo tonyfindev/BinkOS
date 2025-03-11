@@ -23,7 +23,12 @@ import {
   isNetworkSupported,
   validateNetwork as validateNetworkUtil,
 } from './utils/networkUtils';
-import { createTokenBalanceCache, createTokenCache, getTokenInfo } from './utils/tokenOperations';
+import {
+  createTokenBalanceCache,
+  createTokenCache,
+  getTokenInfo,
+  getTokenInfoSolana,
+} from './utils/tokenOperations';
 
 export abstract class BaseSwapProvider implements ISwapProvider {
   protected providers: Map<NetworkName, NetworkProvider> = new Map();
@@ -55,12 +60,12 @@ export abstract class BaseSwapProvider implements ISwapProvider {
         throw new Error(`Network ${network} is not supported by ${this.getName()}`);
       }
       // Validate provider type based on network
-      // if (isSolanaNetwork(network) && !isSolanaProvider(provider)) {
-      //   throw new Error(`Invalid provider type for Solana network ${network}`);
-      // }
-      // if (!isSolanaNetwork(network) && !isProviderInstance(provider)) {
-      //   throw new Error(`Invalid provider type for EVM network ${network}`);
-      // }
+      if (isSolanaNetwork(network) && !isSolanaProvider(provider)) {
+        throw new Error(`Invalid provider type for Solana network ${network}`);
+      }
+      if (!isSolanaNetwork(network) && !isProviderInstance(provider)) {
+        throw new Error(`Invalid provider type for EVM network ${network}`);
+      }
     }
     this.providers = providerConfig;
 
@@ -170,74 +175,6 @@ export abstract class BaseSwapProvider implements ISwapProvider {
    * @param network The network to use
    * @returns The adjusted amount after accounting for gas buffer
    */
-  // protected async adjustNativeTokenAmount(
-  //   amount: string,
-  //   decimals: number,
-  //   walletAddress: string,
-  //   network: NetworkName,
-  // ): Promise<string> {
-  //   this.validateNetwork(network);
-  //   if (isSolanaNetwork(network)) {
-  //     // TODO: Implement Solana
-  //     console.log('🤖 swap isSolanaNetwork');
-  //   }
-
-  //   console.log('network', network);
-
-  //   const amountBN = parseTokenAmount(amount, decimals);
-  //   const gasBuffer = this.getGasBuffer(network);
-
-  //   // Get balance using the cache
-  //   const { balance } = await this.getTokenBalance(
-  //     network === NetworkName.SOLANA ? SOL_NATIVE_TOKEN_ADDRESS : EVM_NATIVE_TOKEN_ADDRESS,
-  //     walletAddress,
-  //     network,
-  //   );
-
-  //   // Check if user has enough balance for both amount and gas
-  //   if (balance < amountBN + gasBuffer) {
-  //     throw new Error(
-  //       `Insufficient balance. You need at least ${ethers.formatEther(amountBN + gasBuffer)} native token to cover amount + gas`,
-  //     );
-  //   }
-
-  //   // Calculate maximum amount user can spend (balance - gas buffer)
-  //   const maxSpendableBN = balance > gasBuffer ? balance - gasBuffer : BigInt(0);
-  //   const maxSpendable = ethers.formatUnits(maxSpendableBN, decimals);
-
-  //   // Use adjustTokenAmount utility to handle precision issues
-  //   const adjustedAmount = adjustTokenAmount(
-  //     amount,
-  //     maxSpendable,
-  //     decimals,
-  //     this.TOLERANCE_PERCENTAGE,
-  //   );
-
-  //   // If the amount was adjusted, log it
-  //   if (adjustedAmount !== amount) {
-  //     console.log(
-  //       '🤖 Adjusted native token amount:',
-  //       adjustedAmount,
-  //       '(adjusted for available balance)',
-  //     );
-  //   } else if (maxSpendableBN < amountBN) {
-  //     // If amount wasn't adjusted but user doesn't have enough balance, reduce to max spendable
-  //     console.log(
-  //       '🤖 Adjusted amount for gas buffer:',
-  //       maxSpendable,
-  //       `(insufficient balance for full amount + ${ethers.formatEther(gasBuffer)} gas)`,
-  //     );
-  //     return maxSpendable;
-  //   } else {
-  //     console.log(
-  //       '🤖 Using full amount:',
-  //       amount,
-  //       `(sufficient balance for amount + ${ethers.formatEther(gasBuffer)} gas)`,
-  //     );
-  //   }
-
-  //   return adjustedAmount;
-  // }
 
   protected async adjustNativeTokenAmount(
     amount: string,
@@ -291,6 +228,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
     this.validateNetwork(network);
     if (isSolanaNetwork(network)) {
       // TODO: Implement Solana
+      return await getTokenInfoSolana(tokenAddress, network);
     }
     const provider = this.getEvmProviderForNetwork(network);
     return await getTokenInfo(tokenAddress, network, provider);
