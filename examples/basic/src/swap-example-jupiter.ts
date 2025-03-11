@@ -128,7 +128,7 @@ async function main() {
   console.log('💱 Example 1: Buy USDC from SOL');
   const inputResult = await agent.execute({
     input: `
-      swap 0.1 USDC to SOL on Solana via jupiter
+      swap 1 USDC to SOL on Solana via jupiter
     `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');

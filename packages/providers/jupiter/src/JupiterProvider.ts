@@ -1,4 +1,10 @@
-import { BaseSwapProvider, NetworkProvider, SwapParams, SwapQuote } from '@binkai/swap-plugin';
+import {
+  BaseSwapProvider,
+  NetworkProvider,
+  parseTokenAmount,
+  SwapParams,
+  SwapQuote,
+} from '@binkai/swap-plugin';
 import { NetworkName, SOL_NATIVE_TOKEN_ADDRESS, Token } from '@binkai/core';
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
@@ -77,24 +83,29 @@ export class JupiterProvider extends BaseSwapProvider {
   }
 
   async getSwapBuyAggregator(params: any, userPublicKey: string): Promise<JupiterSwapResponse> {
-    const response = await this.api.post<JupiterSwapResponse>('/swap?swapType=aggregator', {
-      addConsensusAccount: true,
-      allowOptimizedWrappedSolTokenAccount: true,
-      asLegacyTransaction: true,
-      correctLastValidBlockHeight: true,
-      dynamicComputeUnitLimit: true,
-      prioritizationFeeLamports: {
-        priorityLevelWithMaxLamports: {
-          global: false,
-          maxLamports: 1000000,
-          priorityLevel: 'veryHigh',
+    try {
+      const response = await this.api.post<JupiterSwapResponse>('/swap?swapType=aggregator', {
+        addConsensusAccount: true,
+        allowOptimizedWrappedSolTokenAccount: true,
+        asLegacyTransaction: true,
+        correctLastValidBlockHeight: true,
+        dynamicComputeUnitLimit: true,
+        prioritizationFeeLamports: {
+          priorityLevelWithMaxLamports: {
+            global: false,
+            maxLamports: 1000000,
+            priorityLevel: 'veryHigh',
+          },
         },
-      },
-      quoteResponse: params,
-      userPublicKey: userPublicKey,
-      wrapAndUnwrapSol: true,
-    });
-    return response?.data;
+        quoteResponse: params,
+        userPublicKey: userPublicKey,
+        wrapAndUnwrapSol: true,
+      });
+      return response?.data;
+    } catch (error) {
+      console.log('🚀 ~ JupiterProvider ~ getSwapBuyAggregator ~ error:', error);
+      throw new Error('Failed to get swap buy aggregator');
+    }
   }
 
   async getSwapTransactions(params: any): Promise<JupiterResponse<JupiterSwapResponse>> {
@@ -171,9 +182,6 @@ export class JupiterProvider extends BaseSwapProvider {
         this.getToken(params.toToken, params.network),
       ]);
 
-      console.log('🤖 sourceToken', sourceToken);
-      console.log('🤖 destinationToken', destinationToken);
-
       let adjustedAmount = params.amount;
       if (params.type === 'input') {
         adjustedAmount = await this.adjustAmount(
@@ -193,7 +201,7 @@ export class JupiterProvider extends BaseSwapProvider {
         {
           inputMint: new PublicKey(sourceToken.address),
           outputMint: new PublicKey(destinationToken.address),
-          amount: Number(ethers.parseUnits(params.amount, sourceToken.decimals)),
+          amount: Number(parseTokenAmount(adjustedAmount, sourceToken.decimals)),
         },
         userAddress,
       );
@@ -218,7 +226,7 @@ export class JupiterProvider extends BaseSwapProvider {
           to: userAddress,
           spender: userAddress,
           data: getSwapBuyAggregator?.swapTransaction || '',
-          value: ethers.parseUnits(adjustedAmount, sourceToken.decimals).toString(),
+          value: parseTokenAmount(adjustedAmount, sourceToken.decimals).toString(),
           network: params.network,
         },
       };
