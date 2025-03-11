@@ -73,6 +73,7 @@ async function main() {
   console.log('✓ Wallet created\n');
 
   console.log('🤖 Wallet SOL:', await wallet.getAddress(NetworkName.SOLANA));
+
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
