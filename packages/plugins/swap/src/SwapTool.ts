@@ -102,11 +102,13 @@ export class SwapTool extends BaseTool {
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
-      network: z.enum(supportedNetworks as [string, ...string[]]).default(this.defaultNetwork)
-        .describe(`Blockchain Network for Token Swap Execution: 
-          Specify the blockchain network on which to execute the token swap. 
-          If not specified, the default network is ${this.defaultNetwork}. 
-          Ensure that the token contract addresses correspond to the selected network. `),
+      network: z.enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon', 'null']) 
+        .describe(`Determine blockchain network from user input. 
+        Priority rules:
+          1. Use explicitly mentioned network
+          2. Infer from native tokens (ETH→Ethereum, SOL→Solana)
+          3. For cross-chain mentions, determine main network
+          4. Return null if no network detected`),
       provider: z
         .enum(providers as [string, ...string[]])
         .optional()
