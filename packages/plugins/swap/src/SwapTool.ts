@@ -5,6 +5,7 @@ import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
 import { parseTokenAmount } from './utils/tokenUtils';
+import { isSolanaNetwork } from './utils/networkUtils';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -15,14 +16,14 @@ export interface SwapToolConfig extends IToolConfig {
 export class SwapTool extends BaseTool {
   public registry: ProviderRegistry;
   private defaultSlippage: number;
-  private defaultNetwork: string;
+  // private defaultNetwork: string;
   private supportedNetworks: Set<string>;
 
   constructor(config: SwapToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
     this.defaultSlippage = config.defaultSlippage || 0.5;
-    this.defaultNetwork = config.defaultNetwork || 'bnb';
+    // this.defaultNetwork = config.defaultNetwork || 'bnb';
     this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
   }
 
@@ -101,11 +102,21 @@ export class SwapTool extends BaseTool {
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
-      network: z.enum(supportedNetworks as [string, ...string[]]).default(this.defaultNetwork)
-        .describe(`Blockchain Network for Token Swap Execution: 
-          Specify the blockchain network on which to execute the token swap. 
-          If not specified, the default network is ${this.defaultNetwork}. 
-          Ensure that the token contract addresses correspond to the selected network. `),
+      network: z.enum([
+        'bnb',
+        'solana',
+        'ethereum',
+        'arbitrum',
+        'base',
+        'optimism',
+        'polygon',
+        'null',
+      ]).describe(`Determine blockchain network from user input. 
+        Priority rules:
+          1. Use explicitly mentioned network
+          2. Infer from native tokens (ETH→Ethereum, SOL→Solana)
+          3. For cross-chain mentions, determine main network
+          4. Return null if no network detected`),
       provider: z
         .enum(providers as [string, ...string[]])
         .optional()
@@ -293,57 +304,63 @@ export class SwapTool extends BaseTool {
             progress: 40,
             message: `Checking allowance... Verifying if approval is needed for ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}.`,
           });
-          // Check if approval is needed and handle it
-          const allowance = await selectedProvider.checkAllowance(
-            network,
-            quote.fromToken.address,
-            userAddress,
-            swapTx.spender,
-          );
 
-          const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
-
-          console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
-
-          if (allowance < requiredAmount) {
-            const approveTx = await selectedProvider.buildApproveTransaction(
+          if (!isSolanaNetwork(network)) {
+            // Check if approval is needed and handle it
+            const allowance = await selectedProvider.checkAllowance(
               network,
               quote.fromToken.address,
-              swapTx.spender,
-              quote.fromAmount,
               userAddress,
+              swapTx.spender,
             );
-            console.log('🤖 Approving...');
-            // Sign and send approval transaction
-            onProgress?.({
-              progress: 60,
-              message: `Approving ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}`,
-            });
-            const approveReceipt = await wallet.signAndSendTransaction(network, {
-              to: approveTx.to,
-              data: approveTx.data,
-              value: BigInt(approveTx.value),
-            });
 
-            console.log('🤖 ApproveReceipt:', approveReceipt);
+            const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
 
-            // Wait for approval to be mined
-            await approveReceipt.wait();
+            console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
+
+            if (allowance < requiredAmount) {
+              const approveTx = await selectedProvider.buildApproveTransaction(
+                network,
+                quote.fromToken.address,
+                swapTx.spender,
+                quote.fromAmount,
+                userAddress,
+              );
+              console.log('🤖 Approving...');
+              // Sign and send approval transaction
+              onProgress?.({
+                progress: 60,
+                message: `Approving ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}`,
+              });
+              const approveReceipt = await wallet.signAndSendTransaction(network, {
+                to: approveTx.to,
+                data: approveTx.data,
+                value: BigInt(approveTx.value),
+              });
+
+              console.log('🤖 ApproveReceipt:', approveReceipt);
+
+              // Wait for approval to be mined
+              await approveReceipt.wait();
+            }
           }
+
           console.log('🤖 Swapping...');
 
           onProgress?.({
             progress: 80,
             message: `Swapping ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} with ${slippage}% max slippage.`,
           });
+          console.log('🤖 swapTx', swapTx);
           // Sign and send swap transaction
           const receipt = await wallet.signAndSendTransaction(network, {
             to: swapTx.to,
             data: swapTx.data,
             value: BigInt(swapTx.value),
           });
+
           // Wait for transaction to be mined
-          const finalReceipt = await receipt.wait();
+          const finalReceipt = await receipt?.wait();
 
           try {
             // Clear token balance caches after successful swap
