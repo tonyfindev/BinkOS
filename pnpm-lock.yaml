@@ -302,6 +302,9 @@ importers:
       '@binkai/core':
         specifier: workspace:*
         version: link:../../core
+      '@binkai/token-plugin':
+        specifier: workspace:*
+        version: link:../token
       '@langchain/core':
         specifier: ^0.3.32
         version: 0.3.32(openai@4.79.3(encoding@0.1.13)(ws@8.18.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.1))
@@ -9356,7 +9359,7 @@ snapshots:
       isstream: 0.1.2
       jsonwebtoken: 9.0.2
       mime-types: 2.1.35
-      retry-axios: 2.6.0(axios@1.7.9(debug@4.4.0))
+      retry-axios: 2.6.0(axios@1.7.9)
       tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
@@ -11245,7 +11248,7 @@ snapshots:
       onetime: 7.0.0
       signal-exit: 4.1.0
 
-  retry-axios@2.6.0(axios@1.7.9(debug@4.4.0)):
+  retry-axios@2.6.0(axios@1.7.9):
     dependencies:
       axios: 1.7.9(debug@4.4.0)
 

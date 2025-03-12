@@ -8,6 +8,7 @@
   "references": [
     { "path": "../../packages/core" },
     { "path": "../../packages/plugins/swap" },
+    { "path": "../../packages/plugins/token" },
     { "path": "../../packages/adapters/postgres" },
     { "path": "../../packages/plugins/knowledge" },
     { "path": "../../packages/plugins/bridge" },
