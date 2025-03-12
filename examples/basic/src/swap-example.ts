@@ -170,9 +170,7 @@ async function main() {
   console.log('💱 Example 1: Buy with exact input amount all providers');
   const result1 = await agent.execute({
     input: `
-      swap 0.001 WHALES MARKET to TRUMP
-      Whales Market address: GTH3wG3NErjwcf7VGCoXEXkgXSHvYhx5gtATeeM5JAS1 
-      trump address: 6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN    `,
+        swap 0.01 SOL to TRUMP `,
   });
   console.log('✓ Swap result:', result1, '\n');
 
