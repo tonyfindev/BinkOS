@@ -16,14 +16,14 @@ export interface SwapToolConfig extends IToolConfig {
 export class SwapTool extends BaseTool {
   public registry: ProviderRegistry;
   private defaultSlippage: number;
-  private defaultNetwork: string;
+  // private defaultNetwork: string;
   private supportedNetworks: Set<string>;
 
   constructor(config: SwapToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
     this.defaultSlippage = config.defaultSlippage || 0.5;
-    this.defaultNetwork = config.defaultNetwork || 'bnb';
+    // this.defaultNetwork = config.defaultNetwork || 'bnb';
     this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
   }
 
@@ -102,8 +102,16 @@ export class SwapTool extends BaseTool {
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
-      network: z.enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon', 'null']) 
-        .describe(`Determine blockchain network from user input. 
+      network: z.enum([
+        'bnb',
+        'solana',
+        'ethereum',
+        'arbitrum',
+        'base',
+        'optimism',
+        'polygon',
+        'null',
+      ]).describe(`Determine blockchain network from user input. 
         Priority rules:
           1. Use explicitly mentioned network
           2. Infer from native tokens (ETH→Ethereum, SOL→Solana)

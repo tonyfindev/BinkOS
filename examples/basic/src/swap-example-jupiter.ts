@@ -73,6 +73,7 @@ async function main() {
   console.log('✓ Wallet created\n');
 
   console.log('🤖 Wallet SOL:', await wallet.getAddress(NetworkName.SOLANA));
+
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
@@ -128,7 +129,7 @@ async function main() {
   console.log('💱 Example 1: Buy USDC from SOL');
   const inputResult = await agent.execute({
     input: `
-      swap 1 USDC to SOL on Solana via jupiter
+      swap 0.01 Whales Market address: GTH3wG3NErjwcf7VGCoXEXkgXSHvYhx5gtATeeM5JAS1 to Trump address: 6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN on Solana via jupiter
     `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');

@@ -5,7 +5,12 @@ import {
   SwapParams,
   SwapQuote,
 } from '@binkai/swap-plugin';
-import { NetworkName, SOL_NATIVE_TOKEN_ADDRESS, Token } from '@binkai/core';
+import {
+  NetworkName,
+  SOL_NATIVE_TOKEN_ADDRESS,
+  SOL_NATIVE_TOKEN_ADDRESS2,
+  Token,
+} from '@binkai/core';
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { Connection, PublicKey, VersionedTransaction } from '@solana/web3.js';
@@ -82,12 +87,22 @@ export class JupiterProvider extends BaseSwapProvider {
     };
   }
 
+  checkHaveNativeToken(params: any): boolean {
+    if (
+      params?.inputMint === SOL_NATIVE_TOKEN_ADDRESS2 ||
+      params?.outputMint === SOL_NATIVE_TOKEN_ADDRESS2
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   async getSwapBuyAggregator(params: any, userPublicKey: string): Promise<JupiterSwapResponse> {
     try {
       const response = await this.api.post<JupiterSwapResponse>('/swap?swapType=aggregator', {
         addConsensusAccount: true,
         allowOptimizedWrappedSolTokenAccount: true,
-        asLegacyTransaction: true,
+        asLegacyTransaction: this.checkHaveNativeToken(params),
         correctLastValidBlockHeight: true,
         dynamicComputeUnitLimit: true,
         prioritizationFeeLamports: {
