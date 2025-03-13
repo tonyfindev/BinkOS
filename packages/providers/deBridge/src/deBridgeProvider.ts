@@ -234,7 +234,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
         value: params.fromNetwork === 'solana' ? srcChainTokenInAmount : data.tx.value,
         gasLimit: BigInt(700000), // solana not needed gas limit
         network: params.fromNetwork,
-        amountOut: data?.estimation?.costsDetails[0]?.amountOut,
+        amountOut: data?.estimation?.dstChainTokenOut?.amount,
       };
     } catch (e) {
       console.error('Error building bridge data:', e);

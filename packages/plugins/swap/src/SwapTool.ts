@@ -6,8 +6,8 @@ import { ISwapProvider, SwapQuote, SwapParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
 import { parseTokenAmount } from './utils/tokenUtils';
 import { isSolanaNetwork } from './utils/networkUtils';
-import type { TokenInfo } from '../../token/src/types';
-import { defaultTokens } from '../../token/src/data/defaultTokens';
+import type { TokenInfo } from '@binkai/token-plugin';
+import { defaultTokens } from '@binkai/token-plugin';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -48,8 +48,8 @@ export class SwapTool extends BaseTool {
     let description = `The SwapTool enables users to exchange one cryptocurrency token for another using various Decentralized Exchange (DEX) 
     providers across supported blockchain networks. This tool facilitates token swaps, 
     allowing users to specify either the input amount (the amount they wish to spend) 
-    or the output amount (the amount they wish to receive). Supported networks include ${networks}. 
-    Do not reasoning about Token information. If user want to do action with token A, you would take actions on token A.
+    or the output amount (the amount they wish to receive). Supported networks include ${networks}.
+    Do not reasoning about Token information. If user want to do action with token A, you would take actions on token A. 
     Providers include ${providers}.`;
 
     // Add provider-specific prompts if they exist
@@ -91,12 +91,8 @@ export class SwapTool extends BaseTool {
     }
 
     return z.object({
-      fromToken: z.string().describe(
-        `The adress of source token on network. (spend)`,
-      ),
-      toToken: z.string().describe(
-        `The adress of destination token on network. (receive)`,
-      ),
+      fromToken: z.string().describe(`The adress of source token on network. (spend)`),
+      toToken: z.string().describe(`The adress of destination token on network. (receive)`),
       amount: z.string().describe('The amount of tokens to swap'),
       amountType: z
         .enum(['input', 'output'])
@@ -387,15 +383,17 @@ export class SwapTool extends BaseTool {
             network,
           });
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message: String(error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
           // Check if current error is a token validation error
           const isFromTokenAddressError = errorMessage.includes('Invalid fromToken address');
           const isToTokenAddressError = errorMessage.includes('Invalid toToken address');
 
           console.log('🤖 Fixing token addresses...');
           // Add type assertion for args.network to match the NetworkName type
-          const tokenInfos = defaultTokens[args.network as keyof typeof defaultTokens] as Record<string, TokenInfo> | undefined;
-          
+          const tokenInfos = defaultTokens[args.network as keyof typeof defaultTokens] as
+            | Record<string, TokenInfo>
+            | undefined;
+
           // Add null check for tokenInfos
           if (!tokenInfos) {
             console.log(`❌ No token information found for network ${args.network}`);
@@ -403,17 +401,19 @@ export class SwapTool extends BaseTool {
               status: 'error',
               message: `No token information found for network ${args.network}`,
             });
-          } 
+          }
 
           if (!args._attempt) {
-
             let updatedArgs = { ...args, _attempt: false };
             let foundCorrectAddress = false;
 
             // Attempt to fix token addresses and retry if this is the first attempt
             if (isFromTokenAddressError) {
-              for (const [address, tokenInfo] of Object.entries(tokenInfos) as [string, TokenInfo][]) {
-                if (tokenInfo.symbol === args.fromToken)  {
+              for (const [address, tokenInfo] of Object.entries(tokenInfos) as [
+                string,
+                TokenInfo,
+              ][]) {
+                if (tokenInfo.symbol === args.fromToken) {
                   console.log(`🔍 Found correct address for ${args.fromToken}: ${address}`);
                   updatedArgs.fromToken = address;
                   foundCorrectAddress = true;
@@ -424,7 +424,10 @@ export class SwapTool extends BaseTool {
             }
 
             if (isToTokenAddressError) {
-              for (const [address, tokenInfo] of Object.entries(tokenInfos) as [string, TokenInfo][]) {
+              for (const [address, tokenInfo] of Object.entries(tokenInfos) as [
+                string,
+                TokenInfo,
+              ][]) {
                 if (tokenInfo.symbol === args.toToken) {
                   console.log(`🔍 Found correct address for ${args.toToken}: ${address}`);
                   updatedArgs.toToken = address;
@@ -438,7 +441,7 @@ export class SwapTool extends BaseTool {
             // Retry the operation with corrected addresses if found
             if (foundCorrectAddress) {
               console.log('🔄 Retrying with corrected token address...');
-              return await (async() => {
+              return await (async () => {
                 try {
                   const result = await this.createTool().func(updatedArgs);
                   return result;
@@ -450,16 +453,16 @@ export class SwapTool extends BaseTool {
                   });
                 }
               })();
-            } 
+            }
           }
-        
-        console.error('Swap error:', error);
-        return JSON.stringify({
-          status: 'error',
-          message: error,
-        });
-      }
-    },
-  };
-}
+
+          console.error('Swap error:', error);
+          return JSON.stringify({
+            status: 'error',
+            message: error,
+          });
+        }
+      },
+    };
+  }
 }

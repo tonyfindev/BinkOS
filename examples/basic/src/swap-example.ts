@@ -170,7 +170,7 @@ async function main() {
   console.log('💱 Example 1: Buy with exact input amount all providers');
   const result1 = await agent.execute({
     input: `
-      swap 0.01 SOL to USDC`,
+        swap 0.01 SOL to TRUMP `,
   });
   console.log('✓ Swap result:', result1, '\n');
 
