@@ -9,17 +9,16 @@ import {
   NetworkName,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
-import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
 import { OkxProvider } from '@binkai/okx-provider';
-import { FourMemeProvider } from '@binkai/four-meme-provider';
-import { ChainId } from '@pancakeswap/sdk';
-import { PostgresDatabaseAdapter } from '@binkai/postgres-adapter';
 import { ThenaProvider } from '@binkai/thena-provider';
-import { OkuProvider } from '@binkai/oku-provider';
 import { JupiterProvider } from '@binkai/jupiter-provider';
 import { Connection } from '@solana/web3.js';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { BridgePlugin } from '@binkai/bridge-plugin';
+import { deBridgeProvider } from '@binkai/debridge-provider';
+import { WalletPlugin } from '@binkai/wallet-plugin';
+import { BnbProvider } from '@binkai/rpc-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -85,6 +84,8 @@ async function main() {
     apiKey: settings.get('BIRDEYE_API_KEY'),
   });
 
+  const walletPlugin = new WalletPlugin();
+
   const tokenPlugin = new TokenPlugin();
   await tokenPlugin.initialize({
     // defaultChain: 'solana',
@@ -104,6 +105,14 @@ async function main() {
   const sol_provider = new Connection(SOL_RPC);
   const eth_provider = new ethers.JsonRpcProvider(ETH_RPC);
 
+  const bnbProvider = new BnbProvider({
+    rpcUrl: BNB_RPC,
+  });
+  await walletPlugin.initialize({
+    // defaultChain: 'bnb',
+    providers: [bnbProvider, birdeye],
+    supportedChains: ['bnb', 'solana'],
+  });
   console.log('✓ Provider initialized\n');
 
   // Initialize a new wallet
@@ -128,21 +137,13 @@ async function main() {
     {
       model: 'gpt-4o',
       temperature: 0,
+      systemPrompt:
+        'You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.',
     },
     wallet,
     networks,
   );
   console.log('✓ Agent initialized\n');
-
-  // Initialize database
-  // console.log('🗄️ Initializing database...');
-  // let db: PostgresDatabaseAdapter | undefined;
-  // if (settings.get('POSTGRES_URL')) {
-  //   db = new PostgresDatabaseAdapter({
-  //     connectionString: settings.get('POSTGRES_URL'),
-  //   });
-  //   await agent.registerDatabase(db);
-  // }
 
   // Create and configure the swap plugin
   console.log('🔄 Initializing swap plugin...');
@@ -152,27 +153,42 @@ async function main() {
   const okx = new OkxProvider(bnb_provider, 56);
   const jupiter = new JupiterProvider(sol_provider);
   const thena = new ThenaProvider(eth_provider, 1);
+
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
-    defaultChain: 'bnb',
+    // defaultChain: 'bnb',
     providers: [okx, thena, jupiter],
     supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
   });
+
   console.log('✓ Swap plugin initialized\n');
 
+  const bridgePlugin = new BridgePlugin();
+
+  const debridge = new deBridgeProvider(bnb_provider, 56, 7565164);
+
+  // Configure the plugin with supported chains
+  await bridgePlugin.initialize({
+    // defaultChain: 'bnb',
+    providers: [debridge],
+    supportedChains: ['bnb', 'solana'], // These will be intersected with agent's networks
+  });
+
   // Register the plugin with the agent
-  console.log('🔌 Registering swap plugin with agent...');
-  await agent.registerPlugin(swapPlugin);
+  console.log('🔌 Registering plugins with agent...');
+  //   await agent.registerPlugin(swapPlugin);
+  await agent.registerPlugin(walletPlugin);
+  await agent.registerListPlugins([swapPlugin, tokenPlugin, bridgePlugin]);
   console.log('✓ Plugin registered\n');
 
   // Example 1: Buy with exact input amount on BNB Chain
   console.log('💱 Example 1: Buy with exact input amount all providers');
   const result1 = await agent.execute({
     input: `
-        swap 0.01 SOL to TRUMP `,
+        swap 15% BNB to USDC`,
   });
-  console.log('✓ Swap result:', result1, '\n');
+  console.log('✓ Result:', result1, '\n');
 
   // Example 2: Sell with exact output amount on BNB Chain
   // console.log('💱 Example 2: Sell with exact output amount on BNB Chain');
