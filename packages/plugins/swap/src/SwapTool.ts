@@ -6,8 +6,8 @@ import { ISwapProvider, SwapQuote, SwapParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
 import { parseTokenAmount } from './utils/tokenUtils';
 import { isSolanaNetwork } from './utils/networkUtils';
-import type { TokenInfo } from '@binkai/token-plugin';
-import { defaultTokens } from '@binkai/token-plugin';
+import type { TokenInfo } from '../../token/src/types';
+import { defaultTokens } from '../../token/src/data/defaultTokens';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -48,8 +48,8 @@ export class SwapTool extends BaseTool {
     let description = `The SwapTool enables users to exchange one cryptocurrency token for another using various Decentralized Exchange (DEX) 
     providers across supported blockchain networks. This tool facilitates token swaps, 
     allowing users to specify either the input amount (the amount they wish to spend) 
-    or the output amount (the amount they wish to receive). Supported networks include ${networks}.
-    Do not reasoning about Token information. If user want to do action with token A, you would take actions on token A. 
+    or the output amount (the amount they wish to receive). Supported networks include ${networks}. 
+    Do not reasoning about Token information. If user want to do action with token A, you would take actions on token A.
     Providers include ${providers}.`;
 
     // Add provider-specific prompts if they exist
@@ -199,6 +199,7 @@ export class SwapTool extends BaseTool {
             slippage = this.defaultSlippage,
           } = args;
 
+          console.log('🔄 Doing swap operation...');
           console.log('🤖 Swap Args:', args);
 
           // Validate token addresses
@@ -388,7 +389,7 @@ export class SwapTool extends BaseTool {
           const isFromTokenAddressError = errorMessage.includes('Invalid fromToken address');
           const isToTokenAddressError = errorMessage.includes('Invalid toToken address');
 
-          console.log('🤖 Fixing token addresses...');
+          console.log('🔍 Fixing token addresses in Swap...');
           // Add type assertion for args.network to match the NetworkName type
           const tokenInfos = defaultTokens[args.network as keyof typeof defaultTokens] as
             | Record<string, TokenInfo>

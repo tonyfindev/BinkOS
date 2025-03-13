@@ -8,11 +8,12 @@
   },
   "scripts": {
     "start": "ts-node src/example.ts",
+    "full": "ts-node src/full-example.ts",
     "swap": "ts-node src/swap-example.ts",
     "swap-okx": "ts-node src/swap-example-okx.ts",
     "swap-kyber": "ts-node src/swap-example-kyber.ts",
     "swap-oku": "ts-node src/swap-example-oku.ts",
-    "bridge": "ts-node src/bridge-example.ts",
+    "bridge": "ts-node src/bridge-example-debridge.ts",
     "swap-thena": "ts-node src/swap-example-thena.ts",
     "swap-four-meme": "ts-node src/swap-example-four-meme.ts",
     "staking-venus": "ts-node src/staking-example-venus.ts",

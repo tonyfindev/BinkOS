@@ -9,13 +9,8 @@ import {
   NetworkName,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
-import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
 import { OkxProvider } from '@binkai/okx-provider';
-import { FourMemeProvider } from '@binkai/four-meme-provider';
-import { ChainId } from '@pancakeswap/sdk';
-import { PostgresDatabaseAdapter } from '@binkai/postgres-adapter';
 import { ThenaProvider } from '@binkai/thena-provider';
-import { OkuProvider } from '@binkai/oku-provider';
 import { JupiterProvider } from '@binkai/jupiter-provider';
 import { Connection } from '@solana/web3.js';
 import { TokenPlugin } from '@binkai/token-plugin';
@@ -170,7 +165,7 @@ async function main() {
   console.log('💱 Example 1: Buy with exact input amount all providers');
   const result1 = await agent.execute({
     input: `
-        swap 0.01 SOL to TRUMP `,
+        swap 0.01 SOL to TRUMP`,
   });
   console.log('✓ Swap result:', result1, '\n');
 
