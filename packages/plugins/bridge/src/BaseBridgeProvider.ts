@@ -14,6 +14,7 @@ import {
   getTokenInfo,
   getTokenInfoSolana,
 } from './utils/tokenOperations';
+import { isSolanaNetwork } from './utils/networkUtils';
 
 export type NetworkProvider = Provider | Connection;
 
@@ -199,11 +200,11 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
     let amountBN;
     if (this.isSolanaNetwork(network)) {
       const provider = this.getSolanaProviderForNetwork(network);
-      amountBN = ethers.parseUnits(amount, decimals);
+      amountBN = parseTokenAmount(amount, decimals);
       balance = await provider.getBalance(new PublicKey(walletAddress));
     } else {
       const provider = this.getEvmProviderForNetwork(network);
-      amountBN = ethers.parseUnits(amount, decimals);
+      amountBN = parseTokenAmount(amount, decimals);
       balance = await provider.getBalance(walletAddress);
     }
 
@@ -247,6 +248,10 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
 
   protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
     this.validateNetwork(network);
+    if (isSolanaNetwork(network)) {
+      return await getTokenInfoSolana(tokenAddress, network);
+    }
+
     // Use the tokenCache utility instead of manual caching
     return await this.tokenCache.getToken(tokenAddress, network, this.providers, this.getName());
   }

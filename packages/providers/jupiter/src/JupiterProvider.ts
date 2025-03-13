@@ -102,7 +102,7 @@ export class JupiterProvider extends BaseSwapProvider {
       const response = await this.api.post<JupiterSwapResponse>('/swap?swapType=aggregator', {
         addConsensusAccount: false,
         allowOptimizedWrappedSolTokenAccount: true,
-        asLegacyTransaction: this.checkHaveNativeToken(params),
+        asLegacyTransaction: false,
         correctLastValidBlockHeight: true,
         dynamicComputeUnitLimit: true,
         prioritizationFeeLamports: {
