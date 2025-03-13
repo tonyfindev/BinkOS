@@ -104,6 +104,26 @@ export class Wallet implements IWallet {
     }
   }
 
+  public async waitForSolanaTransaction(
+    connection: Connection,
+    signature: string,
+    blockhash: string,
+    lastValidBlockHeight: number,
+  ): Promise<void> {
+    const result = await connection.confirmTransaction(
+      {
+        signature,
+        blockhash,
+        lastValidBlockHeight,
+      },
+      'confirmed',
+    );
+
+    if (result.value.err) {
+      throw new Error(`Transaction failed: ${result.value.err.toString()}`);
+    }
+  }
+
   public async sendTransaction(
     network: NetworkName,
     transaction: TransactionRequest,
@@ -147,6 +167,8 @@ export class Wallet implements IWallet {
       // Try to parse as VersionedTransaction first
       try {
         const tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
+
+        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
         // Sign the transaction
         tx.sign([this.#solanaKeypair]);
 
@@ -156,7 +178,12 @@ export class Wallet implements IWallet {
         return {
           hash: signature,
           wait: async () => {
-            await connection.confirmTransaction(signature);
+            await this.waitForSolanaTransaction(
+              connection,
+              signature,
+              latestBlockhash.blockhash,
+              latestBlockhash.lastValidBlockHeight,
+            );
             return {
               hash: signature,
               wait: async () => ({
@@ -172,6 +199,12 @@ export class Wallet implements IWallet {
         // If not a VersionedTransaction, try as regular Transaction
         const tx = SolanaTransaction.from(Buffer.from(transaction.data, 'base64'));
 
+        if (!tx.recentBlockhash) {
+          const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+          tx.recentBlockhash = latestBlockhash.blockhash;
+          tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+        }
+
         // Sign the transaction
         tx.partialSign(this.#solanaKeypair);
 
@@ -181,7 +214,12 @@ export class Wallet implements IWallet {
         return {
           hash: signature,
           wait: async () => {
-            await connection.confirmTransaction(signature);
+            await this.waitForSolanaTransaction(
+              connection,
+              signature,
+              tx.recentBlockhash!,
+              tx.lastValidBlockHeight!,
+            );
             return {
               hash: signature,
               wait: async () => ({
