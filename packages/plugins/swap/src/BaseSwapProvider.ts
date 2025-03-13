@@ -187,11 +187,11 @@ export abstract class BaseSwapProvider implements ISwapProvider {
     let amountBN;
     if (isSolanaNetwork(network)) {
       const provider = this.getSolanaProviderForNetwork(network);
-      amountBN = ethers.parseUnits(amount, decimals);
+      amountBN = parseTokenAmount(amount, decimals);
       balance = await provider.getBalance(new PublicKey(walletAddress));
     } else {
       const provider = this.getEvmProviderForNetwork(network);
-      amountBN = ethers.parseUnits(amount, decimals);
+      amountBN = parseTokenAmount(amount, decimals);
       balance = await provider.getBalance(walletAddress);
     }
 
@@ -237,7 +237,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
   protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
     this.validateNetwork(network);
     if (isSolanaNetwork(network)) {
-      // TODO: Implement Solana
+      return await getTokenInfoSolana(tokenAddress, network);
     }
     // Use the tokenCache utility instead of manual caching
     return await this.tokenCache.getToken(tokenAddress, network, this.providers, this.getName());
