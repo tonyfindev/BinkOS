@@ -176,10 +176,38 @@ export class Agent extends BaseAgent {
     });
   }
 
-  async execute(
-    commandOrParams: string | AgentExecuteParams,
-    history: MessageEntity[] = [],
-  ): Promise<any> {
+  async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
+    // Wait for executor to be initialized if it hasn't been already
+    if (!this.executor) {
+      await this.initializeExecutor();
+    }
+    if (!Object.keys(this.context).length) {
+      await this.initializeContext();
+    }
+    let _history: MessageEntity[] = [];
+
+    if (this.db) {
+      if (typeof commandOrParams === 'string') {
+        if (this.context?.user?.id) {
+          _history = await this.db?.getMessagesByUserId(this.context?.user?.id);
+        }
+      } else {
+        if (commandOrParams?.threadId) {
+          _history = await this.db?.getMessagesByThreadId(commandOrParams?.threadId);
+        }
+      }
+      // } else {
+      //   if (typeof commandOrParams !== 'string' && commandOrParams?.history) {
+      //     _history = commandOrParams.history;
+      //   }
+    }
+
+    const history = _history.map((message: MessageEntity) =>
+      message?.message_type === 'human'
+        ? new HumanMessage(message?.content)
+        : new AIMessage(message?.content),
+    );
+
     const maxRetries = 3;
     let retryCount = 0;
     let lastError: any = null;
@@ -192,7 +220,7 @@ export class Agent extends BaseAgent {
         const input = typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
 
         // Only use history on first try
-        const chat_history = retryCount === 0 ? history : [];
+        const chat_history = history;
 
         result = await this.executor.invoke({ input, chat_history });
 
