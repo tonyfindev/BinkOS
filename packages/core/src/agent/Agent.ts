@@ -176,7 +176,7 @@ export class Agent extends BaseAgent {
     });
   }
 
-  public async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
+  async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
     // Wait for executor to be initialized if it hasn't been already
     if (!this.executor) {
       await this.initializeExecutor();
@@ -207,62 +207,118 @@ export class Agent extends BaseAgent {
         ? new HumanMessage(message?.content)
         : new AIMessage(message?.content),
     );
+
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError: any = null;
     let result: any;
-    if (typeof commandOrParams === 'string') {
-      result = await this.executor.invoke({
-        input: commandOrParams,
-        chat_history: history,
-      });
-      (async () => {
-        await this.db?.createMessage({
-          content: commandOrParams,
-          user_id: this.context?.user?.id,
-          message_type: 'human',
-        });
-        await this.db?.createMessage({
-          content: result.output,
-          user_id: this.context?.user?.id,
-          message_type: 'ai',
-        });
-      })()
-        .then(() => {
-          console.log('message persisted successfully');
-        })
-        .catch(error => {
-          console.error('Error persisting message');
-        });
-      return result.output;
-    } else {
-      result = await this.executor.invoke({
-        input: commandOrParams.input,
-        chat_history: history,
-      });
-      (async () => {
-        await this.db?.createMessage(
-          {
-            content: commandOrParams.input,
-            user_id: this.context?.user?.id,
-            message_type: 'human',
-          },
-          commandOrParams?.threadId,
-        );
-        await this.db?.createMessage(
-          {
-            content: result.output,
-            user_id: this.context?.user?.id,
-            message_type: 'ai',
-          },
-          commandOrParams?.threadId,
-        );
-      })()
-        .then(() => {
-          console.log('message persisted successfully');
-        })
-        .catch(error => {
-          console.error('Error persisting message');
-        });
-      return result.output;
+
+    while (retryCount <= maxRetries) {
+      console.log(`🔴 AI reasoning attempt ${retryCount + 1}/${maxRetries}\n`);
+
+      try {
+        const input = typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
+
+        // Only use history on first try
+        const chat_history = history;
+
+        result = await this.executor.invoke({ input, chat_history });
+
+        if (result && result.output) {
+          if (
+            typeof result.output === 'string' &&
+            (result.output.includes('error') ||
+              result.output.includes('Error') ||
+              result.output.includes('failed'))
+          ) {
+            retryCount++;
+
+            if (retryCount === maxRetries) {
+              console.error(`🔴 AI reasoning max retries reached, returning error output`);
+              try {
+                const threadId =
+                  typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
+                await this.db?.createMessage(
+                  { content: input, user_id: this.context?.user?.id, message_type: 'human' },
+                  threadId,
+                );
+                await this.db?.createMessage(
+                  { content: result.output, user_id: this.context?.user?.id, message_type: 'ai' },
+                  threadId,
+                );
+              } catch (dbError) {
+                console.error('Error persisting message:', dbError);
+              }
+
+              return result.output;
+            }
+
+            const retryPrompt = `The previous command failed with error: "${result.output}". Please rethink and try to change the params and fix the issue and try again with the command: `;
+
+            if (typeof commandOrParams === 'string') {
+              commandOrParams = retryPrompt + commandOrParams;
+            } else {
+              commandOrParams.input = retryPrompt + commandOrParams.input;
+            }
+
+            console.error(
+              `🔴 AI reasoning attempt ${retryCount} failed with output error, retrying...`,
+            );
+            continue;
+          }
+
+          try {
+            const threadId =
+              typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
+
+            await this.db?.createMessage(
+              { content: input, user_id: this.context?.user?.id, message_type: 'human' },
+              threadId,
+            );
+
+            await this.db?.createMessage(
+              { content: result.output, user_id: this.context?.user?.id, message_type: 'ai' },
+              threadId,
+            );
+
+            console.log('Message persisted successfully');
+          } catch (dbError) {
+            console.error('Error persisting message:', dbError);
+          }
+
+          return result.output;
+        }
+      } catch (error) {
+        lastError = error;
+        console.error(`🔴 AI reasoning attempt ${retryCount + 1} failed with exception:`, error);
+
+        retryCount++;
+
+        if (retryCount === maxRetries) {
+          console.error(`🔴 AI reasoning max retries reached, returning error`);
+          return JSON.stringify({
+            status: 'error',
+            message: lastError instanceof Error ? lastError.message : String(lastError),
+          });
+        }
+
+        // Retry prompt
+        const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
+        const retryPrompt = `The previous command failed with error: "${errorMsg}". Please rethink and try to change the params and fix the issue and try again with the command: `;
+
+        if (typeof commandOrParams === 'string') {
+          commandOrParams = retryPrompt + commandOrParams;
+        } else {
+          commandOrParams.input = retryPrompt + commandOrParams.input;
+        }
+      }
     }
+
+    // Fallback if loop ended without return
+    return JSON.stringify({
+      status: 'error',
+      message: 'Execution failed after maximum retries',
+    });
   }
 
   public getWallet(): IWallet {
