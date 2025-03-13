@@ -228,7 +228,7 @@ export class JupiterProvider extends BaseSwapProvider {
         fromToken: sourceToken,
         toToken: destinationToken,
         fromAmount: adjustedAmount,
-        toAmount: swapData.outAmount,
+        toAmount: ethers.formatUnits(swapData.outAmount, destinationToken.decimals),
         priceImpact: 0,
         route: [],
         estimatedGas: '',
