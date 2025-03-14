@@ -177,7 +177,6 @@ export class Agent extends BaseAgent {
   }
 
   async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
-    
     // Wait for executor to be initialized if it hasn't been already
     if (!this.executor) {
       await this.initializeExecutor();
@@ -208,7 +207,7 @@ export class Agent extends BaseAgent {
         ? new HumanMessage(message?.content)
         : new AIMessage(message?.content),
     );
-    
+
     const maxRetries = 3;
     let retryCount = 0;
     let lastError: any = null;
@@ -221,7 +220,7 @@ export class Agent extends BaseAgent {
         const input = typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
 
         // Only use history on first try
-        const chat_history = retryCount === 0 ? history : [];
+        const chat_history = history;
 
         result = await this.executor.invoke({ input, chat_history });
 

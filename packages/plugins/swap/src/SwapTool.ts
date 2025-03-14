@@ -47,9 +47,9 @@ export class SwapTool extends BaseTool {
     const networks = Array.from(this.supportedNetworks).join(', ');
     let description = `The SwapTool enables users to exchange one cryptocurrency token for another using various Decentralized Exchange (DEX) 
     providers across supported blockchain networks. This tool facilitates token swaps, 
-    allowing users to specify either the input amount (the amount they wish to spend) 
-    or the output amount (the amount they wish to receive). Supported networks include ${networks}. 
-    Do not reasoning about Token information. If user want to do action with token A, you would take actions on token A.
+    allowing users to specify either the input amount (the amount they wish to spend, if amount is percent, must get balance before swap). 
+    or the output amount (the amount they wish to receive). Supported networks include ${networks}.
+    Do not reasoning about Token information. If user want to do action with token A, you would take actions on token A. 
     Providers include ${providers}.`;
 
     // Add provider-specific prompts if they exist

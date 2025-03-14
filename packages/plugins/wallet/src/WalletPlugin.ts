@@ -28,12 +28,12 @@ export class WalletPlugin extends BasePlugin {
     }
 
     this.walletTool = new GetWalletBalanceTool({
-      defaultNetwork: config.defaultNetwork,
+      // defaultNetwork: config.defaultNetwork,
       supportedNetworks: Array.from(this.supportedNetworks),
     });
 
     this.transferTool = new TransferTool({
-      defaultNetwork: config.defaultNetwork,
+      // defaultNetwork: config.defaultNetwork,
       supportedNetworks: Array.from(this.supportedNetworks),
     });
 
