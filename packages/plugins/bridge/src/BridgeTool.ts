@@ -187,6 +187,7 @@ export class BridgeTool extends BaseTool {
             provider: preferredProvider,
           } = args;
 
+          console.log('🌉 Doing bridge operation...');
           console.log('🤖 Bridge Args:', args);
 
           // Validate token addresses

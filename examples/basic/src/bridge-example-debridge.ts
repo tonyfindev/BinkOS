@@ -155,7 +155,7 @@ async function main() {
   const supportedNetworks = registeredPlugin.getSupportedNetworks();
   for (const itemnetwork of supportedNetworks) {
     const providers = registeredPlugin.getProvidersForNetwork(itemnetwork);
-    console.log(`Network ${network}:`, providers.map(p => p.getName()).join(', '));
+    console.log(`Network ${network}:`, providers.map((p: any) => p.getName()).join(', '));
   }
   console.log('✓ Available providers:', supportedNetworks.join(', '));
 }
