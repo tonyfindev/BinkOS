@@ -1,6 +1,13 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
+import { 
+  BaseTool, 
+  CustomDynamicStructuredTool, 
+  IToolConfig, 
+  ToolProgress,
+  StructuredError,
+  ErrorStep
+} from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
@@ -15,24 +22,15 @@ export interface SwapToolConfig extends IToolConfig {
   supportedNetworks?: string[];
 }
 
-// Simplified StructuredError interface
-interface StructuredError {
-  step: string; // Specific step where error occurred
-  message: string; // Concise error message
-  details: Record<string, any>; // Error details
-}
-
 export class SwapTool extends BaseTool {
   public registry: ProviderRegistry;
   private defaultSlippage: number;
-  // private defaultNetwork: string;
   private supportedNetworks: Set<string>;
 
   constructor(config: SwapToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
     this.defaultSlippage = config.defaultSlippage || 0.5;
-    // this.defaultNetwork = config.defaultNetwork || 'bnb';
     this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
   }
 
@@ -212,39 +210,39 @@ export class SwapTool extends BaseTool {
           // STEP 1: Validate network
           const supportedNetworks = this.getSupportedNetworks();
           if (!supportedNetworks.includes(network)) {
-            throw {
-              step: 'network_validation',
-              message: `Network ${network} is not supported.`,
-              details: {
+            throw this.createError(
+              ErrorStep.NETWORK_VALIDATION,
+              `Network ${network} is not supported.`,
+              {
                 requestedNetwork: network,
                 supportedNetworks: supportedNetworks,
-              },
-            } as StructuredError;
+              }
+            );
           }
 
           // STEP 2: Validate token addresses
           if (!validateTokenAddress(fromToken, network)) {
-            throw {
-              step: 'token_validation',
-              message: `Invalid fromToken address for network ${network}: ${fromToken}`,
-              details: {
+            throw this.createError(
+              ErrorStep.TOKEN_NOT_FOUND,
+              `Invalid fromToken address for network ${network}: ${fromToken}`,
+              {
                 token: fromToken,
                 network: network,
                 tokenType: 'fromToken',
-              },
-            } as StructuredError;
+              }
+            );
           }
 
           if (!validateTokenAddress(toToken, network)) {
-            throw {
-              step: 'token_validation',
-              message: `Invalid toToken address for network ${network}: ${toToken}`,
-              details: {
+            throw this.createError(
+              ErrorStep.TOKEN_NOT_FOUND,
+              `Invalid toToken address for network ${network}: ${toToken}`,
+              {
                 token: toToken,
                 network: network,
                 tokenType: 'toToken',
-              },
-            } as StructuredError;
+              }
+            );
           }
 
           // STEP 3: Get wallet address
@@ -254,14 +252,14 @@ export class SwapTool extends BaseTool {
             const wallet = this.agent.getWallet();
             userAddress = await wallet.getAddress(network);
           } catch (error: any) {
-            throw {
-              step: 'wallet_address',
-              message: `Failed to get wallet address for network ${network}.`,
-              details: {
+            throw this.createError(
+              ErrorStep.WALLET_ACCESS,
+              `Failed to get wallet address for network ${network}.`,
+              {
                 network: network,
                 error: error instanceof Error ? error.message : String(error),
-              },
-            } as StructuredError;
+              }
+            );
           }
 
           const swapParams: SwapParams = {
@@ -288,31 +286,31 @@ export class SwapTool extends BaseTool {
 
               // Validate provider supports the network
               if (!selectedProvider.getSupportedNetworks().includes(network)) {
-                throw {
-                  step: 'provider_network_compatibility',
-                  message: `Provider ${preferredProvider} does not support network ${network}.`,
-                  details: {
+                throw this.createError(
+                  ErrorStep.PROVIDER_VALIDATION,
+                  `Provider ${preferredProvider} does not support network ${network}.`,
+                  {
                     provider: preferredProvider,
                     requestedNetwork: network,
                     providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
-                  },
-                } as StructuredError;
+                  }
+                );
               }
 
               try {
                 quote = await selectedProvider.getQuote(swapParams, userAddress);
               } catch (error: any) {
-                throw {
-                  step: 'quote_retrieval',
-                  message: `Failed to get quote from provider ${preferredProvider}.`,
-                  details: {
+                throw this.createError(
+                  ErrorStep.PRICE_RETRIEVAL,
+                  `Failed to get quote from provider ${preferredProvider}.`,
+                  {
                     provider: preferredProvider,
                     network: network,
                     fromToken: fromToken,
                     toToken: toToken,
                     error: error instanceof Error ? error.message : String(error),
-                  },
-                } as StructuredError;
+                  }
+                );
               }
             } else {
               try {
@@ -326,16 +324,16 @@ export class SwapTool extends BaseTool {
                 selectedProvider = bestQuote.provider;
                 quote = bestQuote.quote;
               } catch (error: any) {
-                throw {
-                  step: 'best_quote_search',
-                  message: `Failed to find any valid quotes for your swap.`,
-                  details: {
+                throw this.createError(
+                  ErrorStep.PRICE_RETRIEVAL,
+                  `Failed to find any valid quotes for your swap.`,
+                  {
                     network: network,
                     fromToken: fromToken,
                     toToken: toToken,
                     error: error instanceof Error ? error.message : String(error),
-                  },
-                } as StructuredError;
+                  }
+                );
               }
             }
           } catch (error: any) {
@@ -344,16 +342,16 @@ export class SwapTool extends BaseTool {
             }
 
             console.warn(`Failed to get quote:`, error);
-            throw {
-              step: 'quote_retrieval',
-              message: `Failed to get a quote for your swap.`,
-              details: {
+            throw this.createError(
+              ErrorStep.PRICE_RETRIEVAL,
+              `Failed to get a quote for your swap.`,
+              {
                 network: network,
                 fromToken: fromToken,
                 toToken: toToken,
                 error: error instanceof Error ? error.message : String(error),
-              },
-            } as StructuredError;
+              }
+            );
           }
 
           console.log('🤖 The selected provider is:', selectedProvider.getName());
@@ -367,31 +365,31 @@ export class SwapTool extends BaseTool {
           try {
             const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
             if (!balanceCheck.isValid) {
-              throw {
-                step: 'balance_check',
-                message: balanceCheck.message || 'Insufficient balance for swap',
-                details: {
+              throw this.createError(
+                ErrorStep.DATA_RETRIEVAL,
+                balanceCheck.message || 'Insufficient balance for swap',
+                {
                   network: network,
                   fromToken: quote.fromToken.symbol || fromToken,
                   requiredAmount: quote.fromAmount,
                   userAddress: userAddress,
-                },
-              } as StructuredError;
+                }
+              );
             }
           } catch (error: any) {
             if ('step' in error) {
               throw error; // Re-throw structured errors
             }
 
-            throw {
-              step: 'balance_check',
-              message: `Failed to verify your token balance.`,
-              details: {
+            throw this.createError(
+              ErrorStep.DATA_RETRIEVAL,
+              `Failed to verify your token balance.`,
+              {
                 network: network,
                 fromToken: quote.fromToken.symbol || fromToken,
                 error: error instanceof Error ? error.message : String(error),
-              },
-            } as StructuredError;
+              }
+            );
           }
 
           onProgress?.({
@@ -404,17 +402,17 @@ export class SwapTool extends BaseTool {
           try {
             swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
           } catch (error: any) {
-            throw {
-              step: 'transaction_build',
-              message: `Failed to build the swap transaction.`,
-              details: {
+            throw this.createError(
+              ErrorStep.TOOL_EXECUTION,
+              `Failed to build the swap transaction.`,
+              {
                 provider: selectedProvider.getName(),
                 network: network,
                 fromToken: quote.fromToken.symbol || fromToken,
                 toToken: quote.toToken.symbol || toToken,
                 error: error instanceof Error ? error.message : String(error),
-              },
-            } as StructuredError;
+              }
+            );
           }
 
           onProgress?.({
@@ -447,7 +445,6 @@ export class SwapTool extends BaseTool {
                     userAddress,
                   );
 
-                  console.log('🤖 Approving...');
                   // Sign and send approval transaction
                   onProgress?.({
                     progress: 60,
@@ -466,16 +463,16 @@ export class SwapTool extends BaseTool {
                   // Wait for approval to be mined
                   await approveReceipt.wait();
                 } catch (error: any) {
-                  throw {
-                    step: 'token_approval',
-                    message: `Failed to approve token spending.`,
-                    details: {
+                  throw this.createError(
+                    ErrorStep.TOOL_EXECUTION,
+                    `Failed to approve token spending.`,
+                    {
                       network: network,
                       fromToken: quote.fromToken.symbol || fromToken,
                       spender: swapTx.spender,
                       error: error instanceof Error ? error.message : String(error),
-                    },
-                  } as StructuredError;
+                    }
+                  );
                 }
               }
             } catch (error: any) {
@@ -483,15 +480,15 @@ export class SwapTool extends BaseTool {
                 throw error; // Re-throw structured errors
               }
 
-              throw {
-                step: 'allowance_check',
-                message: `Failed to check token allowance.`,
-                details: {
+              throw this.createError(
+                ErrorStep.TOOL_EXECUTION,
+                `Failed to check token allowance.`,
+                {
                   network: network,
                   fromToken: quote.fromToken.symbol || fromToken,
                   error: error instanceof Error ? error.message : String(error),
-                },
-              } as StructuredError;
+                }
+              );
             }
           }
 
@@ -501,8 +498,6 @@ export class SwapTool extends BaseTool {
             progress: 80,
             message: `Swapping ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} with ${slippage}% max slippage.`,
           });
-
-          console.log('🤖 swapTx', swapTx);
 
           // STEP 8: Execute swap transaction
           let receipt;
@@ -519,16 +514,16 @@ export class SwapTool extends BaseTool {
             // Wait for transaction to be mined
             finalReceipt = await receipt?.wait();
           } catch (error: any) {
-            throw {
-              step: 'transaction_execution',
-              message: `Failed to execute the swap transaction.`,
-              details: {
+            throw this.createError(
+              ErrorStep.TOOL_EXECUTION,
+              `Failed to execute the swap transaction.`,
+              {
                 network: network,
                 fromToken: quote.fromToken.symbol || fromToken,
                 toToken: quote.toToken.symbol || toToken,
                 error: error instanceof Error ? error.message : String(error),
-              },
-            } as StructuredError;
+              }
+            );
           }
 
           try {
@@ -561,88 +556,21 @@ export class SwapTool extends BaseTool {
         } catch (error: any) {
           console.error('Swap error:', error);
 
-          // Determine error type and structure response accordingly
-          let errorStep = 'unknown';
-          let errorMessage = '';
-          let errorDetails = {};
-          let suggestion = '';
-
-          if (typeof error === 'object' && error !== null) {
-            // Handle structured errors we threw earlier
-            if ('step' in error) {
-              const structuredError = error as StructuredError;
-              errorStep = structuredError.step;
-              errorMessage = structuredError.message;
-              errorDetails = structuredError.details || {};
-
-              // Use enhanced suggestion generator
-              suggestion = this.generateEnhancedSuggestion(errorStep, structuredError, args);
-
-              // Special handling for token_validation
-              if (errorStep === 'token_validation' && !args._attempt) {
-                return await this.attemptTokenAddressFix(args, structuredError);
-              }
-            } else if (error instanceof Error) {
-              // Handle standard Error objects
-              errorStep = 'execution';
-              errorMessage = error.message;
-
-              // Check if this is a token address error that we can try to fix
-              if (
-                (error.message.includes('Invalid fromToken address') ||
-                  error.message.includes('Invalid toToken address')) &&
-                !args._attempt
-              ) {
-                return await this.attemptTokenAddressFix(args, error);
-              }
-
-              // Create suggestion for standard error
-              const mockStructuredError: StructuredError = {
-                step: errorStep,
-                message: errorMessage,
-                details: { error: errorMessage, network: args.network },
-              };
-              suggestion = this.generateEnhancedSuggestion(errorStep, mockStructuredError, args);
-            } else {
-              // Handle other error types
-              errorStep = 'execution';
-              errorMessage = String(error);
-              const mockStructuredError: StructuredError = {
-                step: errorStep,
-                message: errorMessage,
-                details: { error: errorMessage, network: args.network },
-              };
-              suggestion = this.generateEnhancedSuggestion(errorStep, mockStructuredError, args);
+          // Special handling for token validation errors that we can try to fix
+          if (error instanceof Error || (typeof error === 'object' && error !== null && 'step' in error)) {
+            const errorStep = 'step' in error ? error.step : '';
+            const isTokenValidationError = errorStep === 'token_validation' || 
+                                          errorStep === ErrorStep.TOKEN_NOT_FOUND ||
+                                          error.message?.includes('Invalid fromToken address') ||
+                                          error.message?.includes('Invalid toToken address');
+            
+            if (isTokenValidationError && !args._attempt) {
+              return await this.attemptTokenAddressFix(args, error);
             }
-          } else {
-            // Handle primitive error types
-            errorStep = 'execution';
-            errorMessage = String(error);
-
-            // Create suggestion for primitive error
-            const mockPrimitiveError: StructuredError = {
-              step: errorStep,
-              message: errorMessage,
-              details: { error: errorMessage, network: args.network },
-            };
-            suggestion = this.generateEnhancedSuggestion(errorStep, mockPrimitiveError, args);
           }
 
-          // Return structured error response with enhanced information
-          return JSON.stringify({
-            status: 'error',
-            tool: 'swap',
-            toolType: 'cryptocurrency_exchange',
-            process: 'token_swap',
-            errorStep: errorStep,
-            processStage:
-              errorStep.replace('_', ' ').charAt(0).toUpperCase() +
-              errorStep.replace('_', ' ').slice(1),
-            message: errorMessage,
-            details: errorDetails,
-            suggestion: suggestion,
-            parameters: args,
-          });
+          // Use BaseTool's error handling
+          return this.handleError(error, args);
         }
       },
     };
@@ -657,7 +585,8 @@ export class SwapTool extends BaseTool {
       error.message?.includes('Invalid fromToken address') ||
       error.details?.tokenType === 'fromToken';
     const isToTokenAddressError =
-      error.message?.includes('Invalid toToken address') || error.details?.tokenType === 'toToken';
+      error.message?.includes('Invalid toToken address') || 
+      error.details?.tokenType === 'toToken';
 
     // Add type assertion for args.network to match the NetworkName type
     const tokenInfos = defaultTokens[args.network as keyof typeof defaultTokens] as
@@ -667,14 +596,14 @@ export class SwapTool extends BaseTool {
     // Add null check for tokenInfos
     if (!tokenInfos) {
       console.log(`❌ No token information found for network ${args.network}`);
-      return JSON.stringify({
-        status: 'error',
-        tool: 'swap',
-        errorStep: 'token_lookup',
-        message: `No token information found for network ${args.network}`,
-        suggestion: `Please verify the network name and try again with a supported network.`,
-        parameters: args,
-      });
+      return this.handleError(
+        this.createError(
+          ErrorStep.TOKEN_NOT_FOUND,
+          `No token information found for network ${args.network}`,
+          { network: args.network }
+        ),
+        args
+      );
     }
 
     let updatedArgs = { ...args, _attempt: true };
@@ -711,175 +640,33 @@ export class SwapTool extends BaseTool {
         return result;
       } catch (retryError) {
         console.error('Error during retry:', retryError);
-        return JSON.stringify({
-          status: 'error',
-          tool: 'swap',
-          errorStep: 'token_correction_retry',
-          message: retryError instanceof Error ? retryError.message : String(retryError),
-          suggestion: `We attempted to correct the token address but the swap still failed. Please verify both token addresses and try again.`,
-          parameters: updatedArgs,
-        });
+        return this.handleError(
+          this.createError(
+            ErrorStep.TOKEN_NOT_FOUND,
+            `We attempted to correct the token address but the swap still failed.`,
+            {
+              error: retryError instanceof Error ? retryError.message : String(retryError),
+              originalArgs: args,
+              correctedArgs: updatedArgs
+            }
+          ),
+          updatedArgs
+        );
       }
     } else {
       // If we couldn't find a matching token symbol
-      return JSON.stringify({
-        status: 'error',
-        tool: 'swap',
-        errorStep: 'token_address_correction',
-        message: `Could not find a valid address for the token symbol.`,
-        suggestion: `Please provide valid token addresses for the ${args.network} network instead of symbols, or check if the token exists on this network.`,
-        parameters: args,
-      });
+      return this.handleError(
+        this.createError(
+          ErrorStep.TOKEN_NOT_FOUND,
+          `Could not find a valid address for the token symbol.`,
+          {
+            network: args.network,
+            fromToken: args.fromToken,
+            toToken: args.toToken
+          }
+        ),
+        args
+      );
     }
-  }
-
-  // Simplified suggestion generator function
-  private generateEnhancedSuggestion(
-    errorStep: string,
-    structuredError: StructuredError,
-    args: any,
-  ): string {
-    let suggestion = '';
-    let alternativeActions: string[] = [];
-
-    // Prefix to clearly indicate this is a SwapTool error
-    const errorPrefix = `[SwapTool Error] `;
-
-    switch (errorStep) {
-      case 'network_validation':
-        const networks = structuredError.details.supportedNetworks || [];
-        suggestion = `${errorPrefix}Network validation failed: "${structuredError.details.requestedNetwork}" is not supported for token swapping. Please use one of these networks: ${networks.join(', ')}.`;
-
-        alternativeActions = [
-          `Try with a supported network, e.g., "swap 10 USDT to BNB on bnb"`,
-          `Check token information on a different network: "get token info for USDT on bnb"`,
-        ];
-        break;
-
-      case 'token_validation':
-        const tokenType = structuredError.details.tokenType;
-        const tokenSymbol = structuredError.details.token;
-        const network = structuredError.details.network;
-
-        suggestion = `${errorPrefix}Token validation failed: The ${tokenType} "${tokenSymbol}" is not valid on the ${network} network. You may have entered a token symbol instead of an address, or the address format is incorrect.`;
-
-        alternativeActions = [
-          `Find accurate token information: "get token info for ${tokenSymbol} on ${network}"`,
-          `Check your wallet balance: "check my balance on ${network}"`,
-          `Use the correct token address: "swap [token_address] to [token_address] on ${network}"`,
-        ];
-        break;
-
-      case 'wallet_address':
-        suggestion = `${errorPrefix}Wallet access failed: Could not access wallet address for the ${structuredError.details.network} network. Please ensure your wallet is properly connected and supports this network.`;
-
-        alternativeActions = [
-          `Check your wallet: "show my wallet addresses"`,
-          `Check your balance: "check my balance on ${structuredError.details.network}"`,
-          `Try a different network: "swap ... on [different_network]"`,
-        ];
-        break;
-
-      case 'provider_network_compatibility':
-        const provider = structuredError.details.provider;
-        const supportedNets = structuredError.details.providerSupportedNetworks || [];
-
-        suggestion = `${errorPrefix}Provider compatibility issue: The swap provider "${provider}" does not support the ${structuredError.details.requestedNetwork} network. This provider only supports: ${supportedNets.join(', ')}.`;
-
-        alternativeActions = [
-          `Try without specifying a provider: "swap ${args.fromToken} to ${args.toToken} on ${args.network}"`,
-          `Use a supported network: "swap ${args.fromToken} to ${args.toToken} on ${supportedNets[0] || 'supported_network'}"`,
-        ];
-        break;
-
-      case 'quote_retrieval':
-      case 'best_quote_search':
-        const fromTokenSymbol = structuredError.details.fromToken;
-        const toTokenSymbol = structuredError.details.toToken;
-
-        suggestion = `${errorPrefix}Price quote failed: Could not get a swap quote for ${fromTokenSymbol} to ${toTokenSymbol} on the ${structuredError.details.network} network. This may be due to insufficient liquidity, non-existent tokens, or no trading pair.`;
-
-        alternativeActions = [
-          `Check token information: "get token info for ${fromTokenSymbol} on ${structuredError.details.network}"`,
-          `Try with a different amount: "swap smaller amount of ${fromTokenSymbol} to ${toTokenSymbol}"`,
-          `Try a different token pair: "swap ${fromTokenSymbol} to [different_token] on ${structuredError.details.network}"`,
-        ];
-        break;
-
-      case 'balance_check':
-        suggestion = `${errorPrefix}Insufficient balance: You don't have enough ${structuredError.details.fromToken} for this swap. Please check your balance and try with a smaller amount.`;
-
-        alternativeActions = [
-          `Check your balance: "check my balance on ${structuredError.details.network}"`,
-          `Try with a smaller amount: "swap smaller amount of ${structuredError.details.fromToken} to ${args.toToken}"`,
-        ];
-        break;
-
-      case 'transaction_build':
-        suggestion = `${errorPrefix}Transaction creation failed: Could not create the swap transaction. This could be due to insufficient liquidity or an issue with the selected provider (${structuredError.details.provider}).`;
-
-        alternativeActions = [
-          `Try with a different provider: "swap ${structuredError.details.fromToken} to ${structuredError.details.toToken} using [different_provider]"`,
-          `Try with a smaller amount: "swap smaller amount of ${structuredError.details.fromToken} to ${structuredError.details.toToken}"`,
-        ];
-        break;
-
-      case 'allowance_check':
-        suggestion = `${errorPrefix}Allowance check failed: Could not verify token approval status for ${structuredError.details.fromToken}. Please ensure you have enough native currency for gas fees and try again.`;
-
-        alternativeActions = [
-          `Check your native token balance: "check my balance of native token on ${structuredError.details.network}"`,
-        ];
-        break;
-
-      case 'token_approval':
-        suggestion = `${errorPrefix}Token approval failed: Could not approve ${structuredError.details.fromToken} for trading. Please ensure you have enough native currency for gas fees and try again.`;
-
-        alternativeActions = [
-          `Check your native token balance: "check my balance of native token on ${structuredError.details.network}"`,
-        ];
-        break;
-
-      case 'transaction_execution':
-        suggestion = `${errorPrefix}Transaction execution failed: The swap transaction could not be completed. This could be due to price movement, insufficient gas, or network congestion. Please try again with a higher slippage tolerance.`;
-
-        alternativeActions = [
-          `Try with higher slippage: "swap ${args.fromToken} to ${args.toToken} with 1% slippage"`,
-        ];
-        break;
-
-      case 'token_address_correction':
-        suggestion = `${errorPrefix}Token address correction failed: Could not find a valid address for the token symbol. Please provide valid token addresses for the ${args.network} network instead of symbols, or check if the token exists on this network.`;
-
-        alternativeActions = [
-          `Find token information: "search for ${args.fromToken} token on ${args.network}"`,
-          `List popular tokens: "list popular tokens on ${args.network}"`,
-        ];
-        break;
-
-      default:
-        suggestion = `${errorPrefix}Swap operation failed: An unexpected error occurred during the swap process. Please check your input parameters and try again. Make sure you're using valid networks, tokens, and amounts.`;
-
-        alternativeActions = [
-          `Check token information: "get token info for ${args.fromToken || 'token'} on ${args.network || 'network'}"`,
-          `Check your balance: "check my balance on ${args.network || 'network'}"`,
-        ];
-    }
-
-    // Create enhanced suggestion with alternative actions
-    let enhancedSuggestion = `${suggestion}\n\n`;
-
-    // Add process information
-    enhancedSuggestion += `**Swap Process Stage:** ${errorStep.replace('_', ' ').charAt(0).toUpperCase() + errorStep.replace('_', ' ').slice(1)}\n\n`;
-
-    // Add alternative actions
-    if (alternativeActions.length > 0) {
-      enhancedSuggestion += `**Suggested commands you can try:**\n`;
-      alternativeActions.forEach(action => {
-        enhancedSuggestion += `- ${action}\n`;
-      });
-    }
-
-    return enhancedSuggestion;
   }
 }
