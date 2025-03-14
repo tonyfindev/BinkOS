@@ -12,15 +12,16 @@ import { DatabaseAdapter } from '../storage';
 import { MessageEntity } from '../types';
 import { EVM_NATIVE_TOKEN_ADDRESS, SOL_NATIVE_TOKEN_ADDRESS } from '../network';
 import { CallbackManager, IToolExecutionCallback } from './callbacks';
+import { CompiledStateGraph } from '@langchain/langgraph';
 
 export class Agent extends BaseAgent {
-  private model: ChatOpenAI;
+  protected model: ChatOpenAI;
   private wallet: IWallet;
   private executor!: AgentExecutor;
   private networks: NetworksConfig['networks'];
   private db: DatabaseAdapter<any> | undefined;
   private context: AgentContext = {};
-  private config: AgentConfig;
+  protected config: AgentConfig;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super();
@@ -52,17 +53,6 @@ export class Agent extends BaseAgent {
     for (const tool of defaultTools) {
       this.registerTool(tool);
     }
-  }
-
-  async registerTool(tool: ITool): Promise<void> {
-    tool.setAgent(this);
-    const dynamicTool = tool.createTool();
-
-    // Wrap the tool with our callback system
-    const wrappedTool = this.callbackManager.wrapTool(dynamicTool);
-
-    this.tools.push(wrappedTool);
-    this.initializeExecutor();
   }
 
   async registerPlugin(plugin: IPlugin): Promise<void> {
@@ -106,16 +96,14 @@ export class Agent extends BaseAgent {
       this.tools = this.tools.filter(t => !pluginToolNames.has(t.name));
 
       // Reinitialize executor with updated tools
-      await this.onToolsUpdated();
+      await this.initializeExecutor();
     }
   }
 
-  protected async onToolsUpdated(): Promise<void> {
-    await this.initializeExecutor();
-  }
+  protected async onToolsUpdated(): Promise<void> {}
 
   private async initializeExecutor(): Promise<void> {
-    this.executor = await this.createExecutor();
+    this.executor = (await this.createExecutor()) as AgentExecutor;
   }
 
   async registerDatabase(database: DatabaseAdapter<any> | undefined): Promise<void> {
@@ -145,7 +133,9 @@ export class Agent extends BaseAgent {
     return this.context;
   }
 
-  private async createExecutor(): Promise<AgentExecutor> {
+  protected async createExecutor(): Promise<
+    AgentExecutor | CompiledStateGraph<any, any, any, any, any, any>
+  > {
     const requiredPrompt = `
     Native token address: 
     - EVM (${Object.values(this.networks)

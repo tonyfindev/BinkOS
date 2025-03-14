@@ -19,11 +19,8 @@ export interface SwapToolConfig extends IToolConfig {
   supportedNetworks?: string[];
 }
 
-export class SwapTool extends BaseTool {
-  public readonly agentNodeSupports: AgentNodeTypes[] = [
-    AgentNodeTypes.EXECUTOR,
-    AgentNodeTypes.PLANNER,
-  ];
+export class GetQuoteSwapTool extends BaseTool {
+  public readonly agentNodeSupports: AgentNodeTypes[] = [];
   public registry: ProviderRegistry;
   private defaultSlippage: number;
   // private defaultNetwork: string;
@@ -47,7 +44,7 @@ export class SwapTool extends BaseTool {
   }
 
   getName(): string {
-    return 'swap';
+    return 'get_quote_swap';
   }
 
   getDescription(): string {
@@ -303,66 +300,66 @@ export class SwapTool extends BaseTool {
             throw new Error(balanceCheck.message || 'Insufficient balance for swap');
           }
 
-          onProgress?.({
-            progress: 20,
-            message: `Preparing to swap ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
-          });
-          // Build swap transaction
-          const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
+          // onProgress?.({
+          //   progress: 20,
+          //   message: `Preparing to swap ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
+          // });
+          // // Build swap transaction
+          // const swapTx = await selectedProvider.buildSwapTransaction(quote, userAddress);
 
-          onProgress?.({
-            progress: 40,
-            message: `Checking allowance... Verifying if approval is needed for ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}.`,
-          });
+          // onProgress?.({
+          //   progress: 40,
+          //   message: `Checking allowance... Verifying if approval is needed for ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}.`,
+          // });
 
-          if (!isSolanaNetwork(network)) {
-            // Check if approval is needed and handle it
-            const allowance = await selectedProvider.checkAllowance(
-              network,
-              quote.fromToken.address,
-              userAddress,
-              swapTx.spender,
-            );
+          // if (!isSolanaNetwork(network)) {
+          //   // Check if approval is needed and handle it
+          //   const allowance = await selectedProvider.checkAllowance(
+          //     network,
+          //     quote.fromToken.address,
+          //     userAddress,
+          //     swapTx.spender,
+          //   );
 
-            const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
+          //   const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
 
-            console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
+          //   console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
-            if (allowance < requiredAmount) {
-              const approveTx = await selectedProvider.buildApproveTransaction(
-                network,
-                quote.fromToken.address,
-                swapTx.spender,
-                quote.fromAmount,
-                userAddress,
-              );
-              console.log('🤖 Approving...');
-              // Sign and send approval transaction
-              onProgress?.({
-                progress: 60,
-                message: `Approving ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}`,
-              });
-              const approveReceipt = await wallet.signAndSendTransaction(network, {
-                to: approveTx.to,
-                data: approveTx.data,
-                value: BigInt(approveTx.value),
-              });
+          //   if (allowance < requiredAmount) {
+          //     const approveTx = await selectedProvider.buildApproveTransaction(
+          //       network,
+          //       quote.fromToken.address,
+          //       swapTx.spender,
+          //       quote.fromAmount,
+          //       userAddress,
+          //     );
+          //     console.log('🤖 Approving...');
+          //     // Sign and send approval transaction
+          //     onProgress?.({
+          //       progress: 60,
+          //       message: `Approving ${selectedProvider.getName()} to access your ${quote.fromToken.symbol || 'tokens'}`,
+          //     });
+          //     const approveReceipt = await wallet.signAndSendTransaction(network, {
+          //       to: approveTx.to,
+          //       data: approveTx.data,
+          //       value: BigInt(approveTx.value),
+          //     });
 
-              console.log('🤖 ApproveReceipt:', approveReceipt);
+          //     console.log('🤖 ApproveReceipt:', approveReceipt);
 
-              // Wait for approval to be mined
-              await approveReceipt.wait();
-            }
-          }
+          //     // Wait for approval to be mined
+          //     await approveReceipt.wait();
+          //   }
+          // }
 
-          console.log('🤖 Swapping...');
+          // console.log('🤖 Swapping...');
 
-          onProgress?.({
-            progress: 80,
-            message: `Swapping ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} with ${slippage}% max slippage.`,
-          });
-          console.log('🤖 swapTx', swapTx);
-          // Sign and send swap transaction
+          // onProgress?.({
+          //   progress: 80,
+          //   message: `Swapping ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} with ${slippage}% max slippage.`,
+          // });
+          // console.log('🤖 swapTx', swapTx);
+          // // Sign and send swap transaction
           // const receipt = await wallet.signAndSendTransaction(network, {
           //   to: swapTx.to,
           //   data: swapTx.data,
@@ -372,13 +369,13 @@ export class SwapTool extends BaseTool {
           // // Wait for transaction to be mined
           // const finalReceipt = await receipt?.wait();
 
-          try {
-            // Clear token balance caches after successful swap
-            selectedProvider.invalidateBalanceCache(quote.fromToken.address, userAddress, network);
-            selectedProvider.invalidateBalanceCache(quote.toToken.address, userAddress, network);
-          } catch (error) {
-            console.error('Error clearing token balance caches:', error);
-          }
+          // try {
+          //   // Clear token balance caches after successful swap
+          //   selectedProvider.invalidateBalanceCache(quote.fromToken.address, userAddress, network);
+          //   selectedProvider.invalidateBalanceCache(quote.toToken.address, userAddress, network);
+          // } catch (error) {
+          //   console.error('Error clearing token balance caches:', error);
+          // }
 
           // onProgress?.({
           //   progress: 100,
@@ -392,7 +389,7 @@ export class SwapTool extends BaseTool {
             toToken: quote.toToken,
             fromAmount: quote.fromAmount.toString(),
             toAmount: quote.toAmount.toString(),
-            transactionHash: '231321',
+            // transactionHash: finalReceipt.hash,
             priceImpact: quote.priceImpact,
             type: quote.type,
             network,

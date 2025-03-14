@@ -2,6 +2,7 @@ import { SwapTool } from './SwapTool';
 import { ISwapProvider } from './types';
 import { ProviderRegistry } from './ProviderRegistry';
 import { BaseTool, IPluginConfig, BasePlugin, NetworkName } from '@binkai/core';
+import { GetQuoteSwapTool } from './GetQuoteSwapTool';
 
 export interface SwapPluginConfig extends IPluginConfig {
   defaultSlippage?: number;
@@ -13,6 +14,7 @@ export interface SwapPluginConfig extends IPluginConfig {
 export class SwapPlugin extends BasePlugin {
   public registry: ProviderRegistry;
   private swapTool!: SwapTool;
+  private getQuoteSwapTool!: GetQuoteSwapTool;
   private supportedNetworks: Set<string>;
 
   constructor() {
@@ -38,6 +40,11 @@ export class SwapPlugin extends BasePlugin {
       supportedNetworks: Array.from(this.supportedNetworks),
     });
 
+    this.getQuoteSwapTool = new GetQuoteSwapTool({
+      defaultNetwork: config.defaultNetwork,
+      supportedNetworks: Array.from(this.supportedNetworks),
+    });
+
     // Register providers if provided in config
     if (config.providers) {
       for (const provider of config.providers) {
@@ -47,7 +54,7 @@ export class SwapPlugin extends BasePlugin {
   }
 
   getTools(): BaseTool[] {
-    return [this.swapTool as unknown as BaseTool];
+    return [this.swapTool as unknown as BaseTool, this.getQuoteSwapTool as unknown as BaseTool];
   }
 
   /**
@@ -56,7 +63,7 @@ export class SwapPlugin extends BasePlugin {
   registerProvider(provider: ISwapProvider): void {
     this.registry.registerProvider(provider);
     this.swapTool.registerProvider(provider);
-
+    this.getQuoteSwapTool.registerProvider(provider);
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach((network: NetworkName) => {
       this.supportedNetworks.add(network);

@@ -13,7 +13,8 @@
     "version": "lerna version --no-private --force-publish --yes",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "postinstall": "husky"
+    "prepare": "husky",
+    "langgraph": "langgraphjs dev"
   },
   "workspaces": [
     "packages/*",

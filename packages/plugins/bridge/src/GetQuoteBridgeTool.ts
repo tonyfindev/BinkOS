@@ -17,11 +17,8 @@ export interface BridgeToolConfig extends IToolConfig {
   supportedTokens?: BasicToken[];
 }
 
-export class BridgeTool extends BaseTool {
-  public readonly agentNodeSupports: AgentNodeTypes[] = [
-    AgentNodeTypes.EXECUTOR,
-    AgentNodeTypes.PLANNER,
-  ];
+export class GetQuoteBridgeTool extends BaseTool {
+  public readonly agentNodeSupports: AgentNodeTypes[] = [];
   public registry: ProviderRegistry;
   private defaultNetwork: string;
   private supportedNetworks: Set<string>;
@@ -43,7 +40,7 @@ export class BridgeTool extends BaseTool {
   }
 
   getName(): string {
-    return 'bridge';
+    return 'get_quote_bridge';
   }
 
   getDescription(): string {
@@ -308,36 +305,6 @@ export class BridgeTool extends BaseTool {
             message: `Preparing to bridge ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
           });
 
-          // Build bridge transaction call to provider
-          const bridgeTx = await selectedProvider.buildBridgeTransaction(
-            quote,
-            fromWalletAddress,
-            toWalletAddress,
-          );
-
-          //const receipt = await wallet.signAndSendTransaction(fromNetwork, bridgeTx as any);
-          onProgress?.({
-            progress: 50,
-            message: `Found best rate with ${selectedProvider.getName()}. Preparing bridge transaction.`,
-          });
-
-          console.log('🚀 ~ BridgeTool ~ func: ~ bridgeTx:', bridgeTx);
-
-          onProgress?.({
-            progress: 70,
-            message: `Sending bridge transaction to move ${quote.fromAmount} ${quote.fromToken} from ${fromNetwork} to ${toNetwork}.`,
-          });
-
-          // const receipt = await wallet.signAndSendTransaction(fromNetwork, bridgeTx as any);
-
-          // Wait for transaction to be mined
-          // const finalReceipt = await receipt?.wait();
-
-          // onProgress?.({
-          //   progress: 100,
-          //   message: `Bridge complete! Successfully bridged ${quote.fromAmount} ${quote.fromToken} from ${fromNetwork} to ${toNetwork}. Transaction hash: ${finalReceipt?.hash}`,
-          // });
-
           //Return result as JSON string
           return JSON.stringify({
             provider: selectedProvider.getName(),
@@ -345,7 +312,6 @@ export class BridgeTool extends BaseTool {
             toToken: quote.toToken,
             fromAmount: quote.fromAmount.toString(),
             toAmount: quote.toAmount.toString(),
-            transactionHash: 'e21e2121',
             priceImpact: quote.priceImpact,
             type: quote.type,
             fromNetwork,

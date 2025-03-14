@@ -1,6 +1,12 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
+import {
+  AgentNodeTypes,
+  BaseTool,
+  CustomDynamicStructuredTool,
+  IToolConfig,
+  ToolProgress,
+} from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, WalletInfo } from './types';
 
@@ -44,6 +50,10 @@ export function mergeObjects<T extends Record<string, any>>(obj1: T, obj2: T): T
 }
 
 export class GetWalletBalanceTool extends BaseTool {
+  public readonly agentNodeSupports: AgentNodeTypes[] = [
+    AgentNodeTypes.PLANNER,
+    AgentNodeTypes.EXECUTOR,
+  ];
   public registry: ProviderRegistry;
   private defaultNetwork: string;
   private supportedNetworks: Set<string>;
@@ -89,7 +99,7 @@ export class GetWalletBalanceTool extends BaseTool {
       address: z
         .string()
         .optional()
-        .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
+        .describe('The wallet address to query (optional - use agent wallet if not provided)'),
       network: z
         .enum(supportedNetworks as [string, ...string[]])
         .default(this.defaultNetwork)
@@ -113,7 +123,7 @@ export class GetWalletBalanceTool extends BaseTool {
           let address = args.address;
 
           // If no address provided, get it from the agent's wallet
-          if (!address) {
+          if (!address || address.length === 0) {
             address = await this.agent.getWallet().getAddress(network);
           }
 

@@ -2,6 +2,7 @@ import { BridgeTool } from './BridgeTool';
 import { IBridgeProvider } from './types';
 import { ProviderRegistry } from './ProviderRegistry';
 import { BaseTool, IPluginConfig, BasePlugin, NetworkName } from '@binkai/core';
+import { GetQuoteBridgeTool } from './GetQuoteBridgeTool';
 
 export interface BridgePluginConfig extends IPluginConfig {
   defaultNetwork?: string;
@@ -12,6 +13,7 @@ export interface BridgePluginConfig extends IPluginConfig {
 export class BridgePlugin extends BasePlugin {
   public registry: ProviderRegistry;
   private bridgeTool!: BridgeTool;
+  private getQuoteBridgeTool!: GetQuoteBridgeTool;
   private supportedNetworks: Set<string>;
 
   constructor() {
@@ -36,6 +38,11 @@ export class BridgePlugin extends BasePlugin {
       supportedNetworks: Array.from(this.supportedNetworks),
     });
 
+    this.getQuoteBridgeTool = new GetQuoteBridgeTool({
+      defaultNetwork: config.defaultNetwork,
+      supportedNetworks: Array.from(this.supportedNetworks),
+    });
+
     // Register providers if provided in config
     if (config.providers) {
       for (const provider of config.providers) {
@@ -45,7 +52,7 @@ export class BridgePlugin extends BasePlugin {
   }
 
   getTools(): BaseTool[] {
-    return [this.bridgeTool as unknown as BaseTool];
+    return [this.bridgeTool as unknown as BaseTool, this.getQuoteBridgeTool as unknown as BaseTool];
   }
 
   /**
@@ -54,6 +61,7 @@ export class BridgePlugin extends BasePlugin {
   registerProvider(provider: IBridgeProvider): void {
     this.registry.registerProvider(provider);
     this.bridgeTool.registerProvider(provider);
+    this.getQuoteBridgeTool.registerProvider(provider);
 
     // Add provider's supported chains
     provider.getSupportedNetworks().forEach((network: NetworkName) => {

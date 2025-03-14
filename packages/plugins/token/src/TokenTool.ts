@@ -1,6 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import {
+  AgentNodeTypes,
   BaseTool,
   CustomDynamicStructuredTool,
   IToolConfig,
@@ -18,6 +19,10 @@ export interface GetTokenInfoToolConfig extends IToolConfig {
 }
 
 export class GetTokenInfoTool extends BaseTool {
+  public readonly agentNodeSupports: AgentNodeTypes[] = [
+    AgentNodeTypes.PLANNER,
+    AgentNodeTypes.EXECUTOR,
+  ];
   public registry: ProviderRegistry;
   private supportedNetworks: Set<NetworkName>;
   private defaultTokenProvider: DefaultTokenProvider;

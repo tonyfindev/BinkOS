@@ -1,0 +1,8 @@
+{
+  "dockerfile_lines": [""],
+  "graphs": {
+    "planning-agent": "./examples/basic/src/planning-example.ts:graph"
+  },
+  "env": "./examples/basic/.env",
+  "node_version": "20"
+}
