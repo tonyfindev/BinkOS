@@ -4,6 +4,12 @@ import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from
 import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, WalletInfo } from './types';
 
+interface StructuredError {
+  step: string;
+  message: string;
+  details: Record<string, any>;
+}
+
 export interface WalletToolConfig extends IToolConfig {
   defaultNetwork?: string;
   supportedNetworks?: string[];
@@ -97,6 +103,85 @@ export class GetWalletBalanceTool extends BaseTool {
     });
   }
 
+  // Simplified suggestion generator function for WalletBalanceTool
+  private generateEnhancedSuggestion(
+    errorStep: string,
+    structuredError: StructuredError,
+    args: any,
+  ): string {
+    let suggestion = '';
+    let alternativeActions: string[] = [];
+
+    // Prefix to clearly indicate this is a WalletBalanceTool error
+    const errorPrefix = `[Wallet Balance Tool Error] `;
+
+    switch (errorStep) {
+      case 'network_validation':
+        const networks = structuredError.details.supportedNetworks || [];
+        suggestion = `${errorPrefix}Network validation failed: "${structuredError.details.requestedNetwork}" is not supported for wallet balance queries. Please use one of these networks: ${networks.join(', ')}.`;
+
+        alternativeActions = [
+          `Try with a supported network, e.g., "check my balance on bnb"`,
+          `List supported networks: "show supported networks for wallet balance"`,
+        ];
+        break;
+
+      case 'wallet_address':
+        suggestion = `${errorPrefix}Wallet address retrieval failed: Could not access wallet address for the ${structuredError.details.network} network. Please ensure your wallet is properly connected and supports this network, or provide an address explicitly.`;
+
+        alternativeActions = [
+          `Provide an address explicitly: "check balance of [wallet_address] on ${structuredError.details.network}"`,
+          `Try a different network: "check my balance on [different_network]"`,
+          `View your wallet addresses: "show my wallet addresses"`,
+        ];
+        break;
+
+      case 'provider_availability':
+        const supportedNets = structuredError.details.supportedNetworks || [];
+        suggestion = `${errorPrefix}Provider availability issue: No data providers available for the ${structuredError.details.network} network. This tool supports: ${supportedNets.join(', ')}.`;
+
+        alternativeActions = [
+          `Try a supported network: "check my balance on ${supportedNets[0] || 'supported_network'}"`,
+          `List available providers: "show wallet data providers"`,
+        ];
+        break;
+
+      case 'data_retrieval':
+        suggestion = `${errorPrefix}Data retrieval failed: Could not get wallet information for address ${structuredError.details.address} on ${structuredError.details.network} network. The address may be invalid, have no activity, or the network may be experiencing issues.`;
+
+        alternativeActions = [
+          `Verify the address is correct: "verify address ${structuredError.details.address}"`,
+          `Try a different network: "check balance on [different_network]"`,
+          `Check network status: "check status of ${structuredError.details.network} network"`,
+        ];
+        break;
+
+      default:
+        suggestion = `${errorPrefix}Wallet balance query failed: An unexpected error occurred while retrieving wallet information. Please check your input parameters and try again.`;
+
+        alternativeActions = [
+          `Try with a different network: "check my balance on [network]"`,
+          `Provide a specific address: "check balance of [address] on [network]"`,
+        ];
+    }
+
+    // Create enhanced suggestion with alternative actions
+    let enhancedSuggestion = `${suggestion}\n\n`;
+
+    // Add process information
+    enhancedSuggestion += `**Wallet Balance Process Stage:** ${errorStep.replace('_', ' ').charAt(0).toUpperCase() + errorStep.replace('_', ' ').slice(1)}\n\n`;
+
+    // Add alternative actions
+    if (alternativeActions.length > 0) {
+      enhancedSuggestion += `**Suggested commands you can try:**\n`;
+      alternativeActions.forEach(action => {
+        enhancedSuggestion += `- ${action}\n`;
+      });
+    }
+
+    return enhancedSuggestion;
+  }
+
   createTool(): CustomDynamicStructuredTool {
     return {
       name: this.getName(),
@@ -112,9 +197,34 @@ export class GetWalletBalanceTool extends BaseTool {
           const network = args.network;
           let address = args.address;
 
-          // If no address provided, get it from the agent's wallet
-          if (!address) {
-            address = await this.agent.getWallet().getAddress(network);
+          // STEP 1: Validate network
+          const supportedNetworks = this.getsupportedNetworks();
+          if (!supportedNetworks.includes(network)) {
+            throw {
+              step: 'network_validation',
+              message: `Network ${network} is not supported.`,
+              details: {
+                requestedNetwork: network,
+                supportedNetworks: supportedNetworks,
+              },
+            } as StructuredError;
+          }
+
+          // STEP 2: Get wallet address
+          try {
+            // If no address provided, get it from the agent's wallet
+            if (!address) {
+              address = await this.agent.getWallet().getAddress(network);
+            }
+          } catch (error: any) {
+            throw {
+              step: 'wallet_address',
+              message: `Failed to get wallet address for network ${network}.`,
+              details: {
+                network: network,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            } as StructuredError;
           }
 
           onProgress?.({
@@ -122,20 +232,30 @@ export class GetWalletBalanceTool extends BaseTool {
             message: `Retrieving wallet information for ${address} on ${network} network.`,
           });
 
+          // STEP 3: Check providers
           const providers = this.registry.getProvidersByNetwork(network);
           if (providers.length === 0) {
-            throw new Error(`No providers available for network ${network}`);
+            throw {
+              step: 'provider_availability',
+              message: `No providers available for network ${network}.`,
+              details: {
+                network: network,
+                availableProviders: this.registry.getProviderNames(),
+                supportedNetworks: Array.from(this.supportedNetworks),
+              },
+            } as StructuredError;
           }
 
           let results: WalletInfo = {};
           const errors: Record<string, string> = {};
 
+          // STEP 4: Query providers
           // Try all providers and collect results
           for (const provider of providers) {
             try {
               const data = await provider.getWalletInfo(address, network);
               results = mergeObjects(results, data);
-            } catch (error) {
+            } catch (error: any) {
               console.warn(`Failed to get wallet info from ${provider.getName()}:`, error);
               errors[provider.getName()] = error instanceof Error ? error.message : String(error);
             }
@@ -143,10 +263,17 @@ export class GetWalletBalanceTool extends BaseTool {
 
           // If no successful results, throw error
           if (Object.keys(results).length === 0) {
-            throw new Error(
-              `Failed to get wallet information for ${address} on network ${network}. Errors: ${JSON.stringify(errors)}`,
-            );
+            throw {
+              step: 'data_retrieval',
+              message: `Failed to get wallet information for ${address} on network ${network}.`,
+              details: {
+                address: address,
+                network: network,
+                errors: errors,
+              },
+            } as StructuredError;
           }
+
           console.log('🤖 Wallet info:', results);
 
           onProgress?.({
@@ -155,17 +282,80 @@ export class GetWalletBalanceTool extends BaseTool {
           });
 
           return JSON.stringify({
-            status: Object.keys(results).length === 0 ? 'error' : 'success',
+            status: 'success',
             data: results,
-            errors,
+            errors: Object.keys(errors).length > 0 ? errors : undefined,
             network,
+            address,
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error('Wallet info error:', error);
+
+          // Determine error type and structure response accordingly
+          let errorStep = 'unknown';
+          let errorMessage = '';
+          let errorDetails = {};
+          let suggestion = '';
+
+          if (typeof error === 'object' && error !== null) {
+            // Handle structured errors we threw earlier
+            if ('step' in error) {
+              const structuredError = error as StructuredError;
+              errorStep = structuredError.step;
+              errorMessage = structuredError.message;
+              errorDetails = structuredError.details || {};
+
+              // Use enhanced suggestion generator
+              suggestion = this.generateEnhancedSuggestion(errorStep, structuredError, args);
+            } else if (error instanceof Error) {
+              // Handle standard Error objects
+              errorStep = 'execution';
+              errorMessage = error.message;
+
+              // Create suggestion for standard error
+              const mockStructuredError: StructuredError = {
+                step: errorStep,
+                message: errorMessage,
+                details: { error: errorMessage, network: args.network },
+              };
+              suggestion = this.generateEnhancedSuggestion(errorStep, mockStructuredError, args);
+            } else {
+              // Handle other error types
+              errorStep = 'execution';
+              errorMessage = String(error);
+              const mockStructuredError: StructuredError = {
+                step: errorStep,
+                message: errorMessage,
+                details: { error: errorMessage, network: args.network },
+              };
+              suggestion = this.generateEnhancedSuggestion(errorStep, mockStructuredError, args);
+            }
+          } else {
+            // Handle primitive error types
+            errorStep = 'execution';
+            errorMessage = String(error);
+            const mockStructuredError: StructuredError = {
+              step: errorStep,
+              message: errorMessage,
+              details: { error: errorMessage, network: args.network },
+            };
+            suggestion = this.generateEnhancedSuggestion(errorStep, mockStructuredError, args);
+          }
+
+          // Return structured error response with enhanced information
           return JSON.stringify({
             status: 'error',
-            message: error instanceof Error ? error.message : String(error),
-            network: args.network,
+            tool: 'get_wallet_balance',
+            toolType: 'wallet_information',
+            process: 'balance_retrieval',
+            errorStep: errorStep,
+            processStage:
+              errorStep.replace('_', ' ').charAt(0).toUpperCase() +
+              errorStep.replace('_', ' ').slice(1),
+            message: errorMessage,
+            details: errorDetails,
+            suggestion: suggestion,
+            parameters: args,
           });
         }
       },

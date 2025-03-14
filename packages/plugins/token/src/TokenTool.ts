@@ -17,6 +17,13 @@ export interface GetTokenInfoToolConfig extends IToolConfig {
   supportedNetworks?: NetworkName[];
 }
 
+// Define the StructuredError interface
+interface StructuredError {
+  step: string;
+  message: string;
+  details: Record<string, any>;
+}
+
 export class GetTokenInfoTool extends BaseTool {
   public registry: ProviderRegistry;
   private supportedNetworks: Set<NetworkName>;
@@ -96,7 +103,7 @@ export class GetTokenInfoTool extends BaseTool {
     return z.object({
       query: z.string().describe('The token address or symbol to query'),
       network: z
-        .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
+        .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon', 'null'])
         .describe('The blockchain network to query the token on'),
       provider: z
         .enum(providers as [string, ...string[]])
@@ -211,7 +218,7 @@ export class GetTokenInfoTool extends BaseTool {
 
           return mergedToken;
         }
-      } catch (error) {
+      } catch (error: any) {
         console.warn(`Failed to get price from ${provider.getName()}:`, error);
         continue;
       }
@@ -263,7 +270,7 @@ export class GetTokenInfoTool extends BaseTool {
       }
 
       return tokenInfo;
-    } catch (error) {
+    } catch (error: any) {
       console.log('Token not found in default list, trying external providers...');
     }
 
@@ -283,7 +290,7 @@ export class GetTokenInfoTool extends BaseTool {
         this.updateTokenCache(params.network, tokenInfo);
 
         return tokenInfo;
-      } catch (error) {
+      } catch (error: any) {
         console.warn(`Failed to get token info from ${provider.getName()}:`, error);
         lastError = error as Error;
         continue;
@@ -336,11 +343,91 @@ export class GetTokenInfoTool extends BaseTool {
       updatedToken.marketCap = roundNumber(updatedToken.marketCap, 0);
 
       return updatedToken;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(
         `Failed to refresh price: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  // Simplified suggestion generator function for TokenTool
+  private generateEnhancedSuggestion(
+    errorStep: string,
+    structuredError: StructuredError,
+    args: any,
+  ): string {
+    let suggestion = '';
+    let alternativeActions: string[] = [];
+
+    // Prefix to clearly indicate this is a TokenTool error
+    const errorPrefix = `[Token Info Tool Error] `;
+
+    switch (errorStep) {
+      case 'network_validation':
+        const networks = structuredError.details.supportedNetworks || [];
+        suggestion = `${errorPrefix}Network validation failed: "${structuredError.details.requestedNetwork}" is not supported for token queries. Please use one of these networks: ${networks.join(', ')}.`;
+
+        alternativeActions = [
+          `Try with a supported network, e.g., "get info for USDC on ${networks[0] || 'ethereum'}"`,
+          `List supported networks: "show supported networks for token info"`,
+        ];
+        break;
+
+      case 'provider_validation':
+        suggestion = `${errorPrefix}Provider validation failed: The provider "${structuredError.details.requestedProvider}" does not support the network "${structuredError.details.network}". Please use a different provider or network.`;
+
+        alternativeActions = [
+          `Try without specifying a provider: "get info for ${args.query} on ${args.network}"`,
+          `Try a different provider: "get info for ${args.query} on ${args.network} using ${structuredError.details.availableProviders[0] || 'available_provider'}"`,
+          `List available providers: "show token data providers for ${args.network}"`,
+        ];
+        break;
+
+      case 'token_not_found':
+        suggestion = `${errorPrefix}Token not found: Could not find information for token "${structuredError.details.query}" on ${structuredError.details.network} network. The token symbol or address may be incorrect.`;
+
+        alternativeActions = [
+          `Check if the token symbol is correct: "get info for [correct_symbol] on ${args.network}"`,
+          `Try using the token address instead: "get info for [token_address] on ${args.network}"`,
+          `List popular tokens: "show popular tokens on ${args.network}"`,
+        ];
+        break;
+
+      case 'price_retrieval':
+        suggestion = `${errorPrefix}Price retrieval failed: Found basic token information for "${structuredError.details.symbol}" but could not retrieve current price data. This may be due to low liquidity or the token not being listed on major exchanges.`;
+
+        alternativeActions = [
+          `Get basic token info without price: "get info for ${args.query} on ${args.network} without price"`,
+          `Try a different token: "get info for [different_token] on ${args.network}"`,
+          `Check token on a block explorer: "show ${args.query} on ${args.network} explorer"`,
+        ];
+        break;
+
+      default:
+        suggestion = `${errorPrefix}Token query failed: An unexpected error occurred while retrieving token information. Please check your input parameters and try again.`;
+
+        alternativeActions = [
+          `Try with a different token symbol: "get info for [token_symbol] on ${args.network || 'network'}"`,
+          `Try with a token address: "get info for [token_address] on ${args.network || 'network'}"`,
+          `List popular tokens: "show popular tokens on ${args.network || 'ethereum'}"`,
+        ];
+    }
+
+    // Create enhanced suggestion with alternative actions
+    let enhancedSuggestion = `${suggestion}\n\n`;
+
+    // Add process information
+    enhancedSuggestion += `**Token Info Process Stage:** ${errorStep.replace('_', ' ').charAt(0).toUpperCase() + errorStep.replace('_', ' ').slice(1)}\n\n`;
+
+    // Add alternative actions
+    if (alternativeActions.length > 0) {
+      enhancedSuggestion += `**Suggested commands you can try:**\n`;
+      alternativeActions.forEach(action => {
+        enhancedSuggestion += `- ${action}\n`;
+      });
+    }
+
+    return enhancedSuggestion;
   }
 
   createTool(): CustomDynamicStructuredTool {
@@ -365,12 +452,17 @@ export class GetTokenInfoTool extends BaseTool {
             message: `Searching for token information for "${query}" on ${network} network.`,
           });
 
-          // Validate network is supported
+          // STEP 1: Validate network is supported
           const supportedNetworks = this.getSupportedNetworks();
           if (!supportedNetworks.includes(network)) {
-            throw new Error(
-              `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
-            );
+            throw {
+              step: 'network_validation',
+              message: `Network ${network} is not supported.`,
+              details: {
+                requestedNetwork: network,
+                supportedNetworks: supportedNetworks,
+              },
+            } as StructuredError;
           }
 
           let tokenInfo: TokenInfo;
@@ -381,16 +473,58 @@ export class GetTokenInfoTool extends BaseTool {
               message: `Querying token information from ${preferredProvider} provider.`,
             });
 
+            // STEP 2: Validate provider
             const provider = this.registry.getProvider(preferredProvider);
+
             // Validate provider supports the network
             if (!provider.getSupportedNetworks().includes(network)) {
-              throw new Error(`Provider ${preferredProvider} does not support network ${network}`);
+              throw {
+                step: 'provider_validation',
+                message: `Provider ${preferredProvider} does not support network ${network}.`,
+                details: {
+                  requestedProvider: preferredProvider,
+                  network: network,
+                  availableProviders: this.registry
+                    .getProvidersByNetwork(network)
+                    .map(p => p.getName()),
+                },
+              } as StructuredError;
             }
-            tokenInfo = await provider.getTokenInfo({ query, network, includePrice });
 
-            // If using default provider and price is requested, fetch price from other providers
+            // STEP 3: Query token info from specific provider
+            try {
+              tokenInfo = await provider.getTokenInfo({ query, network, includePrice });
+            } catch (error: any) {
+              throw {
+                step: 'token_not_found',
+                message: `Provider ${preferredProvider} could not find token "${query}" on network ${network}.`,
+                details: {
+                  query: query,
+                  network: network,
+                  provider: preferredProvider,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              } as StructuredError;
+            }
+
+            // STEP 4: Handle price retrieval if needed
             if (preferredProvider === this.defaultTokenProvider.getName() && includePrice) {
-              tokenInfo = await this.fetchTokenPrice(tokenInfo, network);
+              try {
+                tokenInfo = await this.fetchTokenPrice(tokenInfo, network);
+
+                // Check if price was actually retrieved
+                if (includePrice && !tokenInfo.price?.usd) {
+                  console.warn(
+                    `Could not retrieve price for ${tokenInfo.symbol || query} on ${network}`,
+                  );
+                  // Not throwing error here, just continuing with the token info we have
+                }
+              } catch (error: any) {
+                console.warn(
+                  `Error fetching price: ${error instanceof Error ? error.message : String(error)}`,
+                );
+                // Not throwing error here, just continuing with the token info we have
+              }
             } else {
               // For non-default providers, update our cache
               this.updateTokenCache(network, tokenInfo);
@@ -401,11 +535,25 @@ export class GetTokenInfoTool extends BaseTool {
               message: `Searching for token information across all available providers.`,
             });
 
-            tokenInfo = await this.queryToken({
-              query,
-              network,
-              includePrice,
-            });
+            // STEP 3: Query token info from all providers
+            try {
+              tokenInfo = await this.queryToken({
+                query,
+                network,
+                includePrice,
+              });
+            } catch (error: any) {
+              throw {
+                step: 'token_not_found',
+                message: `Could not find token "${query}" on network ${network} using any provider.`,
+                details: {
+                  query: query,
+                  network: network,
+                  providers: this.registry.getProvidersByNetwork(network).map(p => p.getName()),
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              } as StructuredError;
+            }
           }
 
           // Ensure all numeric values are properly rounded before returning
@@ -430,12 +578,86 @@ export class GetTokenInfoTool extends BaseTool {
             provider: preferredProvider || 'auto',
             network,
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error('Token info error:', error);
+
+          // Determine error type and structure response accordingly
+          let errorStep = 'unknown';
+          let errorMessage = '';
+          let errorDetails = {};
+          let suggestion = '';
+
+          if (typeof error === 'object' && error !== null) {
+            // Handle structured errors we threw earlier
+            if ('step' in error) {
+              const structuredError = error as StructuredError;
+              errorStep = structuredError.step;
+              errorMessage = structuredError.message;
+              errorDetails = structuredError.details || {};
+
+              // Use enhanced suggestion generator
+              suggestion = this.generateEnhancedSuggestion(errorStep, structuredError, args);
+            } else if (error instanceof Error) {
+              // Handle standard Error objects
+              errorStep = 'execution';
+              errorMessage = error.message;
+
+              // Create suggestion for standard error
+              const mockStructuredError: StructuredError = {
+                step: errorStep,
+                message: errorMessage,
+                details: {
+                  error: errorMessage,
+                  network: args.network,
+                  query: args.query,
+                },
+              };
+              suggestion = this.generateEnhancedSuggestion(errorStep, mockStructuredError, args);
+            } else {
+              // Handle other error types
+              errorStep = 'execution';
+              errorMessage = String(error);
+              const mockStructuredError: StructuredError = {
+                step: errorStep,
+                message: errorMessage,
+                details: {
+                  error: errorMessage,
+                  network: args.network,
+                  query: args.query,
+                },
+              };
+              suggestion = this.generateEnhancedSuggestion(errorStep, mockStructuredError, args);
+            }
+          } else {
+            // Handle primitive error types
+            errorStep = 'execution';
+            errorMessage = String(error);
+            const mockStructuredError: StructuredError = {
+              step: errorStep,
+              message: errorMessage,
+              details: {
+                error: errorMessage,
+                network: args.network,
+                query: args.query,
+              },
+            };
+            suggestion = this.generateEnhancedSuggestion(errorStep, mockStructuredError, args);
+          }
+
+          // Return structured error response with enhanced information
           return JSON.stringify({
             status: 'error',
-            message: error instanceof Error ? error.message : String(error),
-            network: args.network,
+            tool: 'get_token_info',
+            toolType: 'token_information',
+            process: 'token_data_retrieval',
+            errorStep: errorStep,
+            processStage:
+              errorStep.replace('_', ' ').charAt(0).toUpperCase() +
+              errorStep.replace('_', ' ').slice(1),
+            message: errorMessage,
+            details: errorDetails,
+            suggestion: suggestion,
+            parameters: args,
           });
         }
       },

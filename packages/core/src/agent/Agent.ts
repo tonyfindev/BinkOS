@@ -13,6 +13,13 @@ import { MessageEntity } from '../types';
 import { EVM_NATIVE_TOKEN_ADDRESS, SOL_NATIVE_TOKEN_ADDRESS } from '../network';
 import { CallbackManager, IToolExecutionCallback } from './callbacks';
 
+// Define the StructuredError interface
+interface StructuredError {
+  step: string;
+  message: string;
+  details: Record<string, any>;
+}
+
 export class Agent extends BaseAgent {
   private model: ChatOpenAI;
   private wallet: IWallet;
@@ -176,149 +183,512 @@ export class Agent extends BaseAgent {
     });
   }
 
-  async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
-    // Wait for executor to be initialized if it hasn't been already
-    if (!this.executor) {
-      await this.initializeExecutor();
-    }
-    if (!Object.keys(this.context).length) {
-      await this.initializeContext();
-    }
-    let _history: MessageEntity[] = [];
+  // Simplified suggestion generator function for Agent
+  private generateEnhancedSuggestion(
+    errorStep: string,
+    structuredError: StructuredError,
+    command: string | AgentExecuteParams,
+  ): string {
+    let suggestion = '';
+    let alternativeActions: string[] = [];
 
-    if (this.db) {
-      if (typeof commandOrParams === 'string') {
-        if (this.context?.user?.id) {
-          _history = await this.db?.getMessagesByUserId(this.context?.user?.id);
-        }
-      } else {
-        if (commandOrParams?.threadId) {
-          _history = await this.db?.getMessagesByThreadId(commandOrParams?.threadId);
+    // Prefix to clearly indicate this is an Agent error
+    const errorPrefix = `[Agent Error] `;
+
+    switch (errorStep) {
+      case 'initialization':
+        suggestion = `${errorPrefix}Agent initialization failed: The agent could not be properly initialized. ${structuredError.message}`;
+
+        alternativeActions = [
+          `Try restarting the agent`,
+          `Check if the wallet is properly connected`,
+          `Verify network configurations`,
+        ];
+        break;
+
+      case 'wallet_access':
+        suggestion = `${errorPrefix}Wallet access failed: Could not access the wallet to perform this operation. ${structuredError.message}`;
+
+        alternativeActions = [
+          `Check if your wallet is properly connected`,
+          `Try reconnecting your wallet`,
+          `Verify that you have the correct permissions`,
+        ];
+        break;
+
+      case 'tool_execution':
+        suggestion = `${errorPrefix}Tool execution failed: The agent encountered an error while executing a tool. ${structuredError.message}`;
+
+        alternativeActions = [
+          `Try a simpler command`,
+          `Check the parameters you provided`,
+          `Try a different approach to accomplish your goal`,
+        ];
+        break;
+
+      case 'reasoning':
+        suggestion = `${errorPrefix}AI reasoning failed: The agent could not properly reason about your request. ${structuredError.message}`;
+
+        alternativeActions = [
+          `Try rephrasing your request more clearly`,
+          `Break down your request into smaller steps`,
+          `Provide more specific information about what you want to accomplish`,
+        ];
+        break;
+
+      case 'database':
+        suggestion = `${errorPrefix}Database operation failed: Could not store or retrieve conversation history. ${structuredError.message}`;
+
+        alternativeActions = [
+          `Continue with your request (your current conversation will work, but might not be saved)`,
+          `Try again later when the database service might be available`,
+        ];
+        break;
+
+      default:
+        suggestion = `${errorPrefix}Execution failed: An unexpected error occurred while processing your request. ${structuredError.message}`;
+
+        alternativeActions = [
+          `Try a simpler request`,
+          `Break down your request into smaller steps`,
+          `Try again with more specific instructions`,
+        ];
+    }
+
+    // Create enhanced suggestion with alternative actions
+    let enhancedSuggestion = `${suggestion}\n\n`;
+
+    // Add process information
+    enhancedSuggestion += `**Agent Process Stage:** ${errorStep.replace('_', ' ').charAt(0).toUpperCase() + errorStep.replace('_', ' ').slice(1)}\n\n`;
+
+    // Add alternative actions
+    if (alternativeActions.length > 0) {
+      enhancedSuggestion += `**Suggested actions you can try:**\n`;
+      alternativeActions.forEach(action => {
+        enhancedSuggestion += `- ${action}\n`;
+      });
+    }
+
+    return enhancedSuggestion;
+  }
+
+  async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
+    try {
+      // STEP 1: Check if executor is initialized
+      if (!this.executor) {
+        try {
+          await this.initializeExecutor();
+        } catch (error) {
+          const structuredError = {
+            step: 'initialization',
+            message: 'Failed to initialize agent executor.',
+            details: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          };
+          console.error('Agent error:', JSON.stringify(structuredError));
+          throw structuredError;
         }
       }
-      // } else {
-      //   if (typeof commandOrParams !== 'string' && commandOrParams?.history) {
-      //     _history = commandOrParams.history;
-      //   }
-    }
 
-    const history = _history.map((message: MessageEntity) =>
-      message?.message_type === 'human'
-        ? new HumanMessage(message?.content)
-        : new AIMessage(message?.content),
-    );
+      // STEP 2: Check if context is initialized
+      if (!Object.keys(this.context).length) {
+        try {
+          await this.initializeContext();
+        } catch (error) {
+          const structuredError = {
+            step: 'initialization',
+            message: 'Failed to initialize agent context.',
+            details: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          };
+          console.error('Agent error:', JSON.stringify(structuredError));
+          throw structuredError;
+        }
+      }
 
-    const maxRetries = 3;
-    let retryCount = 0;
-    let lastError: any = null;
-    let result: any;
+      let _history: MessageEntity[] = [];
 
-    while (retryCount <= maxRetries) {
-      console.log(`🔴 AI reasoning attempt ${retryCount + 1}/${maxRetries}\n`);
+      // STEP 3: Retrieve conversation history
+      if (this.db) {
+        try {
+          if (typeof commandOrParams === 'string') {
+            if (this.context?.user?.id) {
+              _history = await this.db?.getMessagesByUserId(this.context?.user?.id);
+            }
+          } else {
+            if (commandOrParams?.threadId) {
+              _history = await this.db?.getMessagesByThreadId(commandOrParams?.threadId);
+            }
+          }
+        } catch (error) {
+          const structuredError = {
+            step: 'database',
+            message: 'Error retrieving message history.',
+            details: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          };
+          console.warn('Database warning:', JSON.stringify(structuredError));
+          // Continue execution even if history retrieval fails
+        }
+      }
 
-      try {
-        const input = typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
+      const history = _history.map((message: MessageEntity) =>
+        message?.message_type === 'human'
+          ? new HumanMessage(message?.content)
+          : new AIMessage(message?.content),
+      );
 
-        // Only use history on first try
-        const chat_history = history;
+      const maxRetries = 3;
+      let retryCount = 0;
+      let lastError: any = null;
+      let result: any;
 
-        result = await this.executor.invoke({ input, chat_history });
+      while (retryCount <= maxRetries) {
+        console.log(`AI reasoning attempt ${retryCount + 1}/${maxRetries}`);
 
-        if (result && result.output) {
-          if (
-            typeof result.output === 'string' &&
-            (result.output.includes('error') ||
-              result.output.includes('Error') ||
-              result.output.includes('failed'))
-          ) {
-            retryCount++;
+        try {
+          const input =
+            typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
 
-            if (retryCount === maxRetries) {
-              console.error(`🔴 AI reasoning max retries reached, returning error output`);
-              try {
-                const threadId =
-                  typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
-                await this.db?.createMessage(
-                  { content: input, user_id: this.context?.user?.id, message_type: 'human' },
-                  threadId,
-                );
-                await this.db?.createMessage(
-                  { content: result.output, user_id: this.context?.user?.id, message_type: 'ai' },
-                  threadId,
-                );
-              } catch (dbError) {
-                console.error('Error persisting message:', dbError);
+          // Only use history on first try, not during retries
+          const chat_history = retryCount === 0 ? history : [];
+
+          // STEP 4: Execute the command
+          result = await this.executor.invoke({ input, chat_history });
+
+          if (result && result.output) {
+            // Check if the result contains error indicators
+            if (
+              typeof result.output === 'string' &&
+              (result.output.includes('error') ||
+                result.output.includes('Error') ||
+                result.output.includes('failed'))
+            ) {
+              retryCount++;
+
+              if (retryCount === maxRetries) {
+                const structuredError = {
+                  step: 'reasoning',
+                  message: 'AI reasoning max retries reached, returning error output',
+                  details: {
+                    error: result.output,
+                    retryCount: retryCount,
+                    command: input,
+                  },
+                };
+                console.error('Agent error:', JSON.stringify(structuredError));
+
+                // STEP 5: Persist messages even for error results
+                try {
+                  const threadId =
+                    typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
+                  await this.db?.createMessage(
+                    { content: input, user_id: this.context?.user?.id, message_type: 'human' },
+                    threadId,
+                  );
+                  await this.db?.createMessage(
+                    { content: result.output, user_id: this.context?.user?.id, message_type: 'ai' },
+                    threadId,
+                  );
+                } catch (dbError) {
+                  const persistError = {
+                    step: 'database',
+                    message: 'Error persisting message.',
+                    details: {
+                      error: dbError instanceof Error ? dbError.message : String(dbError),
+                    },
+                  };
+                  console.error('Database error:', JSON.stringify(persistError));
+                }
+
+                return result.output;
               }
 
-              return result.output;
+              const retryPrompt = `The previous command failed with error: "${result.output}". Please rethink and try to change the approach and fix the issue and try again with the command. 
+              If could not resolve the problem. Base on the error information, show user the process lead to error. Try suggest user the next step to resolve the problem. Command below: `;
+
+              if (typeof commandOrParams === 'string') {
+                commandOrParams = retryPrompt + commandOrParams;
+              } else {
+                commandOrParams.input = retryPrompt + commandOrParams.input;
+              }
+
+              const retryError = {
+                step: 'reasoning',
+                message: 'AI reasoning attempt failed with output error, retrying',
+                details: {
+                  error: result.output,
+                  retryCount: retryCount,
+                  command: input,
+                },
+              };
+              console.error('Agent retry:', JSON.stringify(retryError));
+              continue;
             }
 
-            const retryPrompt = `The previous command failed with error: "${result.output}". Please rethink and try to change the params and fix the issue and try again with the command: `;
+            // STEP 5: Persist successful messages
+            try {
+              const threadId =
+                typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
 
-            if (typeof commandOrParams === 'string') {
-              commandOrParams = retryPrompt + commandOrParams;
-            } else {
-              commandOrParams.input = retryPrompt + commandOrParams.input;
+              await this.db?.createMessage(
+                { content: input, user_id: this.context?.user?.id, message_type: 'human' },
+                threadId,
+              );
+
+              await this.db?.createMessage(
+                { content: result.output, user_id: this.context?.user?.id, message_type: 'ai' },
+                threadId,
+              );
+
+              console.log('Message persisted successfully');
+            } catch (dbError) {
+              const persistError = {
+                step: 'database',
+                message: 'Error persisting message.',
+                details: {
+                  error: dbError instanceof Error ? dbError.message : String(dbError),
+                },
+              };
+              console.error('Database error:', JSON.stringify(persistError));
+              // Continue even if persistence fails
             }
 
-            console.error(
-              `🔴 AI reasoning attempt ${retryCount} failed with output error, retrying...`,
+            return result.output;
+          }
+        } catch (error) {
+          lastError = error;
+          const executionError = {
+            step: 'reasoning',
+            message: `AI reasoning attempt ${retryCount + 1} failed with exception`,
+            details: {
+              error: error instanceof Error ? error.message : String(error),
+              retryCount: retryCount,
+              command:
+                typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input,
+            },
+          };
+          console.error('Agent error:', JSON.stringify(executionError));
+
+          retryCount++;
+
+          if (retryCount === maxRetries) {
+            const maxRetryError = {
+              step: 'reasoning',
+              message: 'AI reasoning max retries reached, returning error',
+              details: {
+                error: lastError instanceof Error ? lastError.message : String(lastError),
+                retryCount: retryCount,
+                command:
+                  typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input,
+              },
+            };
+            console.error('Agent error:', JSON.stringify(maxRetryError));
+
+            // Create a structured error for the reasoning failure
+            const structuredError: StructuredError = {
+              step: 'reasoning',
+              message: lastError instanceof Error ? lastError.message : String(lastError),
+              details: {
+                error: lastError instanceof Error ? lastError.message : String(lastError),
+                retryCount: retryCount,
+                command:
+                  typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input,
+              },
+            };
+
+            // Generate enhanced suggestion
+            const suggestion = this.generateEnhancedSuggestion(
+              'reasoning',
+              structuredError,
+              commandOrParams,
             );
-            continue;
+
+            return JSON.stringify({
+              status: 'error',
+              tool: 'agent',
+              toolType: 'ai_reasoning',
+              process: 'command_execution',
+              errorStep: 'reasoning',
+              processStage: 'AI Reasoning',
+              message: lastError instanceof Error ? lastError.message : String(lastError),
+              details: structuredError.details,
+              suggestion: suggestion,
+              parameters:
+                typeof commandOrParams === 'string' ? { input: commandOrParams } : commandOrParams,
+            });
           }
 
-          try {
-            const threadId =
-              typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
+          // Retry prompt
+          const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
+          const retryPrompt = `The previous command failed with error: "${errorMsg}". Please rethink and try to change the params and fix the issue and try again with the command: `;
 
-            await this.db?.createMessage(
-              { content: input, user_id: this.context?.user?.id, message_type: 'human' },
-              threadId,
-            );
-
-            await this.db?.createMessage(
-              { content: result.output, user_id: this.context?.user?.id, message_type: 'ai' },
-              threadId,
-            );
-
-            console.log('Message persisted successfully');
-          } catch (dbError) {
-            console.error('Error persisting message:', dbError);
+          if (typeof commandOrParams === 'string') {
+            commandOrParams = retryPrompt + commandOrParams;
+          } else {
+            commandOrParams.input = retryPrompt + commandOrParams.input;
           }
-
-          return result.output;
-        }
-      } catch (error) {
-        lastError = error;
-        console.error(`🔴 AI reasoning attempt ${retryCount + 1} failed with exception:`, error);
-
-        retryCount++;
-
-        if (retryCount === maxRetries) {
-          console.error(`🔴 AI reasoning max retries reached, returning error`);
-          return JSON.stringify({
-            status: 'error',
-            message: lastError instanceof Error ? lastError.message : String(lastError),
-          });
-        }
-
-        // Retry prompt
-        const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
-        const retryPrompt = `The previous command failed with error: "${errorMsg}". Please rethink and try to change the params and fix the issue and try again with the command: `;
-
-        if (typeof commandOrParams === 'string') {
-          commandOrParams = retryPrompt + commandOrParams;
-        } else {
-          commandOrParams.input = retryPrompt + commandOrParams.input;
         }
       }
-    }
 
-    // Fallback if loop ended without return
-    return JSON.stringify({
-      status: 'error',
-      message: 'Execution failed after maximum retries',
-    });
+      // Fallback if loop ended without return
+      const structuredError: StructuredError = {
+        step: 'execution',
+        message: 'Execution failed after maximum retries',
+        details: {
+          retryCount: retryCount,
+          lastError: lastError instanceof Error ? lastError.message : String(lastError),
+          command: typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input,
+        },
+      };
+
+      console.error('Agent error:', JSON.stringify(structuredError));
+
+      const suggestion = this.generateEnhancedSuggestion(
+        'execution',
+        structuredError,
+        commandOrParams,
+      );
+
+      return JSON.stringify({
+        status: 'error',
+        tool: 'agent',
+        toolType: 'ai_reasoning',
+        process: 'command_execution',
+        errorStep: 'execution',
+        processStage: 'Execution',
+        message: 'Execution failed after maximum retries',
+        details: structuredError.details,
+        suggestion: suggestion,
+        parameters:
+          typeof commandOrParams === 'string' ? { input: commandOrParams } : commandOrParams,
+      });
+    } catch (error) {
+      const agentError = {
+        step:
+          typeof error === 'object' && error !== null && 'step' in error
+            ? (error as StructuredError).step
+            : 'unknown',
+        message:
+          typeof error === 'object' && error !== null && 'message' in error
+            ? (error as StructuredError).message
+            : String(error),
+        details:
+          typeof error === 'object' && error !== null && 'details' in error
+            ? (error as StructuredError).details
+            : {},
+      };
+      console.error('Agent execution error:', agentError);
+
+      // Determine error type and structure response accordingly
+      let errorStep = 'unknown';
+      let errorMessage = '';
+      let errorDetails = {};
+
+      if (typeof error === 'object' && error !== null) {
+        // Handle structured errors we threw earlier
+        if ('step' in error) {
+          const structuredError = error as StructuredError;
+          errorStep = structuredError.step;
+          errorMessage = structuredError.message;
+          errorDetails = structuredError.details || {};
+
+          // Generate enhanced suggestion
+          const suggestion = this.generateEnhancedSuggestion(
+            errorStep,
+            structuredError,
+            commandOrParams,
+          );
+
+          return JSON.stringify({
+            status: 'error',
+            tool: 'agent',
+            toolType: 'ai_reasoning',
+            process: 'command_execution',
+            errorStep: errorStep,
+            processStage:
+              errorStep.replace('_', ' ').charAt(0).toUpperCase() +
+              errorStep.replace('_', ' ').slice(1),
+            message: errorMessage,
+            details: errorDetails,
+            suggestion: suggestion,
+            parameters:
+              typeof commandOrParams === 'string' ? { input: commandOrParams } : commandOrParams,
+          });
+        } else if (error instanceof Error) {
+          // Handle standard Error objects
+          errorStep = 'execution';
+          errorMessage = error.message;
+
+          // Create mock structured error for suggestion generation
+          const mockStructuredError: StructuredError = {
+            step: errorStep,
+            message: errorMessage,
+            details: {
+              error: errorMessage,
+              command:
+                typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input,
+            },
+          };
+
+          const suggestion = this.generateEnhancedSuggestion(
+            errorStep,
+            mockStructuredError,
+            commandOrParams,
+          );
+
+          return JSON.stringify({
+            status: 'error',
+            tool: 'agent',
+            toolType: 'ai_reasoning',
+            process: 'command_execution',
+            errorStep: errorStep,
+            processStage: 'Execution',
+            message: errorMessage,
+            details: mockStructuredError.details,
+            suggestion: suggestion,
+            parameters:
+              typeof commandOrParams === 'string' ? { input: commandOrParams } : commandOrParams,
+          });
+        }
+      }
+
+      // Default error handling for other cases
+      errorStep = 'execution';
+      errorMessage = error instanceof Error ? error.message : String(error);
+
+      const mockStructuredError: StructuredError = {
+        step: errorStep,
+        message: errorMessage,
+        details: {
+          error: errorMessage,
+          command: typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input,
+        },
+      };
+
+      const suggestion = this.generateEnhancedSuggestion(
+        errorStep,
+        mockStructuredError,
+        commandOrParams,
+      );
+
+      return JSON.stringify({
+        status: 'error',
+        tool: 'agent',
+        toolType: 'ai_reasoning',
+        process: 'command_execution',
+        errorStep: errorStep,
+        processStage: 'Execution',
+        message: errorMessage,
+        details: mockStructuredError.details,
+        suggestion: suggestion,
+        parameters:
+          typeof commandOrParams === 'string' ? { input: commandOrParams } : commandOrParams,
+      });
+    }
   }
 
   public getWallet(): IWallet {
