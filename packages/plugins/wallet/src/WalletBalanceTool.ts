@@ -55,13 +55,13 @@ export class GetWalletBalanceTool extends BaseTool {
     AgentNodeTypes.EXECUTOR,
   ];
   public registry: ProviderRegistry;
-  private defaultNetwork: string;
+  // private defaultNetwork: string;
   private supportedNetworks: Set<string>;
 
   constructor(config: WalletToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
-    this.defaultNetwork = config.defaultNetwork || 'bnb';
+    // this.defaultNetwork = config.defaultNetwork || 'bnb';
     this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
   }
 
@@ -80,7 +80,7 @@ export class GetWalletBalanceTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    return `Get detailed information about tokens and native currencies in a wallet. Shows balances of all tokens (ERC20, NFTs) and native currencies (ETH, BNB, etc.) that a wallet holds, including token balances, token addresses, symbols, and decimals. Supports networks: ${networks}. Available providers: ${providers}. Use this tool when you need to check what tokens or coins a wallet contains, their balances, and detailed token information.`;
+    return `Get detailed information about tokens and native currencies in a wallet. Shows balances of all tokens (ERC20, NFTs) and native currencies (ETH, BNB, SOL, etc.) that a wallet holds of all network (Solana, Etherum, BNB), including token balances, token addresses, symbols, and decimals. Supports networks: ${networks}. Available providers: ${providers}. Use this tool when you need to check what tokens or coins a wallet contains, their balances, and detailed token information.`;
   }
 
   private getsupportedNetworks(): string[] {
@@ -102,7 +102,7 @@ export class GetWalletBalanceTool extends BaseTool {
         .describe('The wallet address to query (optional - use agent wallet if not provided)'),
       network: z
         .enum(supportedNetworks as [string, ...string[]])
-        .default(this.defaultNetwork)
+        // .default(this.defaultNetwork)
         .describe('The blockchain to query the wallet on'),
     });
   }
@@ -119,7 +119,7 @@ export class GetWalletBalanceTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
-          const network = args.network || this.defaultNetwork;
+          const network = args.network;
           let address = args.address;
 
           // If no address provided, get it from the agent's wallet
@@ -175,7 +175,7 @@ export class GetWalletBalanceTool extends BaseTool {
           return JSON.stringify({
             status: 'error',
             message: error instanceof Error ? error.message : String(error),
-            network: args.network || this.defaultNetwork,
+            network: args.network,
           });
         }
       },

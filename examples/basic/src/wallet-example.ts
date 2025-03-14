@@ -18,10 +18,24 @@ import { TokenPlugin } from '@binkai/token-plugin';
 
 async function main() {
   const BNB_RPC = 'https://bsc-dataseed1.binance.org';
+  const SOL_RPC = 'https://api.mainnet-beta.solana.com';
+  const ETH_RPC = 'https://eth.llamarpc.com';
 
   // Define available networks
   console.log('📡 Configuring networks...');
   const networks: NetworksConfig['networks'] = {
+    [NetworkName.SOLANA]: {
+      type: 'solana' as NetworkType,
+      config: {
+        rpcUrl: SOL_RPC,
+        name: 'Solana',
+        nativeCurrency: {
+          name: 'Solana',
+          symbol: 'SOL',
+          decimals: 9,
+        },
+      },
+    },
     bnb: {
       type: 'evm' as NetworkType,
       config: {
@@ -31,6 +45,19 @@ async function main() {
         nativeCurrency: {
           name: 'BNB',
           symbol: 'BNB',
+          decimals: 18,
+        },
+      },
+    },
+    ethereum: {
+      type: 'evm' as NetworkType,
+      config: {
+        chainId: 1,
+        rpcUrl: ETH_RPC,
+        name: 'Ethereum',
+        nativeCurrency: {
+          name: 'Ether',
+          symbol: 'ETH',
           decimals: 18,
         },
       },
@@ -57,7 +84,8 @@ async function main() {
   console.log('✓ Wallet created\n');
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
-
+  console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
+  console.log('🤖 Wallet SOL:', await wallet.getAddress(NetworkName.SOLANA));
   // Create and configure the wallet plugin
   console.log('🔄 Initializing wallet plugin...');
   const walletPlugin = new WalletPlugin();
@@ -72,9 +100,9 @@ async function main() {
 
   // Initialize plugin with provider
   await walletPlugin.initialize({
-    defaultChain: 'bnb',
+    // defaultChain: 'bnb',
     providers: [bnbProvider, birdeyeProvider],
-    supportedChains: ['bnb'],
+    supportedChains: ['bnb', 'solana', 'etherum'],
   });
 
   // Create and configure the swap plugin
@@ -135,7 +163,7 @@ async function main() {
     //    BINKAI: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
     // `,
     input: `
-      Buy Broccoli from half of my wallet balance on bnb chain`,
+      my wallet balance on BNB chain`,
     //   input: `
     //   Buy BINK from with 0.5 bnb from my wallet.
     //   Use the following token addresses:

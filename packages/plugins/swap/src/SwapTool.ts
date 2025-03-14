@@ -12,6 +12,8 @@ import { ISwapProvider, SwapQuote, SwapParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
 import { parseTokenAmount } from './utils/tokenUtils';
 import { isSolanaNetwork } from './utils/networkUtils';
+import type { TokenInfo } from '@binkai/token-plugin';
+import { defaultTokens } from '@binkai/token-plugin';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -55,8 +57,9 @@ export class SwapTool extends BaseTool {
     const networks = Array.from(this.supportedNetworks).join(', ');
     let description = `The SwapTool enables users to exchange one cryptocurrency token for another using various Decentralized Exchange (DEX) 
     providers across supported blockchain networks. This tool facilitates token swaps, 
-    allowing users to specify either the input amount (the amount they wish to spend) 
-    or the output amount (the amount they wish to receive). Supported networks include ${networks}. 
+    allowing users to specify either the input amount (the amount they wish to spend, if amount is percent, must get balance before swap). 
+    or the output amount (the amount they wish to receive). Supported networks include ${networks}.
+    Do not reasoning about Token information. If user want to do action with token A, you would take actions on token A. 
     Providers include ${providers}.`;
 
     // Add provider-specific prompts if they exist
@@ -98,16 +101,8 @@ export class SwapTool extends BaseTool {
     }
 
     return z.object({
-      fromToken: z.string().describe(
-        `The token contract address you wish to swap from. This should be a string. 
-        For instance, the DAI token contract address on Ethereum is '0x6B175474E89094C44Da98b954EedeAC495271d0F'. 
-        Note: Avoid mistaken for token names or symbols, as they can be ambiguous.`,
-      ),
-      toToken: z.string().describe(
-        `The token contract address you wish to swap to. This should be a string. 
-          For instance, the DAI token contract address on Ethereum is '0x6B175474E89094C44Da98b954EedeAC495271d0F'. 
-          Note: Avoid mistaken for token names or symbols, as they can be ambiguous.`,
-      ),
+      fromToken: z.string().describe(`The adress of source token on network. (spend)`),
+      toToken: z.string().describe(`The adress of destination token on network. (receive)`),
       amount: z.string().describe('The amount of tokens to swap'),
       amountType: z
         .enum(['input', 'output'])
@@ -398,6 +393,79 @@ export class SwapTool extends BaseTool {
             network,
           });
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          // Check if current error is a token validation error
+          const isFromTokenAddressError = errorMessage.includes('Invalid fromToken address');
+          const isToTokenAddressError = errorMessage.includes('Invalid toToken address');
+
+          console.log('🤖 Fixing token addresses...');
+          // Add type assertion for args.network to match the NetworkName type
+          const tokenInfos = defaultTokens[args.network as keyof typeof defaultTokens] as
+            | Record<string, TokenInfo>
+            | undefined;
+
+          // Add null check for tokenInfos
+          if (!tokenInfos) {
+            console.log(`❌ No token information found for network ${args.network}`);
+            return JSON.stringify({
+              status: 'error',
+              message: `No token information found for network ${args.network}`,
+            });
+          }
+
+          if (!args._attempt) {
+            let updatedArgs = { ...args, _attempt: false };
+            let foundCorrectAddress = false;
+
+            // Attempt to fix token addresses and retry if this is the first attempt
+            if (isFromTokenAddressError) {
+              for (const [address, tokenInfo] of Object.entries(tokenInfos) as [
+                string,
+                TokenInfo,
+              ][]) {
+                if (tokenInfo.symbol === args.fromToken) {
+                  console.log(`🔍 Found correct address for ${args.fromToken}: ${address}`);
+                  updatedArgs.fromToken = address;
+                  foundCorrectAddress = true;
+                  updatedArgs._attempt = true;
+                  break;
+                }
+              }
+            }
+
+            if (isToTokenAddressError) {
+              for (const [address, tokenInfo] of Object.entries(tokenInfos) as [
+                string,
+                TokenInfo,
+              ][]) {
+                if (tokenInfo.symbol === args.toToken) {
+                  console.log(`🔍 Found correct address for ${args.toToken}: ${address}`);
+                  updatedArgs.toToken = address;
+                  foundCorrectAddress = true;
+                  updatedArgs._attempt = true;
+                  break;
+                }
+              }
+            }
+
+            // Retry the operation with corrected addresses if found
+            if (foundCorrectAddress) {
+              console.log('🔄 Retrying with corrected token address...');
+              return await (async () => {
+                try {
+                  const result = await this.createTool().func(updatedArgs);
+                  return result;
+                } catch (retryError) {
+                  console.error('Error during retry:', retryError);
+                  return JSON.stringify({
+                    status: 'error',
+                    message: retryError,
+                  });
+                }
+              })();
+            }
+          }
+
           console.error('Swap error:', error);
           return JSON.stringify({
             status: 'error',

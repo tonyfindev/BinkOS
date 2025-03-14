@@ -100,15 +100,15 @@ export class JupiterProvider extends BaseSwapProvider {
   async getSwapBuyAggregator(params: any, userPublicKey: string): Promise<JupiterSwapResponse> {
     try {
       const response = await this.api.post<JupiterSwapResponse>('/swap?swapType=aggregator', {
-        addConsensusAccount: true,
+        addConsensusAccount: false,
         allowOptimizedWrappedSolTokenAccount: true,
-        asLegacyTransaction: this.checkHaveNativeToken(params),
+        asLegacyTransaction: false,
         correctLastValidBlockHeight: true,
         dynamicComputeUnitLimit: true,
         prioritizationFeeLamports: {
           priorityLevelWithMaxLamports: {
             global: false,
-            maxLamports: 1000000,
+            maxLamports: 1400000,
             priorityLevel: 'veryHigh',
           },
         },
@@ -228,7 +228,7 @@ export class JupiterProvider extends BaseSwapProvider {
         fromToken: sourceToken,
         toToken: destinationToken,
         fromAmount: adjustedAmount,
-        toAmount: swapData.outAmount,
+        toAmount: ethers.formatUnits(swapData.outAmount, destinationToken.decimals),
         priceImpact: 0,
         route: [],
         estimatedGas: '',
