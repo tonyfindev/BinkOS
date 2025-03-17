@@ -95,24 +95,23 @@ export class CreateTokenTool extends BaseTool {
 
     return z.object({
       name: z.string().describe('The name of token created'),
+      symbol: z.string().describe('The symbol of token created'),
+      description: z.string().optional().describe('Description of token created'),
       network: z
         .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
         .default(NetworkName.BNB)
         .describe('The network to create the token on'),
-      symbol: z
-        .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
-        .describe('The symbol of token created'),
-      description: z
+      provider: z
         .enum(providers as [string, ...string[]])
         .optional()
-        .describe('Description of token created'),
+        .describe(
+          'The DEX provider to use for the swap. If not specified, the best rate will be found',
+        ),
     });
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Creating create token tool', this.getName());
-    console.log('✓ Supported networks:', this.getDescription());
-    console.log('✓ Supported networks:', this.getSchema());
+    console.log('🛠️ Creating create token tool');
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -160,10 +159,10 @@ export class CreateTokenTool extends BaseTool {
           }
 
           const createTokenParams: any = {
-            network,
             name,
             symbol,
             description,
+            network,
           };
 
           let selectedProvider: any;
@@ -176,10 +175,10 @@ export class CreateTokenTool extends BaseTool {
           // });
 
           // STEP 4: Get provider and quote
+          console.log('🤖 Preferred provider:', preferredProvider);
           try {
             if (preferredProvider) {
               selectedProvider = this.registry.getProvider(preferredProvider);
-
               // Validate provider supports the network
               if (!selectedProvider.getSupportedNetworks().includes(network)) {
                 throw this.createError(
@@ -192,45 +191,18 @@ export class CreateTokenTool extends BaseTool {
                   },
                 );
               }
-
-              try {
-                const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
-                const wallet = this.agent.getWallet();
-                signature = await wallet.signMessage(signatureMessage);
-              } catch (error: any) {
-                // throw this.createError(
-                //   ErrorStep.PRICE_RETRIEVAL,
-                //   `Failed to get quote from provider ${preferredProvider}.`,
-                //   {
-                //     provider: preferredProvider,
-                //     network: network,
-                //     fromToken: fromToken,
-                //     toToken: toToken,
-                //     error: error instanceof Error ? error.message : String(error),
-                //   }
-                // );
-              }
             } else {
+              const providers = this.registry.getProvidersByNetwork(network);
+              console.log('🤖 Providers:', providers);
+              selectedProvider = providers[1];
             }
           } catch (error: any) {
             if ('step' in error) {
               throw error; // Re-throw structured errors
             }
-
-            console.warn(`Failed to get quote:`, error);
-            // throw this.createError(
-            //   ErrorStep.PRICE_RETRIEVAL,
-            //   `Failed to get a quote for your swap.`,
-            //   {
-            //     network: network,
-            //     fromToken: fromToken,
-            //     toToken: toToken,
-            //     error: error instanceof Error ? error.message : String(error),
-            //   }
-            // );
           }
 
-          console.log('🤖 The selected provider is:', selectedProvider.getName());
+          // console.log('🤖 The selected provider is:', selectedProvider.getName());
 
           // onProgress?.({
           //   progress: 10,
@@ -242,6 +214,15 @@ export class CreateTokenTool extends BaseTool {
           //   message: `Preparing to swap ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
           // });
 
+          const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
+          console.log('🤖 Signature message:', signatureMessage);
+          const wallet = this.agent.getWallet();
+          signature = await wallet.signMessage({
+            network,
+            message: signatureMessage,
+          });
+          console.log('🤖 Signature:', signature);
+
           // STEP 6: Build swap transaction
           let swapTx;
           try {
@@ -250,6 +231,7 @@ export class CreateTokenTool extends BaseTool {
               userAddress,
               signature,
             );
+            console.log('🤖 Swap Tx:', swapTx);
           } catch (error: any) {
             // throw this.createError(
             //   ErrorStep.TOOL_EXECUTION,
@@ -280,9 +262,9 @@ export class CreateTokenTool extends BaseTool {
             console.log('🤖 Swap Tx:', swapTx);
             const wallet = this.agent.getWallet();
             receipt = await wallet.signAndSendTransaction(network, {
-              to: swapTx.to,
-              data: swapTx.data,
-              value: BigInt(swapTx.value),
+              to: swapTx?.tx?.to,
+              data: swapTx?.tx?.data,
+              value: BigInt(swapTx?.tx?.value || 0),
             });
 
             // Wait for transaction to be mined
@@ -300,8 +282,7 @@ export class CreateTokenTool extends BaseTool {
 
           try {
             // Clear token balance caches after successful swap
-            selectedProvider.invalidateBalanceCache(quote.fromToken.address, userAddress, network);
-            selectedProvider.invalidateBalanceCache(quote.toToken.address, userAddress, network);
+            // selectedProvider.invalidateBalanceCache(quote.token.address, userAddress, network);
           } catch (error: any) {
             console.error('Error clearing token balance caches:', error);
             // Non-critical error, don't throw
@@ -316,13 +297,8 @@ export class CreateTokenTool extends BaseTool {
           return JSON.stringify({
             status: 'success',
             provider: selectedProvider.getName(),
-            fromToken: quote.fromToken,
-            toToken: quote.toToken,
-            fromAmount: quote.fromAmount.toString(),
-            toAmount: quote.toAmount.toString(),
+            token: quote.token,
             transactionHash: finalReceipt?.hash,
-            priceImpact: quote.priceImpact,
-            type: quote.type,
             network,
           });
         } catch (error: any) {
@@ -337,8 +313,7 @@ export class CreateTokenTool extends BaseTool {
             const isTokenValidationError =
               errorStep === 'token_validation' ||
               errorStep === ErrorStep.TOKEN_NOT_FOUND ||
-              error.message?.includes('Invalid fromToken address') ||
-              error.message?.includes('Invalid toToken address');
+              error.message?.includes('Invalid token address');
 
             // if (isTokenValidationError && !args._attempt) {
             //   return await this.attemptTokenAddressFix(args, error);
