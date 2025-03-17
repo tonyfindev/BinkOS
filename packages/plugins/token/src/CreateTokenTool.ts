@@ -3,7 +3,6 @@ import {
   BaseTool,
   CustomDynamicStructuredTool,
   ErrorStep,
-  IAgent,
   IToolConfig,
   NetworkName,
   ToolProgress,
@@ -104,7 +103,7 @@ export class CreateTokenTool extends BaseTool {
       provider: z
         .enum(providers as [string, ...string[]])
         .default('four-meme')
-        .describe('The DEX provider to use for the swap.'),
+        .describe('The DEX provider to use for the create token.'),
     });
   }
 
@@ -124,7 +123,6 @@ export class CreateTokenTool extends BaseTool {
           console.log('🤖 Create token Args:', args);
           const { name, symbol, description, network, provider: preferredProvider } = args;
           console.log('🔄 Doing create token operation...');
-          console.log('🤖 Create token Args:', args);
 
           // STEP 1: Validate network
           const supportedNetworks = this.getSupportedNetworks();
@@ -164,9 +162,12 @@ export class CreateTokenTool extends BaseTool {
           };
 
           let selectedProvider: any;
-          let quote: any;
           let signature: any;
 
+          onProgress?.({
+            progress: 40,
+            message: 'Searching for best provider',
+          });
           // STEP 4: Get provider
           console.log('🤖 Preferred provider:', preferredProvider);
           try {
@@ -196,41 +197,43 @@ export class CreateTokenTool extends BaseTool {
           }
 
           const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
-          console.log('🤖 Signature message:', signatureMessage);
           const wallet = this.agent.getWallet();
           signature = await wallet.signMessage({
             network,
             message: signatureMessage,
           });
-          console.log('🤖 Signature:', signature);
-
-          // STEP 6: Build swap transaction
-          let swapTx;
+          // STEP 5: Build create transaction
+          let tx;
           try {
-            swapTx = await selectedProvider.buildCreateToken(
-              createTokenParams,
-              userAddress,
-              signature,
+            tx = await selectedProvider.buildCreateToken(createTokenParams, userAddress, signature);
+            console.log('🤖 Create Tx:', tx);
+          } catch (error: any) {
+            throw this.createError(
+              ErrorStep.TOOL_EXECUTION,
+              `Failed to build the create transaction.`,
+              {
+                provider: selectedProvider.getName(),
+                network: network,
+                token: tx.token.symbol || '',
+                error: error instanceof Error ? error.message : String(error),
+              },
             );
-            console.log('🤖 Swap Tx:', swapTx);
-          } catch (error: any) {}
+          }
 
           onProgress?.({
             progress: 80,
             message: `Creating token `,
           });
-          // STEP 8: Execute swap transaction
+          // STEP 6: Execute create transaction
           let receipt;
           let finalReceipt;
           try {
-            // Sign and send swap transaction
-            console.log('🤖 Signing and sending transaction...');
-            console.log('🤖 Swap Tx:', swapTx);
+            // Sign and send create transaction
             const wallet = this.agent.getWallet();
             receipt = await wallet.signAndSendTransaction(network, {
-              to: swapTx?.tx?.to,
-              data: swapTx?.tx?.data,
-              value: BigInt(swapTx?.tx?.value || 0),
+              to: tx?.tx?.to,
+              data: tx?.tx?.data,
+              value: BigInt(tx?.tx?.value || 0),
             });
 
             // Wait for transaction to be mined
@@ -238,7 +241,7 @@ export class CreateTokenTool extends BaseTool {
           } catch (error: any) {
             throw this.createError(
               ErrorStep.TOOL_EXECUTION,
-              `Failed to execute the swap transaction.`,
+              `Failed to execute the create transaction.`,
               {
                 network: network,
                 error: error instanceof Error ? error.message : String(error),
@@ -249,7 +252,7 @@ export class CreateTokenTool extends BaseTool {
           return JSON.stringify({
             status: 'success',
             provider: selectedProvider.getName(),
-            token: quote.token,
+            token: tx.token,
             transactionHash: finalReceipt?.hash,
             network,
           });
