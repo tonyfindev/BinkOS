@@ -95,23 +95,22 @@ export class CreateTokenTool extends BaseTool {
 
     return z.object({
       name: z.string().describe('The name of token created'),
+      symbol: z.string().describe('The symbol of token created'),
+      description: z.string().optional().describe('Description of token created'),
       network: z
         .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
         .default(NetworkName.BNB)
         .describe('The network to create the token on'),
-      symbol: z
-        .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
-        .describe('The symbol of token created'),
-      description: z
+      provider: z
         .enum(providers as [string, ...string[]])
-        .optional()
-        .describe('Description of token created'),
+        .default('four-meme')
+        .describe(
+          'The provider to use for querying. If not specified, all available providers will be tried',
+        ),
     });
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Creating create token tool', this.getName());
-    console.log('✓ Supported networks:', this.getDescription());
     console.log('✓ Supported networks:', this.getSchema());
     return {
       name: this.getName(),
@@ -160,10 +159,10 @@ export class CreateTokenTool extends BaseTool {
           }
 
           const createTokenParams: any = {
-            network,
             name,
             symbol,
             description,
+            network,
           };
 
           let selectedProvider: any;
@@ -230,7 +229,7 @@ export class CreateTokenTool extends BaseTool {
             // );
           }
 
-          console.log('🤖 The selected provider is:', selectedProvider.getName());
+          // console.log('🤖 The selected provider is:', selectedProvider.getName());
 
           // onProgress?.({
           //   progress: 10,

@@ -10,6 +10,7 @@ import {
 import { TokenPlugin } from '@binkai/token-plugin';
 import { ethers } from 'ethers';
 import { FourMemeProvider } from '@binkai/four-meme-provider';
+import { BirdeyeProvider } from '@binkai/birdeye-provider';
 
 // Hardcoded RPC URLs for demonstration
 const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
@@ -102,11 +103,13 @@ async function main() {
   const provider = new ethers.JsonRpcProvider(BNB_RPC);
 
   const fourMeme = new FourMemeProvider(provider, 56);
-
+  const birdeye = new BirdeyeProvider({
+    apiKey: settings.get('BIRDEYE_API_KEY'),
+  });
   // Configure the plugin with supported chains
   await tokenPlugin.initialize({
     defaultChain: 'bnb',
-    providers: [fourMeme as any],
+    providers: [birdeye, fourMeme as any],
     supportedChains: ['bnb'],
   });
   console.log('✓ Token plugin initialized\n');
@@ -120,7 +123,7 @@ async function main() {
   console.log('💎 Example 1: Create a token on BSC');
   const result = await agent.execute({
     input:
-      'Create a new token on BNB chain with name: "DEV Bink", symbol: "DEV", description: "This is a Bink Test token"',
+      'Create a new token on BNB chain with name: "DEV Bink", symbol: "DEV", description: "This is a Bink Test token" on four-meme provider',
   });
   console.log('✓ Token created:', result, '\n');
   // Get plugin information
