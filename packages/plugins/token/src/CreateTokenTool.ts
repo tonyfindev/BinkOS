@@ -126,7 +126,6 @@ export class CreateTokenTool extends BaseTool {
           console.log('🤖 Create token Args:', args);
           const { name, symbol, description, network, provider: preferredProvider } = args;
           console.log('🔄 Doing create token operation...');
-          console.log('🤖 Create token Args:', args);
 
           // STEP 1: Validate network
           const supportedNetworks = this.getSupportedNetworks();
@@ -166,7 +165,6 @@ export class CreateTokenTool extends BaseTool {
           };
 
           let selectedProvider: any;
-          let quote: any;
           let signature: any;
 
           // onProgress?.({
@@ -175,7 +173,6 @@ export class CreateTokenTool extends BaseTool {
           // });
 
           // STEP 4: Get provider and quote
-          console.log('🤖 Preferred provider:', preferredProvider);
           try {
             if (preferredProvider) {
               selectedProvider = this.registry.getProvider(preferredProvider);
@@ -215,14 +212,11 @@ export class CreateTokenTool extends BaseTool {
           // });
 
           const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
-          console.log('🤖 Signature message:', signatureMessage);
           const wallet = this.agent.getWallet();
           signature = await wallet.signMessage({
             network,
             message: signatureMessage,
           });
-          console.log('🤖 Signature:', signature);
-
           // STEP 6: Build swap transaction
           let swapTx;
           try {
@@ -258,8 +252,6 @@ export class CreateTokenTool extends BaseTool {
           let finalReceipt;
           try {
             // Sign and send swap transaction
-            console.log('🤖 Signing and sending transaction...');
-            console.log('🤖 Swap Tx:', swapTx);
             const wallet = this.agent.getWallet();
             receipt = await wallet.signAndSendTransaction(network, {
               to: swapTx?.tx?.to,
@@ -297,7 +289,7 @@ export class CreateTokenTool extends BaseTool {
           return JSON.stringify({
             status: 'success',
             provider: selectedProvider.getName(),
-            token: quote.token,
+            token: swapTx.token,
             transactionHash: finalReceipt?.hash,
             network,
           });
