@@ -2,7 +2,7 @@ import { BasePlugin, IPluginConfig, BaseTool, NetworkName } from '@binkai/core';
 import { GetTokenInfoTool } from './TokenTool';
 import { ITokenProvider, TokenInfo } from './types';
 import { ProviderRegistry } from './ProviderRegistry';
-
+import { CreateTokenTool } from './CreateTokenTool';
 export interface TokenPluginConfig extends IPluginConfig {
   providers?: ITokenProvider[];
   supportedNetworks?: NetworkName[];
@@ -12,6 +12,7 @@ export class TokenPlugin extends BasePlugin {
   public registry: ProviderRegistry;
   private tokenTool!: GetTokenInfoTool;
   private supportedNetworks: Set<NetworkName>;
+  private createTokenTool!: CreateTokenTool;
 
   constructor() {
     super();
@@ -43,7 +44,7 @@ export class TokenPlugin extends BasePlugin {
   }
 
   getTools(): BaseTool[] {
-    return [this.tokenTool as unknown as BaseTool];
+    return [this.tokenTool as unknown as BaseTool, this.createTokenTool];
   }
 
   /**
@@ -52,6 +53,7 @@ export class TokenPlugin extends BasePlugin {
   registerProvider(provider: ITokenProvider): void {
     this.registry.registerProvider(provider);
     this.tokenTool.registerProvider(provider);
+    this.createTokenTool.registerProvider(provider);
 
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach(network => {
