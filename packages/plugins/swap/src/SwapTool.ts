@@ -13,8 +13,7 @@ import { ISwapProvider, SwapQuote, SwapParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
 import { parseTokenAmount } from './utils/tokenUtils';
 import { isSolanaNetwork } from './utils/networkUtils';
-import type { TokenInfo } from '../../token/src/types';
-import { defaultTokens } from '../../token/src/data/defaultTokens';
+import { defaultTokens, TokenInfo } from '@binkai/token-plugin';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
