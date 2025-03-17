@@ -104,14 +104,12 @@ export class CreateTokenTool extends BaseTool {
       provider: z
         .enum(providers as [string, ...string[]])
         .default('four-meme')
-        .describe(
-          'The provider to use for querying. If not specified, all available providers will be tried',
-        ),
+        .describe('The DEX provider to use for the swap.'),
     });
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Supported networks:', this.getSchema());
+    console.log('🛠️ Creating create token tool');
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -169,16 +167,11 @@ export class CreateTokenTool extends BaseTool {
           let quote: any;
           let signature: any;
 
-          // onProgress?.({
-          //   progress: 0,
-          //   message: 'Searching for the best exchange rate for your swap.',
-          // });
-
-          // STEP 4: Get provider and quote
+          // STEP 4: Get provider
+          console.log('🤖 Preferred provider:', preferredProvider);
           try {
             if (preferredProvider) {
               selectedProvider = this.registry.getProvider(preferredProvider);
-
               // Validate provider supports the network
               if (!selectedProvider.getSupportedNetworks().includes(network)) {
                 throw this.createError(
@@ -191,55 +184,25 @@ export class CreateTokenTool extends BaseTool {
                   },
                 );
               }
-
-              try {
-                const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
-                const wallet = this.agent.getWallet();
-                signature = await wallet.signMessage(signatureMessage);
-              } catch (error: any) {
-                // throw this.createError(
-                //   ErrorStep.PRICE_RETRIEVAL,
-                //   `Failed to get quote from provider ${preferredProvider}.`,
-                //   {
-                //     provider: preferredProvider,
-                //     network: network,
-                //     fromToken: fromToken,
-                //     toToken: toToken,
-                //     error: error instanceof Error ? error.message : String(error),
-                //   }
-                // );
-              }
             } else {
+              const providers = this.registry.getProvidersByNetwork(network);
+              console.log('🤖 Providers:', providers);
+              selectedProvider = providers[1];
             }
           } catch (error: any) {
             if ('step' in error) {
               throw error; // Re-throw structured errors
             }
-
-            console.warn(`Failed to get quote:`, error);
-            // throw this.createError(
-            //   ErrorStep.PRICE_RETRIEVAL,
-            //   `Failed to get a quote for your swap.`,
-            //   {
-            //     network: network,
-            //     fromToken: fromToken,
-            //     toToken: toToken,
-            //     error: error instanceof Error ? error.message : String(error),
-            //   }
-            // );
           }
 
-          // console.log('🤖 The selected provider is:', selectedProvider.getName());
-
-          // onProgress?.({
-          //   progress: 10,
-          //   message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this swap.`,
-          // });
-
-          // onProgress?.({
-          //   progress: 20,
-          //   message: `Preparing to swap ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
-          // });
+          const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
+          console.log('🤖 Signature message:', signatureMessage);
+          const wallet = this.agent.getWallet();
+          signature = await wallet.signMessage({
+            network,
+            message: signatureMessage,
+          });
+          console.log('🤖 Signature:', signature);
 
           // STEP 6: Build swap transaction
           let swapTx;
@@ -249,27 +212,13 @@ export class CreateTokenTool extends BaseTool {
               userAddress,
               signature,
             );
-          } catch (error: any) {
-            // throw this.createError(
-            //   ErrorStep.TOOL_EXECUTION,
-            //   `Failed to build the swap transaction.`,
-            //   {
-            //     provider: selectedProvider.getName(),
-            //     network: network,
-            //     fromToken: quote.fromToken.symbol || fromToken,
-            //     toToken: quote.toToken.symbol || toToken,
-            //     error: error instanceof Error ? error.message : String(error),
-            //   }
-            // );
-          }
-
-          console.log('🤖 Creating token...');
+            console.log('🤖 Swap Tx:', swapTx);
+          } catch (error: any) {}
 
           onProgress?.({
             progress: 80,
             message: `Creating token `,
           });
-
           // STEP 8: Execute swap transaction
           let receipt;
           let finalReceipt;
@@ -279,9 +228,9 @@ export class CreateTokenTool extends BaseTool {
             console.log('🤖 Swap Tx:', swapTx);
             const wallet = this.agent.getWallet();
             receipt = await wallet.signAndSendTransaction(network, {
-              to: swapTx.to,
-              data: swapTx.data,
-              value: BigInt(swapTx.value),
+              to: swapTx?.tx?.to,
+              data: swapTx?.tx?.data,
+              value: BigInt(swapTx?.tx?.value || 0),
             });
 
             // Wait for transaction to be mined
@@ -296,37 +245,15 @@ export class CreateTokenTool extends BaseTool {
               },
             );
           }
-
-          try {
-            // Clear token balance caches after successful swap
-            selectedProvider.invalidateBalanceCache(quote.fromToken.address, userAddress, network);
-            selectedProvider.invalidateBalanceCache(quote.toToken.address, userAddress, network);
-          } catch (error: any) {
-            console.error('Error clearing token balance caches:', error);
-            // Non-critical error, don't throw
-          }
-
-          // onProgress?.({
-          //   progress: 100,
-          //   message: `Swap complete! Successfully swapped ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
-          // });
-
           // Return result as JSON string
           return JSON.stringify({
             status: 'success',
             provider: selectedProvider.getName(),
-            fromToken: quote.fromToken,
-            toToken: quote.toToken,
-            fromAmount: quote.fromAmount.toString(),
-            toAmount: quote.toAmount.toString(),
+            token: quote.token,
             transactionHash: finalReceipt?.hash,
-            priceImpact: quote.priceImpact,
-            type: quote.type,
             network,
           });
         } catch (error: any) {
-          console.error('Swap error:', error);
-
           // Special handling for token validation errors that we can try to fix
           if (
             error instanceof Error ||
@@ -336,12 +263,7 @@ export class CreateTokenTool extends BaseTool {
             const isTokenValidationError =
               errorStep === 'token_validation' ||
               errorStep === ErrorStep.TOKEN_NOT_FOUND ||
-              error.message?.includes('Invalid fromToken address') ||
-              error.message?.includes('Invalid toToken address');
-
-            // if (isTokenValidationError && !args._attempt) {
-            //   return await this.attemptTokenAddressFix(args, error);
-            // }
+              error.message?.includes('Invalid token address');
           }
 
           // Use BaseTool's error handling
