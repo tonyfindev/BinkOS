@@ -469,7 +469,7 @@ export class SwapTool extends BaseTool {
           console.error('Swap error:', error);
           return JSON.stringify({
             status: 'error',
-            message: error,
+            message: error instanceof Error ? error.message : String(error),
           });
         }
       },

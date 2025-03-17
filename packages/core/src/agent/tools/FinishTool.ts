@@ -6,11 +6,11 @@ import { createNetworkSchema } from './schemas';
 
 export class FinishTool extends BaseTool {
   getName(): string {
-    return 'finish';
+    return 'terminate';
   }
 
   getDescription(): string {
-    return `Use this tool to finish the task.`;
+    return `Use this tool if it is completed or failed many times or you need ask user for more information.`;
   }
 
   getSchema(): z.ZodObject<any> {
@@ -23,7 +23,7 @@ export class FinishTool extends BaseTool {
       description: this.getDescription(),
       schema: this.getSchema(),
       func: async () => {
-        return `Task finished`;
+        return `finished`;
       },
     });
   }

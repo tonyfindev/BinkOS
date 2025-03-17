@@ -5,7 +5,7 @@ import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts
 import { IWallet } from '../wallet/types';
 import { NetworkName, NetworksConfig } from '../network/types';
 import { AgentConfig, AgentContext, AgentExecuteParams, AgentNodeTypes, IAgent } from './types';
-import { GetWalletAddressTool, ITool, PlanningTool } from './tools';
+import { CreatePlanTool, GetWalletAddressTool, ITool, UpdatePlanTool } from './tools';
 import { Agent } from './Agent';
 import { IPlugin } from '../plugin/types';
 import { DatabaseAdapter } from '../storage';
@@ -13,6 +13,7 @@ import { MessageEntity } from '../types';
 import { EVM_NATIVE_TOKEN_ADDRESS, SOL_NATIVE_TOKEN_ADDRESS } from '../network';
 import { CallbackManager, IToolExecutionCallback } from './callbacks';
 import {
+  Command,
   CompiledStateGraph,
   END,
   getCurrentTaskInput,
@@ -53,6 +54,8 @@ const StateAnnotation = Annotation.Root({
   >({
     reducer: (x, y) => y,
   }),
+  active_plan_id: Annotation<string>,
+  selected_task_indexes: Annotation<number[]>,
   next_node: Annotation<string>({
     reducer: (x, y) => y,
   }),
@@ -100,7 +103,15 @@ export class PlanningAgent extends Agent {
   }
 
   protected async createPlannerNode(state: AgentState) {
-    const systemPrompt = `You are blockchain planner. Your goal is to plan the best way to execute the user's request. Response the user with the plan and the tools to execute the plan with MARKDOWN.`;
+    const defaultPlanPrompt = `NOTE: 
+- You need token address when execute on-chain transaction
+- In get balance, it include token address and balance
+- You can create multiple plans to execute the user's request.
+- If a task is failed many times, you update a new task to execute the plan`;
+
+    const systemPrompt =
+      `You are blockchain planner. Your goal is create plans to execute the user's request. \n` +
+      defaultPlanPrompt;
 
     const tools = this.getToolsByNode(AgentNodeTypes.PLANNER);
 
@@ -108,28 +119,38 @@ export class PlanningAgent extends Agent {
     for (const tool of tools) {
       // console.log(convertToOpenAITool(tool))
       const toolJson = convertToOpenAITool(tool);
-      toolsStr += `${JSON.stringify({ name: toolJson.function.name, description: toolJson.function.description })}\n`;
+      toolsStr += `${JSON.stringify({ name: toolJson.function.name })}\n`;
     }
 
     let prompt: ChatPromptTemplate;
+    let planningTool: CreatePlanTool | UpdatePlanTool;
+
     if (state?.plans?.length > 0) {
+      const activePlanId = state.active_plan_id;
+      const selectedTaskIndexes = state.selected_task_indexes;
+
+      let promptActiveTask = '';
+      if (activePlanId && selectedTaskIndexes) {
+        promptActiveTask = `plan id: ${activePlanId}, task indexes: ${selectedTaskIndexes}`;
+      }
       prompt = ChatPromptTemplate.fromMessages([
-        ['system', (this.config.systemPrompt || systemPrompt) + `\n\nList tools:\n\n{toolsStr}`],
+        ['system', systemPrompt + `\n\nList tools:\n\n{toolsStr}`],
         ['human', 'The current plans: {plan}'],
         ['human', `Plan to execute the user's request: {input}`],
         new MessagesPlaceholder('chat_history'),
-        ['system', `Update current plans if needed.`],
+        ['system', `Update current plans ${promptActiveTask}`],
       ]);
+      planningTool = new UpdatePlanTool({});
     } else {
       prompt = ChatPromptTemplate.fromMessages([
-        ['system', (this.config.systemPrompt || systemPrompt) + `\n\nList tools:\n\n{toolsStr}`],
+        ['system', systemPrompt + `\n\nList tools:\n\n{toolsStr}`],
         ['human', `Plan to execute the user's request: {input}`],
       ]);
+      planningTool = new CreatePlanTool({});
     }
-    const planningTool = new PlanningTool({});
     const finishTool = new FinishTool({});
 
-    const tools2 = [planningTool.createTool(), finishTool.createTool()];
+    const tools2 = [planningTool.createTool()];
     const boundModel = this.model.bind({
       tools: tools2.map(tool => convertToOpenAITool(tool)),
       tool_choice: 'required',
@@ -222,11 +243,12 @@ export class PlanningAgent extends Agent {
 
       const terminateTool = tool(
         async (input: {}) => {
-          return { status: 'finished' };
+          return 'finished';
         },
         {
           name: 'terminate',
-          description: 'Call when the plan is finished',
+          description:
+            'Use this tool if it is completed or failed many times or you need ask user for more information.',
           schema: z.object({}),
         },
       );
@@ -241,10 +263,15 @@ export class PlanningAgent extends Agent {
       const nextPrompt = ChatPromptTemplate.fromMessages([
         [
           'system',
-          `Based on the plan, Select the tasks to executor need handle, You can select multiple tasks`,
+          `Based on the plan, Select the tasks to executor need handle, You can select multiple tasks. \n` +
+            defaultPlanPrompt,
         ],
         ['human', `The current plan: {plan}`],
       ]);
+
+      let activePlanId: string | null = null;
+      let selectedTaskIndexes: number[] | null = null;
+
       const nextResult = await nextPrompt
         .pipe(
           this.model.bind({
@@ -255,12 +282,26 @@ export class PlanningAgent extends Agent {
         .pipe(new JsonOutputToolsParser())
         .pipe(async x => {
           const tool = tool3ByName[x[0].type.toLowerCase()];
+          if (tool.name === 'select_tasks') {
+            activePlanId = x[0].args.plan_id;
+            selectedTaskIndexes = x[0].args.task_indexes;
+          }
           return {
             content: await tool.invoke(x[0].args),
           };
         })
         .invoke({ plan: JSON.stringify(plans), input: state.input, plans: result.tool_response });
-      return { plans, next_input: nextResult.content };
+
+      if (nextResult.content === 'finished') {
+        return { next_node: END };
+      }
+
+      return {
+        plans,
+        next_input: nextResult.content,
+        active_plan_id: activePlanId,
+        selected_task_indexes: selectedTaskIndexes,
+      };
     }
 
     return { next_node: END };
@@ -300,14 +341,12 @@ export class PlanningAgent extends Agent {
     const boundModel = this.model.bind({
       tools: tools.map(tool => convertToOpenAITool(tool)),
     });
-    const responseMessage = await prompt
-      .pipe(boundModel)
-      .invoke({
-        input: state.next_input,
-        chat_history: [...(state.messages2 ?? []), ...(state.messages ?? [])],
-        plan: JSON.stringify(state.plans),
-        tokens: JSON.stringify(state.tokens || []),
-      });
+    const responseMessage = await prompt.pipe(boundModel).invoke({
+      input: state.next_input,
+      chat_history: [...(state.messages2 ?? []), ...(state.messages ?? [])],
+      plan: JSON.stringify(state.plans),
+      tokens: JSON.stringify(state.tokens || []),
+    });
     return { messages: [responseMessage] };
 
     // return {messages: [new AIMessage(result.output)]};

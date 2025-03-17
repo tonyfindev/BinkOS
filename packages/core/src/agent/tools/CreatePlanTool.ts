@@ -5,37 +5,28 @@ import { BaseTool } from './BaseTool';
 import { createNetworkSchema } from './schemas';
 import { LangGraphRunnableConfig } from '@langchain/langgraph';
 
-export class PlanningTool extends BaseTool {
+export class CreatePlanTool extends BaseTool {
   getName(): string {
-    return 'planning';
+    return 'create_plan';
   }
 
   getDescription(): string {
-    return `Plan list to execute the user's request. You must break down details of the plan into tasks.`;
+    return `Create plan list to execute the user's request. You must break down details of the plan into tasks.`;
   }
 
   getSchema(): z.ZodObject<any> {
     return z.object({
-      command: z.enum(['create', 'update', 'delete']).describe('The command to execute'),
       plans: z
         .array(
           z.object({
             title: z.string().describe('The title of the plan'),
-            status: z
-              .enum(['pending', 'completed', 'in-progress'])
-              .describe('The status of the plan'),
-            tasks: z
-              .array(
-                z.object({
-                  title: z.string().describe('The title of the task'),
-                  status: z.enum(['pending', 'completed']).describe('The status of the task'),
-                }),
-              )
-              .describe('The tasks to execute the plan'),
-            plan_id: z
-              .string()
-              .optional()
-              .describe('The id of the plan. Required if command is update or delete.'),
+            tasks: z.array(
+              z
+                .string()
+                .describe(
+                  'The tasks description to execute the plan. The task must clear and concise',
+                ),
+            ),
           }),
         )
         .describe('The plans to execute'),
@@ -55,7 +46,7 @@ export class PlanningTool extends BaseTool {
         status: 'pending',
         tasks: plan.tasks.map((task: any) => {
           return {
-            title: task.title,
+            title: task,
             status: 'pending',
           };
         }),
@@ -87,23 +78,8 @@ export class PlanningTool extends BaseTool {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async ({ command, plans }, config?: LangGraphRunnableConfig) => {
-        console.log('🤖 Planning tool config:', config?.store);
-        const userId = config?.configurable?.userId;
-        switch (command) {
-          case 'create':
-            const result = this.createPlan(plans);
-            config?.store?.put([userId, 'plans'], 'plans', result);
-            console.log('🤖 Plans after create:', config?.store?.get([userId, 'plans'], 'plans'));
-            return JSON.stringify(result);
-          case 'update':
-            const result2 = this.updatePlan(plans);
-            config?.store?.put([userId, 'plans'], 'plans', result2);
-            console.log('🤖 Plans after update:', config?.store?.get([userId, 'plans'], 'plans'));
-            return JSON.stringify(result2);
-        }
-
-        return JSON.stringify([]);
+      func: async ({ command, plans }) => {
+        return JSON.stringify(this.createPlan(plans));
       },
     });
   }
