@@ -1,12 +1,12 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { 
-  BaseTool, 
-  CustomDynamicStructuredTool, 
-  IToolConfig, 
+import {
+  BaseTool,
+  CustomDynamicStructuredTool,
+  IToolConfig,
   ToolProgress,
   StructuredError,
-  ErrorStep
+  ErrorStep,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
@@ -216,7 +216,7 @@ export class SwapTool extends BaseTool {
               {
                 requestedNetwork: network,
                 supportedNetworks: supportedNetworks,
-              }
+              },
             );
           }
 
@@ -229,7 +229,7 @@ export class SwapTool extends BaseTool {
                 token: fromToken,
                 network: network,
                 tokenType: 'fromToken',
-              }
+              },
             );
           }
 
@@ -241,7 +241,7 @@ export class SwapTool extends BaseTool {
                 token: toToken,
                 network: network,
                 tokenType: 'toToken',
-              }
+              },
             );
           }
 
@@ -258,7 +258,7 @@ export class SwapTool extends BaseTool {
               {
                 network: network,
                 error: error instanceof Error ? error.message : String(error),
-              }
+              },
             );
           }
 
@@ -293,7 +293,7 @@ export class SwapTool extends BaseTool {
                     provider: preferredProvider,
                     requestedNetwork: network,
                     providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
-                  }
+                  },
                 );
               }
 
@@ -309,7 +309,7 @@ export class SwapTool extends BaseTool {
                     fromToken: fromToken,
                     toToken: toToken,
                     error: error instanceof Error ? error.message : String(error),
-                  }
+                  },
                 );
               }
             } else {
@@ -332,7 +332,7 @@ export class SwapTool extends BaseTool {
                     fromToken: fromToken,
                     toToken: toToken,
                     error: error instanceof Error ? error.message : String(error),
-                  }
+                  },
                 );
               }
             }
@@ -350,7 +350,7 @@ export class SwapTool extends BaseTool {
                 fromToken: fromToken,
                 toToken: toToken,
                 error: error instanceof Error ? error.message : String(error),
-              }
+              },
             );
           }
 
@@ -373,7 +373,7 @@ export class SwapTool extends BaseTool {
                   fromToken: quote.fromToken.symbol || fromToken,
                   requiredAmount: quote.fromAmount,
                   userAddress: userAddress,
-                }
+                },
               );
             }
           } catch (error: any) {
@@ -388,7 +388,7 @@ export class SwapTool extends BaseTool {
                 network: network,
                 fromToken: quote.fromToken.symbol || fromToken,
                 error: error instanceof Error ? error.message : String(error),
-              }
+              },
             );
           }
 
@@ -411,7 +411,7 @@ export class SwapTool extends BaseTool {
                 fromToken: quote.fromToken.symbol || fromToken,
                 toToken: quote.toToken.symbol || toToken,
                 error: error instanceof Error ? error.message : String(error),
-              }
+              },
             );
           }
 
@@ -471,7 +471,7 @@ export class SwapTool extends BaseTool {
                       fromToken: quote.fromToken.symbol || fromToken,
                       spender: swapTx.spender,
                       error: error instanceof Error ? error.message : String(error),
-                    }
+                    },
                   );
                 }
               }
@@ -480,15 +480,11 @@ export class SwapTool extends BaseTool {
                 throw error; // Re-throw structured errors
               }
 
-              throw this.createError(
-                ErrorStep.TOOL_EXECUTION,
-                `Failed to check token allowance.`,
-                {
-                  network: network,
-                  fromToken: quote.fromToken.symbol || fromToken,
-                  error: error instanceof Error ? error.message : String(error),
-                }
-              );
+              throw this.createError(ErrorStep.TOOL_EXECUTION, `Failed to check token allowance.`, {
+                network: network,
+                fromToken: quote.fromToken.symbol || fromToken,
+                error: error instanceof Error ? error.message : String(error),
+              });
             }
           }
 
@@ -522,7 +518,7 @@ export class SwapTool extends BaseTool {
                 fromToken: quote.fromToken.symbol || fromToken,
                 toToken: quote.toToken.symbol || toToken,
                 error: error instanceof Error ? error.message : String(error),
-              }
+              },
             );
           }
 
@@ -557,13 +553,17 @@ export class SwapTool extends BaseTool {
           console.error('Swap error:', error);
 
           // Special handling for token validation errors that we can try to fix
-          if (error instanceof Error || (typeof error === 'object' && error !== null && 'step' in error)) {
+          if (
+            error instanceof Error ||
+            (typeof error === 'object' && error !== null && 'step' in error)
+          ) {
             const errorStep = 'step' in error ? error.step : '';
-            const isTokenValidationError = errorStep === 'token_validation' || 
-                                          errorStep === ErrorStep.TOKEN_NOT_FOUND ||
-                                          error.message?.includes('Invalid fromToken address') ||
-                                          error.message?.includes('Invalid toToken address');
-            
+            const isTokenValidationError =
+              errorStep === 'token_validation' ||
+              errorStep === ErrorStep.TOKEN_NOT_FOUND ||
+              error.message?.includes('Invalid fromToken address') ||
+              error.message?.includes('Invalid toToken address');
+
             if (isTokenValidationError && !args._attempt) {
               return await this.attemptTokenAddressFix(args, error);
             }
@@ -585,8 +585,7 @@ export class SwapTool extends BaseTool {
       error.message?.includes('Invalid fromToken address') ||
       error.details?.tokenType === 'fromToken';
     const isToTokenAddressError =
-      error.message?.includes('Invalid toToken address') || 
-      error.details?.tokenType === 'toToken';
+      error.message?.includes('Invalid toToken address') || error.details?.tokenType === 'toToken';
 
     // Add type assertion for args.network to match the NetworkName type
     const tokenInfos = defaultTokens[args.network as keyof typeof defaultTokens] as
@@ -600,9 +599,9 @@ export class SwapTool extends BaseTool {
         this.createError(
           ErrorStep.TOKEN_NOT_FOUND,
           `No token information found for network ${args.network}`,
-          { network: args.network }
+          { network: args.network },
         ),
-        args
+        args,
       );
     }
 
@@ -647,10 +646,10 @@ export class SwapTool extends BaseTool {
             {
               error: retryError instanceof Error ? retryError.message : String(retryError),
               originalArgs: args,
-              correctedArgs: updatedArgs
-            }
+              correctedArgs: updatedArgs,
+            },
           ),
-          updatedArgs
+          updatedArgs,
         );
       }
     } else {
@@ -662,10 +661,10 @@ export class SwapTool extends BaseTool {
           {
             network: args.network,
             fromToken: args.fromToken,
-            toToken: args.toToken
-          }
+            toToken: args.toToken,
+          },
         ),
-        args
+        args,
       );
     }
   }

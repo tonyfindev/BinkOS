@@ -1,17 +1,17 @@
-import { DynamicStructuredTool } from '@langchain/core/tools';
-import { symbol, z } from 'zod';
+import { z } from 'zod';
 import {
   BaseTool,
   CustomDynamicStructuredTool,
+  ErrorStep,
+  IAgent,
   IToolConfig,
   NetworkName,
   ToolProgress,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
-import { ITokenProvider, TokenInfo, TokenQueryParams } from './types';
+import { ITokenProvider, TokenInfo } from './types';
 import { DefaultTokenProvider } from './providers/DefaultTokenProvider';
 import { defaultTokens } from './data/defaultTokens';
-import { roundNumber } from './utils/formatting';
 
 export interface CreateTokenToolConfig extends IToolConfig {
   supportedNetworks?: NetworkName[];
@@ -50,7 +50,7 @@ export class CreateTokenTool extends BaseTool {
 
   registerProvider(provider: ITokenProvider): void {
     this.registry.registerProvider(provider);
-    console.log('✓ Provider registered', provider.constructor.name);
+    console.log('✓ Provider registered CreateTokenTool', provider.constructor.name);
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach(network => {
       this.supportedNetworks.add(network);
@@ -68,7 +68,7 @@ export class CreateTokenTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    return `Create token blockchain with name, symbol, decription using various providers (${providers}). Supports networks: ${networks}.`;
+    return `Create token blockchain with name, symbol, description using various providers (${providers}). Supports networks: ${networks}.`;
   }
 
   private getSupportedNetworks(): NetworkName[] {
@@ -95,6 +95,10 @@ export class CreateTokenTool extends BaseTool {
 
     return z.object({
       name: z.string().describe('The name of token created'),
+      network: z
+        .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
+        .default(NetworkName.BNB)
+        .describe('The network to create the token on'),
       symbol: z
         .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
         .describe('The symbol of token created'),
@@ -105,239 +109,10 @@ export class CreateTokenTool extends BaseTool {
     });
   }
 
-  // Helper to normalize address based on network
-  private normalizeAddress(address: string, network: NetworkName): string {
-    // For Solana networks, keep the original case
-    if (network === NetworkName.SOLANA || network === NetworkName.SOLANA_DEVNET) {
-      return address;
-    }
-
-    // For EVM networks, lowercase the address
-    return address.toLowerCase();
-  }
-
-  // Get cache key for token
-  private getCacheKey(address: string, network: NetworkName): string {
-    return this.normalizeAddress(address, network);
-  }
-
-  // Update the token cache
-  private updateTokenCache(network: NetworkName, token: TokenInfo): void {
-    const cacheKey = this.getCacheKey(token.address, network);
-
-    if (!this.tokenCache[network]) {
-      this.tokenCache[network] = {};
-    }
-
-    // Store the token with current timestamp and network
-    this.tokenCache[network][cacheKey] = {
-      ...token,
-      network,
-      priceUpdatedAt: token.priceUpdatedAt || Date.now(),
-    };
-  }
-
-  // Get token from cache
-  private getTokenFromCache(network: NetworkName, address: string): TokenInfo | null {
-    const cacheKey = this.getCacheKey(address, network);
-
-    if (!this.tokenCache[network] || !this.tokenCache[network][cacheKey]) {
-      return null;
-    }
-
-    return this.tokenCache[network][cacheKey];
-  }
-
-  private async fetchTokenPrice(tokenInfo: TokenInfo, network: NetworkName): Promise<TokenInfo> {
-    // Check if we have fresh token data in the cache
-    const cachedToken = this.getTokenFromCache(network, tokenInfo.address);
-    if (cachedToken?.price?.usd && !this.isPriceStale(cachedToken.priceUpdatedAt)) {
-      // Use cached token data
-      return cachedToken;
-    }
-
-    const providers = this.registry.getProvidersByNetwork(network);
-    if (providers.length <= 1) {
-      // Only default provider available or no providers
-      return { ...tokenInfo, network };
-    }
-
-    // Try each external provider to get price information
-    for (const provider of providers) {
-      // Skip the default provider as we already have the token info
-      if (provider.getName() === this.defaultTokenProvider.getName()) {
-        continue;
-      }
-
-      try {
-        // Query the provider using the token address
-        const updatedTokenInfo = await provider.getTokenInfo({
-          query: tokenInfo.address,
-          network,
-          includePrice: true,
-        });
-
-        // If we got price information, update our cache
-        if (updatedTokenInfo.price?.usd) {
-          // Round the price for display
-          const roundedPrice = roundNumber(updatedTokenInfo.price.usd, 6);
-          console.log(
-            `✓ Updated price for ${tokenInfo.symbol} from ${provider.getName()}: $${roundedPrice}`,
-          );
-
-          // Create a merged token with base info from original and price from updated
-          const mergedToken: TokenInfo = {
-            ...tokenInfo,
-            network,
-            price: {
-              ...updatedTokenInfo.price,
-              usd: roundedPrice,
-            },
-            priceUpdatedAt: Date.now(),
-            priceChange24h: roundNumber(updatedTokenInfo.priceChange24h, 2),
-            volume24h: roundNumber(updatedTokenInfo.volume24h, 0),
-            marketCap: roundNumber(updatedTokenInfo.marketCap, 0),
-          };
-
-          // Update the token cache
-          this.updateTokenCache(network, mergedToken);
-
-          return mergedToken;
-        }
-      } catch (error) {
-        console.warn(`Failed to get price from ${provider.getName()}:`, error);
-        continue;
-      }
-    }
-
-    // If we couldn't get price from any provider, return the original token with network
-    return { ...tokenInfo, network };
-  }
-
-  // Check if the price data is stale (older than 1 hour)
-  private isPriceStale(timestamp?: number): boolean {
-    if (!timestamp) return true;
-
-    const oneHourAgo = Date.now() - 60 * 60 * 1000; // 1 hour in milliseconds
-    return timestamp < oneHourAgo;
-  }
-
-  private async queryToken(params: TokenQueryParams): Promise<TokenInfo> {
-    // Validate network is supported
-    const providers = this.registry.getProvidersByNetwork(params.network);
-    if (providers.length === 0) {
-      throw new Error(`No providers available for network ${params.network}`);
-    }
-
-    // Try default provider first
-    try {
-      let tokenInfo = await this.defaultTokenProvider.getTokenInfo({
-        ...params,
-        includePrice: false, // Don't require price from default provider
-      });
-
-      console.log('✓ Token found in default list:', params.query);
-
-      // Check if we have this token in our cache
-      const cachedToken = this.getTokenFromCache(params.network, tokenInfo.address);
-      if (cachedToken) {
-        // If we have a cached token and price is not requested or not stale, use it
-        if (
-          !params.includePrice ||
-          (cachedToken.price?.usd && !this.isPriceStale(cachedToken.priceUpdatedAt))
-        ) {
-          return cachedToken;
-        }
-      }
-
-      // If price is requested, try to fetch it from other providers
-      if (params.includePrice) {
-        tokenInfo = await this.fetchTokenPrice(tokenInfo, params.network);
-      }
-
-      return tokenInfo;
-    } catch (error) {
-      console.log('Token not found in default list, trying external providers...');
-    }
-
-    // If default provider fails, try each external provider until we get a result
-    let lastError: Error | undefined;
-
-    for (const provider of providers) {
-      // Skip the default provider as we already tried it
-      if (provider.getName() === this.defaultTokenProvider.getName()) {
-        continue;
-      }
-
-      try {
-        const tokenInfo = await provider.getTokenInfo(params);
-
-        // Store the complete token in our cache
-        this.updateTokenCache(params.network, tokenInfo);
-
-        return tokenInfo;
-      } catch (error) {
-        console.warn(`Failed to get token info from ${provider.getName()}:`, error);
-        lastError = error as Error;
-        continue;
-      }
-    }
-
-    throw new Error(
-      `No provider could find information for token ${params.query} on network ${params.network}. Last error: ${lastError?.message}`,
-    );
-  }
-
-  // Method to manually refresh price for a token
-  async refreshTokenPrice(network: NetworkName, address: string): Promise<TokenInfo> {
-    // First check if we have this token in our cache
-    const cachedToken = this.getTokenFromCache(network, address);
-
-    // If we have a cached token, use it as the base
-    if (cachedToken) {
-      // Force refresh price from external providers
-      const updatedToken = await this.fetchTokenPrice(cachedToken, network);
-
-      // Ensure all numeric values are properly rounded
-      if (updatedToken.price?.usd) {
-        updatedToken.price.usd = roundNumber(updatedToken.price.usd, 6);
-      }
-      updatedToken.priceChange24h = roundNumber(updatedToken.priceChange24h, 2);
-      updatedToken.volume24h = roundNumber(updatedToken.volume24h, 0);
-      updatedToken.marketCap = roundNumber(updatedToken.marketCap, 0);
-
-      return updatedToken;
-    }
-
-    // If not in cache, get the token from default provider
-    try {
-      const tokenInfo = await this.defaultTokenProvider.getTokenInfo({
-        query: address,
-        network,
-        includePrice: false,
-      });
-
-      // Force refresh price from external providers
-      const updatedToken = await this.fetchTokenPrice(tokenInfo, network);
-
-      // Ensure all numeric values are properly rounded
-      if (updatedToken.price?.usd) {
-        updatedToken.price.usd = roundNumber(updatedToken.price.usd, 6);
-      }
-      updatedToken.priceChange24h = roundNumber(updatedToken.priceChange24h, 2);
-      updatedToken.volume24h = roundNumber(updatedToken.volume24h, 0);
-      updatedToken.marketCap = roundNumber(updatedToken.marketCap, 0);
-
-      return updatedToken;
-    } catch (error) {
-      throw new Error(
-        `Failed to refresh price: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Creating tool', this.getName());
+    console.log('✓ Creating create token tool', this.getName());
+    console.log('✓ Supported networks:', this.getDescription());
+    console.log('✓ Supported networks:', this.getSchema());
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -349,87 +124,229 @@ export class CreateTokenTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
-          const { query, network, provider: preferredProvider, includePrice = true } = args;
+          console.log('🤖 Create token Args:', args);
+          const { name, symbol, description, network, provider: preferredProvider } = args;
+          console.log('🔄 Doing create token operation...');
+          console.log('🤖 Create token Args:', args);
 
-          console.log('🤖 Token Tool Args:', args);
-
-          onProgress?.({
-            progress: 20,
-            message: `Searching for token information for "${query}" on ${network} network.`,
-          });
-
-          // Validate network is supported
+          // STEP 1: Validate network
           const supportedNetworks = this.getSupportedNetworks();
           if (!supportedNetworks.includes(network)) {
-            throw new Error(
-              `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
+            throw this.createError(
+              ErrorStep.NETWORK_VALIDATION,
+              `Network ${network} is not supported.`,
+              {
+                requestedNetwork: network,
+                supportedNetworks: supportedNetworks,
+              },
             );
           }
 
-          let tokenInfo: TokenInfo;
+          // STEP 3: Get wallet address
+          let userAddress;
+          try {
+            // Get agent's wallet and address
+            const wallet = this.agent.getWallet();
+            userAddress = await wallet.getAddress(network);
+          } catch (error: any) {
+            throw this.createError(
+              ErrorStep.WALLET_ACCESS,
+              `Failed to get wallet address for network ${network}.`,
+              {
+                network: network,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            );
+          }
 
-          if (preferredProvider) {
-            onProgress?.({
-              progress: 50,
-              message: `Querying token information from ${preferredProvider} provider.`,
-            });
+          const createTokenParams: any = {
+            network,
+            name,
+            symbol,
+            description,
+          };
 
-            const provider = this.registry.getProvider(preferredProvider);
-            // Validate provider supports the network
-            if (!provider.getSupportedNetworks().includes(network)) {
-              throw new Error(`Provider ${preferredProvider} does not support network ${network}`);
-            }
-            tokenInfo = await provider.getTokenInfo({ query, network, includePrice });
+          let selectedProvider: any;
+          let quote: any;
+          let signature: any;
 
-            // If using default provider and price is requested, fetch price from other providers
-            if (preferredProvider === this.defaultTokenProvider.getName() && includePrice) {
-              tokenInfo = await this.fetchTokenPrice(tokenInfo, network);
+          // onProgress?.({
+          //   progress: 0,
+          //   message: 'Searching for the best exchange rate for your swap.',
+          // });
+
+          // STEP 4: Get provider and quote
+          try {
+            if (preferredProvider) {
+              selectedProvider = this.registry.getProvider(preferredProvider);
+
+              // Validate provider supports the network
+              if (!selectedProvider.getSupportedNetworks().includes(network)) {
+                throw this.createError(
+                  ErrorStep.PROVIDER_VALIDATION,
+                  `Provider ${preferredProvider} does not support network ${network}.`,
+                  {
+                    provider: preferredProvider,
+                    requestedNetwork: network,
+                    providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
+                  },
+                );
+              }
+
+              try {
+                const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
+                const wallet = this.agent.getWallet();
+                signature = await wallet.signMessage(signatureMessage);
+              } catch (error: any) {
+                // throw this.createError(
+                //   ErrorStep.PRICE_RETRIEVAL,
+                //   `Failed to get quote from provider ${preferredProvider}.`,
+                //   {
+                //     provider: preferredProvider,
+                //     network: network,
+                //     fromToken: fromToken,
+                //     toToken: toToken,
+                //     error: error instanceof Error ? error.message : String(error),
+                //   }
+                // );
+              }
             } else {
-              // For non-default providers, update our cache
-              this.updateTokenCache(network, tokenInfo);
             }
-          } else {
-            onProgress?.({
-              progress: 50,
-              message: `Searching for token information across all available providers.`,
-            });
+          } catch (error: any) {
+            if ('step' in error) {
+              throw error; // Re-throw structured errors
+            }
 
-            tokenInfo = await this.queryToken({
-              query,
-              network,
-              includePrice,
-            });
+            console.warn(`Failed to get quote:`, error);
+            // throw this.createError(
+            //   ErrorStep.PRICE_RETRIEVAL,
+            //   `Failed to get a quote for your swap.`,
+            //   {
+            //     network: network,
+            //     fromToken: fromToken,
+            //     toToken: toToken,
+            //     error: error instanceof Error ? error.message : String(error),
+            //   }
+            // );
           }
 
-          // Ensure all numeric values are properly rounded before returning
-          if (tokenInfo.price?.usd) {
-            tokenInfo.price.usd = roundNumber(tokenInfo.price.usd, 6);
-          }
-          tokenInfo.priceChange24h = roundNumber(tokenInfo.priceChange24h, 2);
-          tokenInfo.volume24h = roundNumber(tokenInfo.volume24h, 0);
-          tokenInfo.marketCap = roundNumber(tokenInfo.marketCap, 0);
+          console.log('🤖 The selected provider is:', selectedProvider.getName());
 
-          console.log('🤖 Token info:', tokenInfo);
+          // onProgress?.({
+          //   progress: 10,
+          //   message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this swap.`,
+          // });
+
+          // onProgress?.({
+          //   progress: 20,
+          //   message: `Preparing to swap ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
+          // });
+
+          // STEP 6: Build swap transaction
+          let swapTx;
+          try {
+            swapTx = await selectedProvider.buildCreateToken(
+              createTokenParams,
+              userAddress,
+              signature,
+            );
+          } catch (error: any) {
+            // throw this.createError(
+            //   ErrorStep.TOOL_EXECUTION,
+            //   `Failed to build the swap transaction.`,
+            //   {
+            //     provider: selectedProvider.getName(),
+            //     network: network,
+            //     fromToken: quote.fromToken.symbol || fromToken,
+            //     toToken: quote.toToken.symbol || toToken,
+            //     error: error instanceof Error ? error.message : String(error),
+            //   }
+            // );
+          }
+
+          console.log('🤖 Creating token...');
 
           onProgress?.({
-            progress: 100,
-            message: `Successfully retrieved information for ${tokenInfo.name || tokenInfo.symbol || query}${tokenInfo.price?.usd ? ` (Current price: $${tokenInfo.price.usd})` : ''}.`,
+            progress: 80,
+            message: `Creating token `,
           });
+
+          // STEP 8: Execute swap transaction
+          let receipt;
+          let finalReceipt;
+          try {
+            // Sign and send swap transaction
+            console.log('🤖 Signing and sending transaction...');
+            console.log('🤖 Swap Tx:', swapTx);
+            const wallet = this.agent.getWallet();
+            receipt = await wallet.signAndSendTransaction(network, {
+              to: swapTx.to,
+              data: swapTx.data,
+              value: BigInt(swapTx.value),
+            });
+
+            // Wait for transaction to be mined
+            finalReceipt = await receipt?.wait();
+          } catch (error: any) {
+            throw this.createError(
+              ErrorStep.TOOL_EXECUTION,
+              `Failed to execute the swap transaction.`,
+              {
+                network: network,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            );
+          }
+
+          try {
+            // Clear token balance caches after successful swap
+            selectedProvider.invalidateBalanceCache(quote.fromToken.address, userAddress, network);
+            selectedProvider.invalidateBalanceCache(quote.toToken.address, userAddress, network);
+          } catch (error: any) {
+            console.error('Error clearing token balance caches:', error);
+            // Non-critical error, don't throw
+          }
+
+          // onProgress?.({
+          //   progress: 100,
+          //   message: `Swap complete! Successfully swapped ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
+          // });
 
           // Return result as JSON string
           return JSON.stringify({
             status: 'success',
-            data: tokenInfo,
-            provider: preferredProvider || 'auto',
+            provider: selectedProvider.getName(),
+            fromToken: quote.fromToken,
+            toToken: quote.toToken,
+            fromAmount: quote.fromAmount.toString(),
+            toAmount: quote.toAmount.toString(),
+            transactionHash: finalReceipt?.hash,
+            priceImpact: quote.priceImpact,
+            type: quote.type,
             network,
           });
-        } catch (error) {
-          console.error('Token info error:', error);
-          return JSON.stringify({
-            status: 'error',
-            message: error instanceof Error ? error.message : String(error),
-            network: args.network,
-          });
+        } catch (error: any) {
+          console.error('Swap error:', error);
+
+          // Special handling for token validation errors that we can try to fix
+          if (
+            error instanceof Error ||
+            (typeof error === 'object' && error !== null && 'step' in error)
+          ) {
+            const errorStep = 'step' in error ? error.step : '';
+            const isTokenValidationError =
+              errorStep === 'token_validation' ||
+              errorStep === ErrorStep.TOKEN_NOT_FOUND ||
+              error.message?.includes('Invalid fromToken address') ||
+              error.message?.includes('Invalid toToken address');
+
+            // if (isTokenValidationError && !args._attempt) {
+            //   return await this.attemptTokenAddressFix(args, error);
+            // }
+          }
+
+          // Use BaseTool's error handling
+          return this.handleError(error, args);
         }
       },
     };
