@@ -12,11 +12,41 @@ const CONSTANTS = {
   FOUR_MEME_FACTORY_V3: '0xF251F83e40a78868FcfA3FA4599Dad6494E46034',
   FOUR_MEME_FACTORY_V2: '0x5c952063c7fc8610FFDB798152D69F0B9550762b',
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
+  FOUR_MEME_API_BASE: 'https://four.meme/meme-api/v1',
 } as const;
 
 enum ChainId {
   BSC = 56,
   ETH = 1,
+}
+
+// Add this interface for the create token parameters
+interface CreateTokenParams {
+  name: string;
+  symbol: string;
+  description: string;
+  totalSupply?: number;
+  raisedAmount?: number;
+  saleRate?: number;
+  network?: NetworkName;
+}
+
+// Add these interfaces for API responses
+interface NonceResponse {
+  code: number;
+  msg: string;
+  data: string;
+}
+
+interface CreateMemeResponse {
+  code: number;
+  msg: string;
+  data: {
+    tokenId: number;
+    createArg: string;
+    signature: string;
+    // ... other fields
+  };
 }
 
 export class FourMemeProvider extends BaseSwapProvider {
@@ -207,5 +237,254 @@ export class FourMemeProvider extends BaseSwapProvider {
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
+  }
+
+  /**
+   * Gets the message that needs to be signed for token creation
+   * @param userAddress The address of the user creating the token
+   * @param network The network to create the token on
+   * @returns The message to be signed
+   */
+  async buildSignatureMessage(
+    userAddress: string,
+    network: NetworkName = NetworkName.BNB,
+  ): Promise<string> {
+    try {
+      // Step 1: Get nonce from API
+      const nonce = await this.getNonce(userAddress, network);
+
+      // Return the message to be signed
+      const message = `You are sign in Meme ${nonce}`;
+      return message;
+    } catch (error: unknown) {
+      console.error('Error getting signature message:', error);
+      throw new Error(
+        `Failed to get signature message: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Creates a new token on the Four Meme platform
+   * @param params Token creation parameters
+   * @param userAddress The address of the user creating the token
+   * @param signature The signature of the message returned by getSignatureMessage
+   * @param signer Ethers signer to execute the transaction
+   * @returns Transaction hash of the token creation
+   */
+  async buildCreateToken(
+    params: CreateTokenParams,
+    userAddress: string,
+    signature: string,
+  ): Promise<string> {
+    try {
+      const network = params.network || NetworkName.BNB;
+
+      // Step 1: Get access token
+      const accessToken = await this.getAccessToken(signature, userAddress, network);
+
+      // Step 2: Get imgUrl
+      const imgUrl = await this.uploadImageUrl(signature, userAddress, network);
+      // Step 2: Call create token API to get createArg
+      const createResponse = await this.callCreateTokenAPI({
+        accessToken,
+        name: params.name,
+        shortName: params.symbol,
+        desc: params.description,
+        totalSupply: params.totalSupply || 1000000000,
+        raisedAmount: params.raisedAmount || 24,
+        saleRate: params.saleRate || 0.8,
+        signature,
+        userAddress,
+        network,
+        imgUrl,
+      });
+
+      if (createResponse.code !== 0) {
+        throw new Error(`Failed to create token: ${createResponse.msg}`);
+      }
+
+      // Step 2: Call the contract's createToken method
+      const createArg = createResponse.data.createArg;
+      const signature4Meme = createResponse.data.signature;
+
+      const tx = this.factory.interface.encodeFunctionData('createToken(bytes, bytes)', [
+        createArg,
+        signature4Meme,
+      ]);
+
+      const token: {
+        name: string;
+        description: string;
+        symbol: string;
+      } = {
+        symbol: params.symbol,
+        name: params.name,
+        description: params.description,
+      };
+
+      const quoteId = ethers.hexlify(ethers.randomBytes(32));
+
+      const quote: any = {
+        network: params.network,
+        quoteId,
+        token,
+        route: ['four-meme'],
+        tx: {
+          to: CONSTANTS.FOUR_MEME_FACTORY_V2,
+          data: tx,
+          value: 0,
+          network: params.network,
+          spender: CONSTANTS.FOUR_MEME_FACTORY_V2,
+        },
+      };
+
+      this.quotes.set(quoteId, { quote, expiresAt: Date.now() + CONSTANTS.QUOTE_EXPIRY });
+
+      return quote;
+    } catch (error: unknown) {
+      console.error('Error creating token:', error);
+      throw new Error(
+        `Failed to create token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Gets a nonce from the Four Meme API for token creation
+   */
+  private async getNonce(accountAddress: string, network: NetworkName): Promise<NonceResponse> {
+    const networkCode = network === NetworkName.BNB ? 'BSC' : 'ETH';
+
+    const response = await fetch(`${CONSTANTS.FOUR_MEME_API_BASE}/private/user/nonce/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        accountAddress,
+        verifyType: 'LOGIN',
+        networkCode,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+    const nonceResponse = await response.json();
+
+    return nonceResponse.data;
+  }
+
+  /**
+   * Gets a nonce from the Four Meme API for token creation
+   */
+  private async getAccessToken(
+    signature: string,
+    address: string,
+    network: NetworkName,
+  ): Promise<any> {
+    const response = await fetch(`${CONSTANTS.FOUR_MEME_API_BASE}/private/user/login/dex`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        verifyInfo: {
+          signature,
+          address,
+          networkCode: 'BSC',
+          verifyType: 'LOGIN',
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+
+    const accessTokenResponse = await response.json();
+    return accessTokenResponse.data;
+  }
+
+  private async uploadImageUrl(
+    signature: string,
+    address: string,
+    network: NetworkName,
+  ): Promise<string> {
+    // const response = await fetch('https://four.meme/meme-api/v1/private/user/upload', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Content-Type': 'application/json',
+    //     Accept: 'application/json',
+    //     'meme-web-access': signature,
+    //   },
+    //   body: JSON.stringify({
+    //     address,
+    //     networkCode: 'BSC',
+    //   }),
+    // });
+
+    // if (!response.ok) {
+    //   throw new Error(`API request failed with status ${response.status}`);
+    // }
+    // const uploadImageResponse = await response.json();
+
+    // console.log('🤖 Upload image response:', uploadImageResponse);
+
+    return 'https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg';
+  }
+
+  /**
+   * Calls the Four Meme API to create a token and get the createArg
+   */
+  private async callCreateTokenAPI(params: {
+    accessToken: string;
+    name: string;
+    shortName: string;
+    desc: string;
+    totalSupply: number;
+    raisedAmount: number;
+    saleRate: number;
+    signature: string;
+    userAddress: string;
+    network: NetworkName;
+    imgUrl: string;
+  }): Promise<CreateMemeResponse> {
+    // Current timestamp in milliseconds
+    const launchTime = Date.now();
+
+    const response = await fetch(`${CONSTANTS.FOUR_MEME_API_BASE}/private/token/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'meme-web-access': params.accessToken,
+      },
+      body: JSON.stringify({
+        name: params.name,
+        shortName: params.shortName,
+        desc: params.desc,
+        totalSupply: params.totalSupply,
+        raisedAmount: params.raisedAmount,
+        saleRate: params.saleRate,
+        reserveRate: 0,
+        imgUrl: params.imgUrl,
+        launchTime,
+        funGroup: false,
+        preSale: 0,
+        clickFun: false,
+        symbol: 'BNB',
+        label: 'Meme',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+
+    return await response.json();
   }
 }

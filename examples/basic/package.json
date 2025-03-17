@@ -17,6 +17,7 @@
     "swap-four-meme": "ts-node src/swap-example-four-meme.ts",
     "staking-venus": "ts-node src/staking-example-venus.ts",
     "token": "ts-node src/token-example.ts",
+    "create-token": "ts-node src/create-token-example.ts",
     "knowledge": "ts-node src/knowledge-example.ts",
     "wallet": "ts-node src/wallet-example.ts",
     "transfer": "ts-node src/transfer-example.ts",
