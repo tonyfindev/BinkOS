@@ -8,7 +8,7 @@ import {
   ToolProgress,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
-import { ITokenProvider, TokenInfo } from './types';
+import { CreateTokenParams, ITokenProvider, TokenInfo } from './types';
 import { DefaultTokenProvider } from './providers/DefaultTokenProvider';
 import { defaultTokens } from './data/defaultTokens';
 
@@ -121,8 +121,8 @@ export class CreateTokenTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
+          const { name, symbol, description, img, network, provider: preferredProvider } = args;
           console.log('🤖 Create token Args:', args);
-          const { name, symbol, description, network, provider: preferredProvider } = args;
           console.log('🔄 Doing create token operation...');
 
           // STEP 1: Validate network
@@ -138,7 +138,7 @@ export class CreateTokenTool extends BaseTool {
             );
           }
 
-          // STEP 3: Get wallet address
+          // STEP 2: Get wallet address
           let userAddress;
           try {
             // Get agent's wallet and address
@@ -155,22 +155,22 @@ export class CreateTokenTool extends BaseTool {
             );
           }
 
-          const createTokenParams: any = {
+          const createTokenParams: CreateTokenParams = {
             name,
             symbol,
             description,
             network,
+            img,
           };
 
           let selectedProvider: any;
-          let signature: any;
+          let signature: string;
 
           onProgress?.({
-            progress: 40,
+            progress: 20,
             message: 'Searching for best provider to create token',
           });
-          // STEP 4: Get provider
-          console.log('🤖 Preferred provider:', preferredProvider);
+          // STEP 3: Get provider
           try {
             if (preferredProvider) {
               selectedProvider = this.registry.getProvider(preferredProvider);
@@ -196,12 +196,32 @@ export class CreateTokenTool extends BaseTool {
               throw error; // Re-throw structured errors
             }
           }
-
-          const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
-          const wallet = this.agent.getWallet();
-          signature = await wallet.signMessage({
-            network,
-            message: signatureMessage,
+          onProgress?.({
+            progress: 40,
+            message: 'Signing message.',
+          });
+          // STEP 4: Get provider
+          try {
+            const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
+            const wallet = this.agent.getWallet();
+            signature = await wallet.signMessage({
+              network,
+              message: signatureMessage,
+            });
+          } catch (error: any) {
+            throw this.createError(
+              ErrorStep.TOOL_EXECUTION,
+              `Failed to build the signing message.`,
+              {
+                provider: selectedProvider.getName(),
+                network: network,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            );
+          }
+          onProgress?.({
+            progress: 60,
+            message: 'Building create transaction',
           });
           // STEP 5: Build create transaction
           let tx;
@@ -258,18 +278,6 @@ export class CreateTokenTool extends BaseTool {
             network,
           });
         } catch (error: any) {
-          // Special handling for token validation errors that we can try to fix
-          if (
-            error instanceof Error ||
-            (typeof error === 'object' && error !== null && 'step' in error)
-          ) {
-            const errorStep = 'step' in error ? error.step : '';
-            const isTokenValidationError =
-              errorStep === 'token_validation' ||
-              errorStep === ErrorStep.TOKEN_NOT_FOUND ||
-              error.message?.includes('Invalid token address');
-          }
-
           // Use BaseTool's error handling
           return this.handleError(error, args);
         }
