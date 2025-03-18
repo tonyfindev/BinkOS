@@ -104,6 +104,7 @@ export class CreateTokenTool extends BaseTool {
         .enum(providers as [string, ...string[]])
         .default('four-meme')
         .describe('The DEX provider to use for the create token.'),
+      img: z.string().optional().describe('The logo image to use for the create token.'),
     });
   }
 
@@ -166,7 +167,7 @@ export class CreateTokenTool extends BaseTool {
 
           onProgress?.({
             progress: 40,
-            message: 'Searching for best provider',
+            message: 'Searching for best provider to create token',
           });
           // STEP 4: Get provider
           console.log('🤖 Preferred provider:', preferredProvider);
@@ -222,7 +223,7 @@ export class CreateTokenTool extends BaseTool {
 
           onProgress?.({
             progress: 80,
-            message: `Creating token `,
+            message: `Creating ${args.name} token with symbol ${args.symbol}`,
           });
           // STEP 6: Execute create transaction
           let receipt;
