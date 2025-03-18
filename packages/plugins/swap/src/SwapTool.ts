@@ -16,6 +16,7 @@ import { isSolanaNetwork } from './utils/networkUtils';
 import type { TokenInfo } from '@binkai/token-plugin';
 import { defaultTokens } from '@binkai/token-plugin';
 
+
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
   defaultNetwork?: string;
