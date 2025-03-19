@@ -215,11 +215,9 @@ export class Agent extends BaseAgent {
     let retryCount = 0;
     let lastError: any = null;
     let result: any;
-    
-    // Lưu input ban đầu để sử dụng trong retry
-    const originalInput = typeof commandOrParams === 'string' 
-      ? commandOrParams 
-      : commandOrParams.input;
+
+    const originalInput =
+      typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
 
     while (retryCount <= maxRetries) {
       console.log(`🔴 AI reasoning attempt ${retryCount + 1}/${maxRetries}\n`);
@@ -247,7 +245,11 @@ export class Agent extends BaseAgent {
                 const threadId =
                   typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
                 await this.db?.createMessage(
-                  { content: originalInput, user_id: this.context?.user?.id, message_type: 'human' },
+                  {
+                    content: originalInput,
+                    user_id: this.context?.user?.id,
+                    message_type: 'human',
+                  },
                   threadId,
                 );
                 await this.db?.createMessage(

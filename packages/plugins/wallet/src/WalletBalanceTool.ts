@@ -1,12 +1,12 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { 
-  BaseTool, 
-  CustomDynamicStructuredTool, 
-  IToolConfig, 
+import {
+  BaseTool,
+  CustomDynamicStructuredTool,
+  IToolConfig,
   ToolProgress,
   ErrorStep,
-  StructuredError
+  StructuredError,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, WalletInfo } from './types';
@@ -96,8 +96,9 @@ export class GetWalletBalanceTool extends BaseTool {
         .optional()
         .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
       network: z
-        .enum(supportedNetworks as [string, ...string[]])
-        .describe('The blockchain to query the wallet on'),
+        .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon', 'all'])
+        .default('all')
+        .describe('The blockchain to query the wallet on. If not specific, default is all'),
     });
   }
 
@@ -116,7 +117,6 @@ export class GetWalletBalanceTool extends BaseTool {
         try {
           const network = args.network;
           let address = args.address;
-
           console.log(`🔍 Getting wallet balance for ${address || 'agent wallet'} on ${network}`);
 
           // STEP 1: Validate network
@@ -129,7 +129,7 @@ export class GetWalletBalanceTool extends BaseTool {
               {
                 requestedNetwork: network,
                 supportedNetworks: supportedNetworks,
-              }
+              },
             );
           }
 
@@ -149,7 +149,7 @@ export class GetWalletBalanceTool extends BaseTool {
               {
                 network: network,
                 error: error instanceof Error ? error.message : String(error),
-              }
+              },
             );
           }
 
@@ -169,7 +169,7 @@ export class GetWalletBalanceTool extends BaseTool {
                 network: network,
                 availableProviders: this.registry.getProviderNames(),
                 supportedNetworks: Array.from(this.supportedNetworks),
-              }
+              },
             );
           }
 
@@ -187,8 +187,13 @@ export class GetWalletBalanceTool extends BaseTool {
               console.log(`✅ Successfully got data from ${provider.getName()}`);
               results = mergeObjects(results, data);
             } catch (error) {
-              console.warn(`⚠️ Failed to get wallet info from ${provider.getName()}: ${error instanceof Error ? error.message : error}`);
-              this.logError(`Failed to get wallet info from ${provider.getName()}: ${error}`, 'warn');
+              console.warn(
+                `⚠️ Failed to get wallet info from ${provider.getName()}: ${error instanceof Error ? error.message : error}`,
+              );
+              this.logError(
+                `Failed to get wallet info from ${provider.getName()}: ${error}`,
+                'warn',
+              );
               errors[provider.getName()] = error instanceof Error ? error.message : String(error);
             }
           }
@@ -203,12 +208,12 @@ export class GetWalletBalanceTool extends BaseTool {
                 address: address,
                 network: network,
                 errors: errors,
-              }
+              },
             );
           }
-          
+
           console.log(`💰 Wallet info retrieved successfully for ${address}`);
-          
+
           if (Object.keys(errors).length > 0) {
             console.warn(`⚠️ Some providers failed but we have partial results`);
           }
@@ -219,6 +224,16 @@ export class GetWalletBalanceTool extends BaseTool {
           });
 
           console.log(`✅ Returning wallet balance data for ${address}`);
+
+          if (results.tokens && Array.isArray(results.tokens)) {
+            results.tokens = results.tokens.filter(token => {
+              if (token.symbol === 'BNB' || token.symbol === 'ETH' || token.symbol === 'SOL') {
+                return true;
+              }
+              return Number(token.balance) > 0.00001;
+            });
+          }
+
           return JSON.stringify({
             status: 'success',
             data: results,
@@ -227,7 +242,10 @@ export class GetWalletBalanceTool extends BaseTool {
             address,
           });
         } catch (error) {
-          console.error('❌ Error in wallet balance tool:', error instanceof Error ? error.message : error);
+          console.error(
+            '❌ Error in wallet balance tool:',
+            error instanceof Error ? error.message : error,
+          );
           return this.handleError(error, args);
         }
       },
