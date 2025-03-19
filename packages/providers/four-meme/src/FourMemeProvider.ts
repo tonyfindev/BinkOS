@@ -375,6 +375,8 @@ export class FourMemeProvider extends BaseSwapProvider {
       }),
     });
 
+    console.log('🤖 Get nonce response:', response);
+
     if (!response.ok) {
       throw new Error(`Get nonce API request failed with status ${response.status}`);
     }
