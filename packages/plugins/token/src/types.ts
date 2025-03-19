@@ -43,6 +43,18 @@ export interface TokenInfo {
   verified?: boolean;
   priceUpdatedAt?: number;
 }
+
+export interface CreateTokenParams {
+  name: string;
+  symbol: string;
+  description: string;
+  img?: string;
+  totalSupply?: number;
+  raisedAmount?: number;
+  saleRate?: number;
+  network: NetworkName;
+}
+
 export interface TokenQueryParams {
   query: string; // Can be address or symbol
   network: NetworkName;
