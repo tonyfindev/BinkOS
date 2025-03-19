@@ -12,7 +12,7 @@ const CONSTANTS = {
   FOUR_MEME_FACTORY_V3: '0xF251F83e40a78868FcfA3FA4599Dad6494E46034',
   FOUR_MEME_FACTORY_V2: '0x5c952063c7fc8610FFDB798152D69F0B9550762b',
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
-  FOUR_MEME_API_BASE: 'https://four.meme/meme-api/v1',
+  FOUR_MEME_API_BASE: process.env.FOUR_MEME_API_BASE || 'https://four.meme/meme-api/v1',
 } as const;
 
 enum ChainId {
@@ -282,6 +282,10 @@ export class FourMemeProvider extends BaseSwapProvider {
     try {
       const network = params.network || NetworkName.BNB;
 
+      if (network !== NetworkName.BNB) {
+        throw new Error('FourMeme only supports BNB network');
+      }
+
       // Step 1: Get access token
       const accessToken = await this.getAccessToken(signature, userAddress, network);
 
@@ -374,8 +378,6 @@ export class FourMemeProvider extends BaseSwapProvider {
         networkCode,
       }),
     });
-
-    console.log('🤖 Get nonce response:', response);
 
     if (!response.ok) {
       throw new Error(`Get nonce API request failed with status ${response.status}`);
