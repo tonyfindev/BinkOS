@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, IToolConfig, NetworkName } from '@binkai/core';
+import { BaseTool, CustomDynamicStructuredTool, IToolConfig, NetworkName } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, TransferParams } from './types';
 import { ethers } from 'ethers';
@@ -90,9 +90,9 @@ export class TransferTool extends BaseTool {
     });
   }
 
-  createTool(): DynamicStructuredTool {
+  createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
-    return new DynamicStructuredTool({
+    return {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
@@ -221,6 +221,6 @@ export class TransferTool extends BaseTool {
           });
         }
       },
-    });
+    };
   }
 }

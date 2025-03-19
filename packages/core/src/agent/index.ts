@@ -3,4 +3,4 @@ export * from './types';
 export * from './tools';
 export * from './callbacks';
 export * from './BaseAgent';
-export * from './PlanningAgent';
+export * from './planner/PlanningAgent';
