@@ -97,7 +97,7 @@ export class CreateTokenTool extends BaseTool {
       symbol: z.string().describe('The symbol of token created'),
       description: z.string().optional().describe('Description of token created'),
       network: z
-        .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
+        .enum(['bnb'])
         .default(NetworkName.BNB)
         .describe('The network to create the token on'),
       provider: z

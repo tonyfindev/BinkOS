@@ -1,6 +1,30 @@
 import { NetworkName } from '@binkai/core';
 import { z } from 'zod';
 
+export interface TokenInfoSecurity {
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  network: NetworkName; // The network this token belongs to
+  totalSupply?: string;
+  price?: {
+    usd?: number;
+    nativeToken?: number;
+  };
+  marketCap?: number;
+  volume24h?: number;
+  priceChange24h?: number;
+  logoURI?: string;
+  verified?: boolean;
+  top10HolderBalance: number;
+  freezeAuthority: string;
+  freezeable: boolean;
+  nonTransferable: boolean;
+  lockInfo: any;
+  priceUpdatedAt?: number; // Timestamp when price was last updated
+}
+
 export interface TokenInfo {
   address: string;
   symbol: string;
@@ -17,7 +41,7 @@ export interface TokenInfo {
   priceChange24h?: number;
   logoURI?: string;
   verified?: boolean;
-  priceUpdatedAt?: number; // Timestamp when price was last updated
+  priceUpdatedAt?: number;
 }
 
 export interface CreateTokenParams {
