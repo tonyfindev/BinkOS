@@ -290,7 +290,8 @@ export class FourMemeProvider extends BaseSwapProvider {
       const accessToken = await this.getAccessToken(signature, userAddress, network);
 
       // Step 2: Get imgUrl
-      const imgUrl = params?.img || this.uploadImageUrl(userAddress, network);
+      const imgUrl = await this.uploadImageUrl(params?.img, accessToken);
+      console.log('🤖 Upload image:', imgUrl);
       // Step 2: Call create token API to get createArg
       const createResponse = await this.callCreateTokenAPI({
         accessToken,
@@ -423,28 +424,45 @@ export class FourMemeProvider extends BaseSwapProvider {
     return accessTokenResponse.data;
   }
 
-  private uploadImageUrl(address: string, network: NetworkName): string {
-    // const response = await fetch('https://four.meme/meme-api/v1/private/user/upload', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     Accept: 'application/json',
-    //     'meme-web-access': signature,
-    //   },
-    //   body: JSON.stringify({
-    //     address,
-    //     networkCode: 'BSC',
-    //   }),
-    // });
+  async uploadImageUrl(filePath: string | undefined, accessToken: string): Promise<string> {
+    try {
+      if (!filePath) {
+        return 'https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg';
+      }
+      const url = `${CONSTANTS.FOUR_MEME_API_BASE}/private/token/upload`;
 
-    // if (!response.ok) {
-    //   throw new Error(`API request failed with status ${response.status}`);
-    // }
-    // const uploadImageResponse = await response.json();
+      // Fetch the image
+      const imageResponse = await fetch(filePath);
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
 
-    // console.log('🤖 Upload image response:', uploadImageResponse);
+      // Create FormData
+      const formData = new FormData();
+      formData.append('file', blob, 'image.jpg');
+      formData.append('networkCode', 'BSC');
 
-    return 'https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg';
+      // Upload the image
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'meme-web-access': accessToken,
+          origin: 'https://four.meme',
+          referer: 'https://four.meme/create-token',
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload image failed with status ${response.status}`);
+      }
+      const responseData = await response.json();
+      return responseData.data;
+    } catch (error) {
+      console.error('Error uploadFile', error instanceof Error ? error.message : String(error));
+      return 'https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg';
+    }
   }
 
   /**
