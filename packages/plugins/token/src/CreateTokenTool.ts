@@ -97,7 +97,7 @@ export class CreateTokenTool extends BaseTool {
       symbol: z.string().describe('The symbol of token created'),
       description: z.string().optional().describe('Description of token created'),
       network: z
-        .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
+        .enum(['bnb'])
         .default(NetworkName.BNB)
         .describe('The network to create the token on'),
       provider: z
@@ -198,7 +198,7 @@ export class CreateTokenTool extends BaseTool {
           }
           onProgress?.({
             progress: 40,
-            message: 'Signing message.',
+            message: `Signing message with symbol ${args.symbol}`,
           });
           // STEP 4: Get provider
           try {
@@ -221,7 +221,7 @@ export class CreateTokenTool extends BaseTool {
           }
           onProgress?.({
             progress: 60,
-            message: 'Building create transaction',
+            message: `Building create transaction with symbol ${args.symbol}`,
           });
           // STEP 5: Build create transaction
           let tx;
