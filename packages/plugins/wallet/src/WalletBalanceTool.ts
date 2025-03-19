@@ -1,4 +1,3 @@
-import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import {
   BaseTool,
@@ -75,7 +74,7 @@ export class GetWalletBalanceTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    return `Get detailed information about tokens and native currencies in a wallet. Shows balances of all tokens (ERC20, NFTs) and native currencies (ETH, BNB, SOL, etc.) that a wallet holds of all network (Solana, Etherum, BNB), including token balances, token addresses, symbols, and decimals. Supports networks: ${networks}. Available providers: ${providers}. Use this tool when you need to check what tokens or coins a wallet contains, their balances, and detailed token information.`;
+    return `Get detailed information about tokens and native currencies in a wallet of all network (Solana, Etherum, BNB), including token balances, token addresses, symbols, and decimals. Supports networks: ${networks}. Available providers: ${providers}. Use this tool when you need to check what tokens or coins a wallet contains, their balances, and detailed token information.`;
   }
 
   private getsupportedNetworks(): string[] {
@@ -96,8 +95,7 @@ export class GetWalletBalanceTool extends BaseTool {
         .optional()
         .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
       network: z
-        .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon', 'all'])
-        .default('all')
+        .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon'])
         .describe('The blockchain to query the wallet on. If not specific, default is all'),
     });
   }

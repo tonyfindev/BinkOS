@@ -1,9 +1,15 @@
 import axios from 'axios';
-import { ITokenProvider, TokenInfo, TokenQueryParams } from '@binkai/token-plugin';
+import {
+  ITokenProvider,
+  TokenInfo,
+  TokenInfoSecurity,
+  TokenQueryParams,
+} from '@binkai/token-plugin';
 import {
   BirdeyeConfig,
   BirdeyeTokenResponse,
   TokenOverviewResponse,
+  TokenSecurityResponse,
   CHAIN_MAPPING,
   SupportedChain,
 } from './types';
@@ -104,10 +110,33 @@ export class BirdeyeProvider implements ITokenProvider, IWalletProvider {
     }
   }
 
+  private async getTokenSecurity(
+    address: string,
+    network: NetworkName,
+  ): Promise<TokenSecurityResponse> {
+    try {
+      const response = await axios.get(`${this.baseUrl}/defi/token_security`, {
+        headers: this.getHeaders(network),
+        params: {
+          address: address,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(
+          `Birdeye API token overview error: ${error.response?.data?.message || error.message}`,
+        );
+      }
+      throw error;
+    }
+  }
   private mapTokenInfo(
     tokenData: BirdeyeTokenResponse['data']['items'][0]['result'][0],
+    dataSecurity: TokenSecurityResponse['data'],
     network: NetworkName,
-  ): TokenInfo {
+  ): TokenInfoSecurity {
     return {
       address: tokenData.address,
       symbol: tokenData.symbol,
@@ -121,14 +150,21 @@ export class BirdeyeProvider implements ITokenProvider, IWalletProvider {
       volume24h: tokenData.volume_24h_usd,
       priceChange24h: tokenData.price_change_24h_percent,
       logoURI: tokenData.logo_uri,
-      verified: true, // Assuming tokens from Birdeye are verified
+      verified: true,
+      top10HolderBalance: dataSecurity.top10HolderBalance ?? 0,
+      freezeAuthority: dataSecurity.freezeAuthority ?? '',
+      freezeable: dataSecurity.freezeable ?? false,
+      nonTransferable: dataSecurity.nonTransferable ?? false,
+      lockInfo: dataSecurity.lockInfo ?? null,
+      // Assuming tokens from Birdeye are verified
     };
   }
 
   private mapTokenOverviewToInfo(
     data: TokenOverviewResponse['data'],
+    dataSecurity: TokenSecurityResponse['data'],
     network: NetworkName,
-  ): TokenInfo {
+  ): TokenInfoSecurity {
     return {
       address: data.address,
       symbol: data.symbol,
@@ -143,6 +179,11 @@ export class BirdeyeProvider implements ITokenProvider, IWalletProvider {
       priceChange24h: data.priceChange24hPercent,
       logoURI: data.logoURI,
       verified: true, // Token overview endpoint returns verified tokens
+      top10HolderBalance: dataSecurity.top10HolderBalance ?? 0,
+      freezeAuthority: dataSecurity.freezeAuthority ?? '',
+      freezeable: dataSecurity.freezeable ?? false,
+      nonTransferable: dataSecurity.nonTransferable ?? false,
+      lockInfo: dataSecurity.lockInfo ?? null,
     };
   }
 
@@ -166,19 +207,35 @@ export class BirdeyeProvider implements ITokenProvider, IWalletProvider {
 
     try {
       if (this.isAddress(query)) {
-        // If query is an address, use token_overview endpoint
-        const response = await this.getTokenOverview(query, network);
+        const [response, responseSecurity] = await Promise.all([
+          this.getTokenOverview(query, network),
+          this.getTokenSecurity(query, network),
+        ]);
+
         if (!response.success) {
           throw new Error(`Token ${query} not found on network ${network}`);
         }
-        return this.mapTokenOverviewToInfo(response.data, network);
+
+        if (!responseSecurity.success) {
+          throw new Error(`Token ${query} security data not found on network ${network}`);
+        }
+        return this.mapTokenOverviewToInfo(response.data, responseSecurity.data, network);
       } else {
-        // If query is a symbol, use search endpoint
         const response = await this.searchTokensFromApi(query, network);
+
         if (!response.success || !response.data.items?.[0]?.result?.[0]) {
           throw new Error(`Token ${query} not found on network ${network}`);
         }
-        return this.mapTokenInfo(response.data.items[0].result[0], network);
+        const responseSecurity = await this.getTokenSecurity(
+          response.data.items[0].result[0].address,
+          network,
+        );
+
+        if (!responseSecurity.success) {
+          throw new Error(`Token ${query} security data not found on network ${network}`);
+        }
+
+        return this.mapTokenInfo(response.data.items[0].result[0], responseSecurity.data, network);
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -200,7 +257,14 @@ export class BirdeyeProvider implements ITokenProvider, IWalletProvider {
       if (!response.success || !response.data.items?.[0]?.result) {
         return [];
       }
-      return response.data.items[0].result.map(tokenData => this.mapTokenInfo(tokenData, network));
+      const responseSecurity = await this.getTokenSecurity(
+        response.data.items[0].result[0].address,
+        network,
+      );
+
+      return response.data.items[0].result.map(tokenData =>
+        this.mapTokenInfo(tokenData, responseSecurity.data, network),
+      );
     } catch (error) {
       if (axios.isAxiosError(error)) {
         throw new Error(`Birdeye API error: ${error.response?.data?.message || error.message}`);
