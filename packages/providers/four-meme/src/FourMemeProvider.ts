@@ -65,7 +65,6 @@ interface TokenInfoResponse {
     descr: string;
     tokenPrice: {
       price: number;
-      marketCap: number;
     };
     // ... other fields
   };
@@ -532,7 +531,7 @@ export class FourMemeProvider extends BaseSwapProvider {
   async getTokenInfoById(
     tokenId: number,
     accessToken: string,
-  ): Promise<{ address: string; name: string; symbol: string; price: number; marketCap: number }> {
+  ): Promise<{ address: string; name: string; symbol: string }> {
     try {
       const response = await fetch(
         `${CONSTANTS.FOUR_MEME_API_BASE}/private/token/getById?id=${tokenId}`,
@@ -563,8 +562,6 @@ export class FourMemeProvider extends BaseSwapProvider {
         address: tokenInfoResponse.data.address,
         name: tokenInfoResponse.data.name,
         symbol: tokenInfoResponse.data.shortName,
-        price: tokenInfoResponse.data.tokenPrice?.price,
-        marketCap: tokenInfoResponse.data.tokenPrice?.marketCap,
       };
     } catch (error: unknown) {
       console.error('Error getting token info:', error);
