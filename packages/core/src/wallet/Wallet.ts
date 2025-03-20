@@ -348,6 +348,12 @@ export class Wallet implements IWallet {
       try {
         let tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
         const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        if (!tx.message.recentBlockhash) {
+          tx.message.recentBlockhash = latestBlockhash.blockhash;
+        }
+
+        const lastValidBlockHeight = await connection.getBlockHeight('confirmed');
+
         // Sign transaction
         tx.sign([this.#solanaKeypair]);
 
@@ -361,7 +367,12 @@ export class Wallet implements IWallet {
         return {
           hash: signature,
           wait: async () => {
-            await this.watchTransaction(connection, signature);
+            await this.waitForSolanaTransaction(
+              connection,
+              signature,
+              tx.message.recentBlockhash,
+              lastValidBlockHeight,
+            );
             return {
               hash: signature,
               wait: async () => ({
@@ -396,7 +407,12 @@ export class Wallet implements IWallet {
         return {
           hash: signature,
           wait: async () => {
-            await this.watchTransaction(connection, signature);
+            await this.waitForSolanaTransaction(
+              connection,
+              signature,
+              tx.recentBlockhash!,
+              tx.lastValidBlockHeight!,
+            );
             return {
               hash: signature,
               wait: async () => ({
