@@ -12,6 +12,10 @@ import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { WalletPlugin } from '@binkai/wallet-plugin';
+import { BnbProvider } from '@binkai/rpc-provider';
+import { Connection } from '@solana/web3.js';
+
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
@@ -109,6 +113,8 @@ async function main() {
     apiKey: settings.get('BIRDEYE_API_KEY'),
   });
 
+  const walletPlugin = new WalletPlugin();
+
   // Configure the plugin with supported chains
   await tokenPlugin.initialize({
     defaultChain: 'bnb',
@@ -116,6 +122,17 @@ async function main() {
     supportedChains: ['solana', 'bnb'],
   });
   console.log('✓ Token plugin initialized\n');
+
+  const bnbProvider = new BnbProvider({
+    rpcUrl: BNB_RPC,
+  });
+
+  // Initialize plugin with provider
+  await walletPlugin.initialize({
+    defaultChain: 'bnb',
+    providers: [bnbProvider, birdeye],
+    supportedChains: ['bnb', 'solana'],
+  });
 
   // Create providers with proper chain IDs
   const debridge = new deBridgeProvider(provider, 56, 7565164);
@@ -138,9 +155,13 @@ async function main() {
   await agent.registerPlugin(tokenPlugin);
   console.log('✓ Plugin registered\n');
 
-  console.log('💱 Example 1:Bridge BNB to SOL on DeBridge Finance');
+  console.log('🔌 Registering wallet plugin with agent...');
+  await agent.registerPlugin(walletPlugin);
+  console.log('✓ Plugin registered\n');
+
+  console.log('💱 Example 1:Bridge all BNB to SOL on DeBridge Finance');
   const inputResult = await agent.execute({
-    input: `Bridge 0.0012342222 BNB to SOL`,
+    input: `Bridge 0.1% SOL to BNB`,
     //input: `Bridge 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on BNB to amount 5 Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB on solana`, // usdc bnb to usdt sol
     //input: `swap 10% my BNB to SOL`, // bridge and swap
     //input: `Bridge 5 USDC on SOL to 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on solana`,
