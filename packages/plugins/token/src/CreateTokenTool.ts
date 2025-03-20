@@ -95,16 +95,20 @@ export class CreateTokenTool extends BaseTool {
     return z.object({
       name: z.string().describe('The name of token created'),
       symbol: z.string().describe('The symbol of token created'),
-      description: z.string().optional().describe('Description of token created'),
+      description: z.string().describe('Description of token created'),
       network: z
         .enum(['bnb'])
         .default(NetworkName.BNB)
         .describe('The network to create the token on'),
       provider: z
-        .enum(providers as [string, ...string[]])
+        .enum(['four-meme'])
         .default('four-meme')
         .describe('The DEX provider to use for the create token.'),
       img: z.string().optional().describe('The logo image to use for the create token.'),
+      amount: z
+        .string()
+        .optional()
+        .describe('Small amount to buy coins helps protect your coin from snipers.'),
     });
   }
 
@@ -121,9 +125,16 @@ export class CreateTokenTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
-          const { name, symbol, description, img, network, provider: preferredProvider } = args;
+          const {
+            name,
+            symbol,
+            description,
+            img,
+            network,
+            amount,
+            provider: preferredProvider,
+          } = args;
           console.log('🤖 Create token Args:', args);
-          console.log('🔄 Doing create token operation...');
 
           // STEP 1: Validate network
           const supportedNetworks = this.getSupportedNetworks();
@@ -161,6 +172,7 @@ export class CreateTokenTool extends BaseTool {
             description,
             network,
             img,
+            amount,
           };
 
           let selectedProvider: any;
