@@ -12,10 +12,11 @@ const createPlan = (plans: any[]) => {
       plan_id: createPlanId(),
       title: plan.title,
       status: 'pending',
-      tasks: plan.tasks.map((task: any) => {
+      tasks: plan.tasks.map((task: any, index: number) => {
         return {
           title: task,
           status: 'pending',
+          index,
         };
       }),
     };

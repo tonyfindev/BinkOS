@@ -23,7 +23,15 @@ export const selectTasksTool = tool(
 ${tasks.map(task => `- ${task.title} => ${task.status}`).join('\n')}`;
 
     if (taskDone.length > 0) {
-      content += `\n\nThe steps done are: ${taskDone.map(task => `"- ${task.title} => ${task.result ?? ''}"`).join(', ')}`;
+      content += `\n\nThe steps done are: \n ${taskDone
+        .map(task => {
+          try {
+            return `"- ${task.title} => ${JSON.stringify(task.result)}"`;
+          } catch (e) {
+            return `"- ${task.title} => ${task.result}`;
+          }
+        })
+        .join('\n')}`;
     }
 
     return content;

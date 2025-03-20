@@ -1,10 +1,8 @@
-import { BaseMessage } from '@langchain/core/messages';
+import { HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
-import { NetworkName } from '../../..';
 import { BaseLanguageModel } from '@langchain/core/language_models/base';
 import { MessagesPlaceholder } from '@langchain/core/prompts';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { convertToOpenAITool } from '@langchain/core/utils/function_calling';
 import { createPlanTool } from '../tools/CreatePlanTool';
 import { shouldBindTools } from '../utils/llm';
@@ -13,35 +11,17 @@ import { terminateTool } from '../tools/TerminateTool';
 import { updatePlanTool } from '../tools/UpdatePlanTool';
 
 const StateAnnotation = Annotation.Root({
-  planner_messages: Annotation<BaseMessage[]>,
-  executor_messages: Annotation<BaseMessage[]>,
   executor_input: Annotation<string>,
   input: Annotation<string>,
-  // input: Annotation<string>({
-  //     reducer: (x, y) => y,
-  // }),
-  // next_input: Annotation<string>({
-  //     reducer: (x, y) => y,
-  // }),
-  // messages: Annotation<BaseMessage[]>({
-  //     reducer: (x, y) => x.concat(y),
-  // }),
-  // messages2: Annotation<BaseMessage[]>({
-  //     reducer: (x, y) => x.concat(y),
-  // }),
-  // chat_history: Annotation<BaseMessage[]>({
-  //     reducer: (x, y) => x.concat(y),
-  // }),
+  executor_response_tools: Annotation<ToolMessage[]>,
   plans: Annotation<
     {
       title: string;
-      tasks: { title: string; status: string; retry?: number; result?: string }[];
+      tasks: { title: string; status: string; retry?: number; result?: string; index: number }[];
       id: string;
       status: string;
     }[]
-  >({
-    reducer: (x, y) => y,
-  }),
+  >,
   active_plan_id: Annotation<string>,
   selected_task_indexes: Annotation<number[]>,
   next_node: Annotation<string>,
@@ -122,10 +102,8 @@ export class PlannerGraph {
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', this.updatePlanPrompt],
       ['human', 'The current plans: {plans}'],
-      // ['human', `Plan to execute the user's request: {input}`],
-      new MessagesPlaceholder('executor_messages'),
-      new MessagesPlaceholder('planner_messages'),
-      ['system', `Update current plan: ${promptActiveTask}`],
+      new MessagesPlaceholder('executor_response_tools'),
+      ['human', `Update current plan: ${promptActiveTask}`],
     ]);
     const tools = [updatePlanTool];
     let modelWithTools;
@@ -143,13 +121,24 @@ export class PlannerGraph {
     }
 
     const planAgent = prompt.pipe(modelWithTools);
+    let responseTools = state.executor_response_tools ?? [];
+
+    // Remove executor tool if there are any other tools
+    if (responseTools.filter((tool: ToolMessage) => tool.name != 'executor').length > 0) {
+      responseTools = responseTools.filter((tool: ToolMessage) => tool.name != 'executor');
+    }
+
+    const toolMessages = responseTools.map((m: ToolMessage) => {
+      return new HumanMessage(
+        `Response tool id: ${m.tool_call_id}\n Tool name: ${m.name} \n ${m.content}`,
+      );
+    });
 
     const response = (await planAgent.invoke({
       input: state.input,
       toolsStr: this.listToolsPrompt,
       plans: JSON.stringify(state.plans),
-      executor_messages: [...(state.executor_messages ?? [])],
-      planner_messages: [...(state.planner_messages ?? [])],
+      executor_response_tools: toolMessages,
     })) as any;
 
     if (response?.tool_calls) {

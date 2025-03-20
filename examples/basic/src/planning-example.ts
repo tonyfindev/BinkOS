@@ -136,7 +136,7 @@ async function main() {
   );
   console.log('✓ Wallet created\n');
 
-  console.log('🤖 Wallet BNB:', await wallet.getPrivateKey(NetworkName.BNB));
+  console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
   console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');

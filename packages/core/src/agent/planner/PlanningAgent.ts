@@ -1,6 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { AgentExecutor, createOpenAIToolsAgent } from 'langchain/agents';
-import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
+import { BaseMessage, HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { IWallet } from '../../wallet/types';
 import { NetworkName, NetworksConfig } from '../../network/types';
@@ -23,36 +23,25 @@ import {
 } from '@langchain/langgraph';
 import { Annotation, StateGraph } from '@langchain/langgraph';
 import { convertToOpenAITool } from '@langchain/core/utils/function_calling';
-import { FinishTool } from '../tools/FinishTool';
-import { JsonOutputToolsParser } from 'langchain/output_parsers';
-import { v4 as uuidv4 } from 'uuid';
-import { log } from 'console';
-import { ToolNode } from '@langchain/langgraph/prebuilt';
-import { DynamicStructuredTool, StructuredTool, tool, Tool } from '@langchain/core/tools';
-import { z } from 'zod';
-import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
-import { RunnableConfig } from '@langchain/core/runnables';
 import { PlannerGraph } from './graph/PlannerGraph';
 import { ExecutorGraph } from './graph/ExecutorGraph';
+import { MemorySaver } from '@langchain/langgraph';
 
 const StateAnnotation = Annotation.Root({
-  planner_messages: Annotation<BaseMessage[]>,
-  executor_messages: Annotation<BaseMessage[]>,
   executor_input: Annotation<string>,
 
   active_plan_id: Annotation<string>,
   selected_task_indexes: Annotation<number[]>,
   next_node: Annotation<string>,
+  executor_response_tools: Annotation<ToolMessage[]>,
   plans: Annotation<
     {
       title: string;
-      tasks: { title: string; status: string; retry?: number; result?: string }[];
+      tasks: { title: string; status: string; retry?: number; result?: string; index: number }[];
       id: string;
       status: string;
     }[]
-  >({
-    reducer: (x, y) => y,
-  }),
+  >,
 
   input: Annotation<string>,
 });
@@ -68,7 +57,7 @@ export class PlanningAgent extends Agent {
   protected async createExecutor(): Promise<CompiledStateGraph<any, any, any, any, any, any>> {
     const executorTools = this.getToolsByNode(AgentNodeTypes.EXECUTOR);
 
-    const executorPrompt = `You are blockchain executor. Your goal is to execute the user's request`;
+    const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps.`;
     const defaultPlanPrompt = `NOTE: 
 - You must get balance to get any token (must include token symbol and token address) in wallet
 - You need token address when execute on-chain transaction
@@ -118,14 +107,16 @@ export class PlanningAgent extends Agent {
       })
       .addEdge('executor', 'planner');
 
-    this.graph = await this.workflow.compile();
+    const checkpointer = new MemorySaver();
+
+    this.graph = await this.workflow.compile({ checkpointer });
 
     return this.graph;
   }
 
   async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
     if (typeof commandOrParams === 'string') {
-      return this.graph.invoke({ messages: [new HumanMessage(commandOrParams)] });
+      return this.graph.invoke({ input: commandOrParams });
     }
     return null;
   }
