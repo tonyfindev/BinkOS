@@ -311,8 +311,6 @@ export class CreateTokenTool extends BaseTool {
                 token.link = tokenInfo.address
                   ? `https://four.meme/token/${tokenInfo.address}`
                   : '';
-                token.price = tokenInfo?.price;
-                token.marketCap = tokenInfo?.marketCap;
               }
             } catch (error) {
               // Keep using the original token info if fetching fails

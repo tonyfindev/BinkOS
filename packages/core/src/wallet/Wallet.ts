@@ -124,6 +124,71 @@ export class Wallet implements IWallet {
     }
   }
 
+  async watchTransaction(
+    connection: Connection,
+    txHash: string,
+    serializedTx?: string,
+    sendTransaction?: any,
+    retry: number = 20,
+  ): Promise<{ confirmed: boolean; message: string }> {
+    if (retry <= 0) {
+      return {
+        confirmed: false,
+        message: `❌ Transaction not confirmed`,
+      };
+    }
+
+    try {
+      const status = await connection.getSignatureStatus(txHash);
+
+      if (
+        status.value?.confirmationStatus !== 'confirmed' &&
+        status.value?.confirmationStatus !== 'finalized'
+      ) {
+        await new Promise(r => setTimeout(r, 1500));
+
+        if (serializedTx && sendTransaction) {
+          sendTransaction(serializedTx);
+        }
+
+        return await this.watchTransaction(
+          connection,
+          txHash,
+          serializedTx,
+          sendTransaction,
+          retry - 1,
+        );
+      }
+
+      if (status.value?.err) {
+        console.log(status.value?.err);
+        return {
+          confirmed: false,
+          message: `❌ Transaction failed. Error: ${JSON.stringify(status.value?.err)}`,
+        };
+      }
+
+      return {
+        confirmed: true,
+        message: '✅ Transaction submitted successfully',
+      };
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 1500));
+
+      if (serializedTx && sendTransaction) {
+        sendTransaction(serializedTx);
+      }
+
+      return await this.watchTransaction(
+        connection,
+        txHash,
+        serializedTx,
+        sendTransaction,
+        retry - 1,
+      );
+    }
+  }
+
   public async sendTransaction(
     network: NetworkName,
     transaction: TransactionRequest,
@@ -283,6 +348,12 @@ export class Wallet implements IWallet {
       try {
         let tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
         const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        if (!tx.message.recentBlockhash) {
+          tx.message.recentBlockhash = latestBlockhash.blockhash;
+        }
+
+        const lastValidBlockHeight = await connection.getBlockHeight('confirmed');
+
         // Sign transaction
         tx.sign([this.#solanaKeypair]);
 
@@ -299,8 +370,8 @@ export class Wallet implements IWallet {
             await this.waitForSolanaTransaction(
               connection,
               signature,
-              latestBlockhash.blockhash,
-              latestBlockhash.lastValidBlockHeight,
+              tx.message.recentBlockhash,
+              lastValidBlockHeight,
             );
             return {
               hash: signature,
