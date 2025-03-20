@@ -123,7 +123,7 @@ async function main() {
   console.log('💎 Example 1: Create a token on BSC');
   const result = await agent.execute({
     input:
-      'Create a new token on BNB chain with name: "Tom", symbol: "Ken", description: "This is a Ken Test token"',
+      'Create a new token on BNB chain with name: "SUDO", symbol: "SUDO", description: "This is a SUDO Test token"',
   });
   console.log('✓ Token created:', result, '\n');
   // Get plugin information
