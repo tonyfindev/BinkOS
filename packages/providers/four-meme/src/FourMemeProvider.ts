@@ -12,7 +12,7 @@ const CONSTANTS = {
   FOUR_MEME_FACTORY_V3: '0xF251F83e40a78868FcfA3FA4599Dad6494E46034',
   FOUR_MEME_FACTORY_V2: '0x5c952063c7fc8610FFDB798152D69F0B9550762b',
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
-  FOUR_MEME_API_BASE: 'https://four.meme/meme-api/v1',
+  FOUR_MEME_API_BASE: process.env.FOUR_MEME_API_BASE || 'https://four.meme/meme-api/v1',
 } as const;
 
 enum ChainId {
@@ -25,10 +25,12 @@ interface CreateTokenParams {
   name: string;
   symbol: string;
   description: string;
+  img?: string;
   totalSupply?: number;
   raisedAmount?: number;
   saleRate?: number;
   network?: NetworkName;
+  amount?: string;
 }
 
 // Add these interfaces for API responses
@@ -45,6 +47,26 @@ interface CreateMemeResponse {
     tokenId: number;
     createArg: string;
     signature: string;
+    // ... other fields
+  };
+}
+
+// Add this interface for the token info response
+interface TokenInfoResponse {
+  code: number;
+  msg: string;
+  data: {
+    id: number;
+    address: string;
+    image: string;
+    name: string;
+    shortName: string;
+    symbol: string;
+    descr: string;
+    tokenPrice: {
+      price: number;
+      marketCap: number;
+    };
     // ... other fields
   };
 }
@@ -255,6 +277,7 @@ export class FourMemeProvider extends BaseSwapProvider {
 
       // Return the message to be signed
       const message = `You are sign in Meme ${nonce}`;
+
       return message;
     } catch (error: unknown) {
       console.error('Error getting signature message:', error);
@@ -275,17 +298,21 @@ export class FourMemeProvider extends BaseSwapProvider {
   async buildCreateToken(
     params: CreateTokenParams,
     userAddress: string,
+    accessToken: string,
     signature: string,
   ): Promise<string> {
     try {
       const network = params.network || NetworkName.BNB;
 
-      // Step 1: Get access token
-      const accessToken = await this.getAccessToken(signature, userAddress, network);
+      if (network !== NetworkName.BNB) {
+        throw new Error('FourMeme only supports BNB network');
+      }
 
-      // Step 2: Get imgUrl
-      const imgUrl = await this.uploadImageUrl(signature, userAddress, network);
-      // Step 2: Call create token API to get createArg
+      // Step 2: Get imgUrl from params or upload image to FourMeme
+      const imgUrl = params?.img || this.uploadImageUrl();
+      console.log('🤖 Upload image:', imgUrl);
+
+      // Step 3: Call create token API to get createArg
       const createResponse = await this.callCreateTokenAPI({
         accessToken,
         name: params.name,
@@ -293,6 +320,7 @@ export class FourMemeProvider extends BaseSwapProvider {
         desc: params.description,
         totalSupply: params.totalSupply || 1000000000,
         raisedAmount: params.raisedAmount || 24,
+        preSale: params?.amount || '0',
         saleRate: params.saleRate || 0.8,
         signature,
         userAddress,
@@ -304,9 +332,10 @@ export class FourMemeProvider extends BaseSwapProvider {
         throw new Error(`Failed to create token: ${createResponse.msg}`);
       }
 
-      // Step 2: Call the contract's createToken method
+      // Step 4: Call the contract's createToken method
       const createArg = createResponse.data.createArg;
       const signature4Meme = createResponse.data.signature;
+      const tokenId = createResponse.data.tokenId;
 
       const tx = this.factory.interface.encodeFunctionData('createToken(bytes, bytes)', [
         createArg,
@@ -314,10 +343,13 @@ export class FourMemeProvider extends BaseSwapProvider {
       ]);
 
       const token: {
+        id?: number;
+        address?: string;
         name: string;
         description: string;
         symbol: string;
       } = {
+        id: tokenId,
         symbol: params.symbol,
         name: params.name,
         description: params.description,
@@ -333,7 +365,7 @@ export class FourMemeProvider extends BaseSwapProvider {
         tx: {
           to: CONSTANTS.FOUR_MEME_FACTORY_V2,
           data: tx,
-          value: 0,
+          value: BigInt(Math.floor((Number(params?.amount) || 0) * 1e18)),
           network: params.network,
           spender: CONSTANTS.FOUR_MEME_FACTORY_V2,
         },
@@ -361,6 +393,10 @@ export class FourMemeProvider extends BaseSwapProvider {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        origin: 'https://four.meme',
+        referer: 'https://four.meme/create-token',
+        'user-agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
       body: JSON.stringify({
         accountAddress,
@@ -370,7 +406,7 @@ export class FourMemeProvider extends BaseSwapProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
+      throw new Error(`Get nonce API request failed with status ${response.status}`);
     }
     const nonceResponse = await response.json();
 
@@ -380,16 +416,16 @@ export class FourMemeProvider extends BaseSwapProvider {
   /**
    * Gets a nonce from the Four Meme API for token creation
    */
-  private async getAccessToken(
-    signature: string,
-    address: string,
-    network: NetworkName,
-  ): Promise<any> {
+  async getAccessToken(signature: string, address: string, network: NetworkName): Promise<any> {
     const response = await fetch(`${CONSTANTS.FOUR_MEME_API_BASE}/private/user/login/dex`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        origin: 'https://four.meme',
+        referer: 'https://four.meme/create-token',
+        'user-agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
       body: JSON.stringify({
         verifyInfo: {
@@ -402,41 +438,16 @@ export class FourMemeProvider extends BaseSwapProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
+      throw new Error(`Get access token API request failed with status ${response.status}`);
     }
 
     const accessTokenResponse = await response.json();
     return accessTokenResponse.data;
   }
 
-  private async uploadImageUrl(
-    signature: string,
-    address: string,
-    network: NetworkName,
-  ): Promise<string> {
-    // const response = await fetch('https://four.meme/meme-api/v1/private/user/upload', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     Accept: 'application/json',
-    //     'meme-web-access': signature,
-    //   },
-    //   body: JSON.stringify({
-    //     address,
-    //     networkCode: 'BSC',
-    //   }),
-    // });
-
-    // if (!response.ok) {
-    //   throw new Error(`API request failed with status ${response.status}`);
-    // }
-    // const uploadImageResponse = await response.json();
-
-    // console.log('🤖 Upload image response:', uploadImageResponse);
-
+  private uploadImageUrl(): string {
     return 'https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg';
   }
-
   /**
    * Calls the Four Meme API to create a token and get the createArg
    */
@@ -452,9 +463,48 @@ export class FourMemeProvider extends BaseSwapProvider {
     userAddress: string;
     network: NetworkName;
     imgUrl: string;
+    preSale: string;
   }): Promise<CreateMemeResponse> {
-    // Current timestamp in milliseconds
     const launchTime = Date.now();
+    console.log('param', params);
+
+    const requestBody = {
+      name: params.name,
+      shortName: params.shortName,
+      desc: params.desc,
+      totalSupply: params.totalSupply,
+      raisedAmount: params.raisedAmount,
+      saleRate: params.saleRate,
+      reserveRate: 0,
+      imgUrl: params.imgUrl,
+      raisedToken: {
+        symbol: 'BNB',
+        nativeSymbol: 'BNB',
+        symbolAddress: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
+        deployCost: '0',
+        buyFee: '0.01',
+        sellFee: '0.01',
+        minTradeFee: '0',
+        b0Amount: '8',
+        totalBAmount: '24',
+        totalAmount: '1000000000',
+        logoUrl:
+          'https://static.four.meme/market/68b871b6-96f7-408c-b8d0-388d804b34275092658264263839640.png',
+        tradeLevel: ['0.1', '0.5', '1'],
+        status: 'PUBLISH',
+        buyTokenLink: 'https://pancakeswap.finance/swap',
+        reservedNumber: 10,
+        saleRate: '0.8',
+        networkCode: 'BSC',
+        platform: 'MEME',
+      },
+      launchTime,
+      funGroup: false,
+      preSale: params.preSale,
+      clickFun: false,
+      symbol: 'BNB',
+      label: 'Meme',
+    };
 
     const response = await fetch(`${CONSTANTS.FOUR_MEME_API_BASE}/private/token/create`, {
       method: 'POST',
@@ -463,28 +513,64 @@ export class FourMemeProvider extends BaseSwapProvider {
         Accept: 'application/json',
         'meme-web-access': params.accessToken,
       },
-      body: JSON.stringify({
-        name: params.name,
-        shortName: params.shortName,
-        desc: params.desc,
-        totalSupply: params.totalSupply,
-        raisedAmount: params.raisedAmount,
-        saleRate: params.saleRate,
-        reserveRate: 0,
-        imgUrl: params.imgUrl,
-        launchTime,
-        funGroup: false,
-        preSale: 0,
-        clickFun: false,
-        symbol: 'BNB',
-        label: 'Meme',
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
+      throw new Error(`Create token API request failed with status ${response.status}`);
     }
 
     return await response.json();
+  }
+
+  /**
+   * Gets token information by its ID from Four Meme API
+   * @param tokenId The ID of the token to fetch
+   * @param accessToken The access token for API authentication
+   * @returns Token information including its address
+   */
+  async getTokenInfoById(
+    tokenId: number,
+    accessToken: string,
+  ): Promise<{ address: string; name: string; symbol: string; price: number; marketCap: number }> {
+    try {
+      const response = await fetch(
+        `${CONSTANTS.FOUR_MEME_API_BASE}/private/token/getById?id=${tokenId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'meme-web-access': accessToken,
+            Referer: 'https://four.meme/create-token',
+            'User-Agent':
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Get token info API request failed with status ${response.status}`);
+      }
+
+      const tokenInfoResponse: TokenInfoResponse = await response.json();
+
+      if (tokenInfoResponse.code !== 0) {
+        throw new Error(`Failed to get token info: ${tokenInfoResponse.msg}`);
+      }
+
+      return {
+        address: tokenInfoResponse.data.address,
+        name: tokenInfoResponse.data.name,
+        symbol: tokenInfoResponse.data.shortName,
+        price: tokenInfoResponse.data.tokenPrice?.price,
+        marketCap: tokenInfoResponse.data.tokenPrice?.marketCap,
+      };
+    } catch (error: unknown) {
+      console.error('Error getting token info:', error);
+      throw new Error(
+        `Failed to get token info: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
   }
 }

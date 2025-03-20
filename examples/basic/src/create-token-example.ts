@@ -123,7 +123,7 @@ async function main() {
   console.log('💎 Example 1: Create a token on BSC');
   const result = await agent.execute({
     input:
-      'Create a new token on BNB chain with name: "TST", symbol: "TST", description: "This is a TST Test token"',
+      'Create a new token on BNB chain with name: "OXdavid", symbol: "Ox", description: "This is a Ken Test token". image is https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg.',
   });
   console.log('✓ Token created:', result, '\n');
   // Get plugin information

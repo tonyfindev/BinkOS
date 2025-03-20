@@ -8,7 +8,7 @@ import {
   ToolProgress,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
-import { ITokenProvider, TokenInfo } from './types';
+import { CreateTokenParams, ITokenProvider, TokenInfo } from './types';
 import { DefaultTokenProvider } from './providers/DefaultTokenProvider';
 import { defaultTokens } from './data/defaultTokens';
 
@@ -95,15 +95,20 @@ export class CreateTokenTool extends BaseTool {
     return z.object({
       name: z.string().describe('The name of token created'),
       symbol: z.string().describe('The symbol of token created'),
-      description: z.string().optional().describe('Description of token created'),
+      description: z.string().describe('Description of token created'),
       network: z
-        .enum(supportedNetworks as [NetworkName, ...NetworkName[]])
+        .enum(['bnb'])
         .default(NetworkName.BNB)
         .describe('The network to create the token on'),
       provider: z
-        .enum(providers as [string, ...string[]])
+        .enum(['four-meme'])
         .default('four-meme')
         .describe('The DEX provider to use for the create token.'),
+      img: z.string().optional().describe('The logo image to use for the create token.'),
+      amount: z
+        .string()
+        .optional()
+        .describe('Small amount to buy coins helps protect your coin from snipers.'),
     });
   }
 
@@ -120,9 +125,16 @@ export class CreateTokenTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
+          const {
+            name,
+            symbol,
+            description,
+            img,
+            network,
+            amount,
+            provider: preferredProvider,
+          } = args;
           console.log('🤖 Create token Args:', args);
-          const { name, symbol, description, network, provider: preferredProvider } = args;
-          console.log('🔄 Doing create token operation...');
 
           // STEP 1: Validate network
           const supportedNetworks = this.getSupportedNetworks();
@@ -137,7 +149,7 @@ export class CreateTokenTool extends BaseTool {
             );
           }
 
-          // STEP 3: Get wallet address
+          // STEP 2: Get wallet address
           let userAddress;
           try {
             // Get agent's wallet and address
@@ -154,22 +166,23 @@ export class CreateTokenTool extends BaseTool {
             );
           }
 
-          const createTokenParams: any = {
+          const createTokenParams: CreateTokenParams = {
             name,
             symbol,
             description,
             network,
+            img,
+            amount,
           };
 
           let selectedProvider: any;
-          let signature: any;
+          let signature: string;
 
           onProgress?.({
-            progress: 40,
-            message: 'Searching for best provider',
+            progress: 20,
+            message: 'Searching for best provider to create token',
           });
-          // STEP 4: Get provider
-          console.log('🤖 Preferred provider:', preferredProvider);
+          // STEP 3: Get provider
           try {
             if (preferredProvider) {
               selectedProvider = this.registry.getProvider(preferredProvider);
@@ -195,17 +208,44 @@ export class CreateTokenTool extends BaseTool {
               throw error; // Re-throw structured errors
             }
           }
-
-          const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
-          const wallet = this.agent.getWallet();
-          signature = await wallet.signMessage({
-            network,
-            message: signatureMessage,
+          onProgress?.({
+            progress: 40,
+            message: `Signing message with symbol ${args.symbol}`,
+          });
+          // STEP 4: Get provider
+          try {
+            const signatureMessage = await selectedProvider.buildSignatureMessage(userAddress);
+            const wallet = this.agent.getWallet();
+            signature = await wallet.signMessage({
+              network,
+              message: signatureMessage,
+            });
+          } catch (error: any) {
+            throw this.createError(
+              ErrorStep.TOOL_EXECUTION,
+              `Failed to build the signature message.`,
+              {
+                provider: selectedProvider.getName(),
+                network: network,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            );
+          }
+          onProgress?.({
+            progress: 60,
+            message: `Building create transaction with symbol ${args.symbol}`,
           });
           // STEP 5: Build create transaction
           let tx;
+          let accessToken;
           try {
-            tx = await selectedProvider.buildCreateToken(createTokenParams, userAddress, signature);
+            accessToken = await selectedProvider.getAccessToken(signature, userAddress, network);
+            tx = await selectedProvider.buildCreateToken(
+              createTokenParams,
+              userAddress,
+              accessToken,
+              signature,
+            );
             console.log('🤖 Create Tx:', tx);
           } catch (error: any) {
             throw this.createError(
@@ -222,7 +262,7 @@ export class CreateTokenTool extends BaseTool {
 
           onProgress?.({
             progress: 80,
-            message: `Creating token `,
+            message: `Creating ${args.name} token with symbol ${args.symbol}`,
           });
           // STEP 6: Execute create transaction
           let receipt;
@@ -248,27 +288,54 @@ export class CreateTokenTool extends BaseTool {
               },
             );
           }
+
+          // STEP 7: Get token info
+          onProgress?.({
+            progress: 90,
+            message: `Getting token address for ${args.name} with symbol ${args.symbol}`,
+          });
+
+          let token = { ...tx.token };
+
+          if (tx.token.id && selectedProvider.getName() === 'four-meme') {
+            try {
+              // Wait for 25 seconds before fetching token info
+              await new Promise(resolve => setTimeout(resolve, 25000));
+
+              // For Four Meme tokens, get the token address using the token ID
+              const fourMemeProvider = selectedProvider as any;
+              const tokenInfo = await fourMemeProvider.getTokenInfoById(tx.token.id, accessToken);
+
+              if (tokenInfo) {
+                token.address = tokenInfo.address;
+                token.link = tokenInfo.address
+                  ? `https://four.meme/token/${tokenInfo.address}`
+                  : '';
+                token.price = tokenInfo?.price;
+                token.marketCap = tokenInfo?.marketCap;
+              }
+            } catch (error) {
+              // Keep using the original token info if fetching fails
+            }
+          }
+
+          console.log('🤖 Data', {
+            status: 'success',
+            provider: selectedProvider.getName(),
+            token,
+            transactionHash: finalReceipt?.hash,
+            network,
+          });
+
           // Return result as JSON string
           return JSON.stringify({
             status: 'success',
             provider: selectedProvider.getName(),
-            token: tx.token,
+            token,
             transactionHash: finalReceipt?.hash,
             network,
           });
         } catch (error: any) {
-          // Special handling for token validation errors that we can try to fix
-          if (
-            error instanceof Error ||
-            (typeof error === 'object' && error !== null && 'step' in error)
-          ) {
-            const errorStep = 'step' in error ? error.step : '';
-            const isTokenValidationError =
-              errorStep === 'token_validation' ||
-              errorStep === ErrorStep.TOKEN_NOT_FOUND ||
-              error.message?.includes('Invalid token address');
-          }
-
           // Use BaseTool's error handling
           return this.handleError(error, args);
         }

@@ -163,7 +163,7 @@ async function main() {
     //    BINKAI: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
     // `,
     input: `
-      my wallet balance on BNB chain`,
+      My balance on bnb`,
     //   input: `
     //   Buy BINK from with 0.5 bnb from my wallet.
     //   Use the following token addresses:
