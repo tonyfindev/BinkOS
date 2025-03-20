@@ -30,6 +30,7 @@ interface CreateTokenParams {
   raisedAmount?: number;
   saleRate?: number;
   network?: NetworkName;
+  amount?: string;
 }
 
 // Add these interfaces for API responses
@@ -301,6 +302,7 @@ export class FourMemeProvider extends BaseSwapProvider {
         desc: params.description,
         totalSupply: params.totalSupply || 1000000000,
         raisedAmount: params.raisedAmount || 24,
+        preSale: params?.amount || '0',
         saleRate: params.saleRate || 0.8,
         signature,
         userAddress,
@@ -341,7 +343,7 @@ export class FourMemeProvider extends BaseSwapProvider {
         tx: {
           to: CONSTANTS.FOUR_MEME_FACTORY_V2,
           data: tx,
-          value: 0,
+          value: BigInt(Math.floor((Number(params?.amount) || 0) * 1e18)),
           network: params.network,
           spender: CONSTANTS.FOUR_MEME_FACTORY_V2,
         },
@@ -443,10 +445,11 @@ export class FourMemeProvider extends BaseSwapProvider {
     userAddress: string;
     network: NetworkName;
     imgUrl: string;
+    preSale: string;
   }): Promise<CreateMemeResponse> {
     // Current timestamp in milliseconds
     const launchTime = Date.now();
-
+    console.log('param', params);
     const response = await fetch(`${CONSTANTS.FOUR_MEME_API_BASE}/private/token/create`, {
       method: 'POST',
       headers: {
@@ -463,9 +466,30 @@ export class FourMemeProvider extends BaseSwapProvider {
         saleRate: params.saleRate,
         reserveRate: 0,
         imgUrl: params.imgUrl,
+        raisedToken: {
+          symbol: 'BNB',
+          nativeSymbol: 'BNB',
+          symbolAddress: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
+          deployCost: '0',
+          buyFee: '0.01',
+          sellFee: '0.01',
+          minTradeFee: '0',
+          b0Amount: '8',
+          totalBAmount: '24',
+          totalAmount: '1000000000',
+          logoUrl:
+            'https://static.four.meme/market/68b871b6-96f7-408c-b8d0-388d804b34275092658264263839640.png',
+          tradeLevel: ['0.1', '0.5', '1'],
+          status: 'PUBLISH',
+          buyTokenLink: 'https://pancakeswap.finance/swap',
+          reservedNumber: 10,
+          saleRate: '0.8',
+          networkCode: 'BSC',
+          platform: 'MEME',
+        },
         launchTime,
         funGroup: false,
-        preSale: 0,
+        preSale: params.preSale,
         clickFun: false,
         symbol: 'BNB',
         label: 'Meme',

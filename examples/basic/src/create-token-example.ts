@@ -123,7 +123,7 @@ async function main() {
   console.log('💎 Example 1: Create a token on BSC');
   const result = await agent.execute({
     input:
-      'Create a new token on BNB chain with name: "Tom", symbol: "Ken", description: "This is a Ken Test token". image is https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSQInayu79fVTOrvaQnlPz5yEN5aBx8l5gRZA&s. Buy 0.01 BNB',
+      'Create a new token on BNB chain with name: "OXdavid", symbol: "Ox", description: "This is a Ken Test token". image is https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg. Buy 0.0012 BNB',
   });
   console.log('✓ Token created:', result, '\n');
   // Get plugin information

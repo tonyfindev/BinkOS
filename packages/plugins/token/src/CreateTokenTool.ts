@@ -101,12 +101,12 @@ export class CreateTokenTool extends BaseTool {
         .default(NetworkName.BNB)
         .describe('The network to create the token on'),
       provider: z
-        .enum(providers as [string, ...string[]])
+        .enum(['four-meme'])
         .default('four-meme')
         .describe('The DEX provider to use for the create token.'),
       img: z.string().optional().describe('The logo image to use for the create token.'),
       amount: z
-        .number()
+        .string()
         .optional()
         .describe('Small amount to buy coins helps protect your coin from snipers.'),
     });
@@ -135,7 +135,6 @@ export class CreateTokenTool extends BaseTool {
             provider: preferredProvider,
           } = args;
           console.log('🤖 Create token Args:', args);
-          console.log('🔄 Doing create token operation...');
 
           // STEP 1: Validate network
           const supportedNetworks = this.getSupportedNetworks();
@@ -173,6 +172,7 @@ export class CreateTokenTool extends BaseTool {
             description,
             network,
             img,
+            amount,
           };
 
           let selectedProvider: any;

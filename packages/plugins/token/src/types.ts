@@ -53,6 +53,7 @@ export interface CreateTokenParams {
   raisedAmount?: number;
   saleRate?: number;
   network: NetworkName;
+  amount?: number;
 }
 
 export interface TokenQueryParams {
