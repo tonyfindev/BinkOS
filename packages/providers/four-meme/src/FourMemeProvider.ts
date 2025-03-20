@@ -289,9 +289,11 @@ export class FourMemeProvider extends BaseSwapProvider {
       // Step 1: Get access token
       const accessToken = await this.getAccessToken(signature, userAddress, network);
 
-      // Step 2: Get imgUrl
-      const imgUrl = params?.img || this.uploadImageUrl(userAddress, network);
-      // Step 2: Call create token API to get createArg
+      // Step 2: Get imgUrl from params or upload image to FourMeme
+      const imgUrl = params?.img || this.uploadImageUrl();
+      console.log('🤖 Upload image:', imgUrl);
+
+      // Step 3: Call create token API to get createArg
       const createResponse = await this.callCreateTokenAPI({
         accessToken,
         name: params.name,
@@ -310,7 +312,7 @@ export class FourMemeProvider extends BaseSwapProvider {
         throw new Error(`Failed to create token: ${createResponse.msg}`);
       }
 
-      // Step 2: Call the contract's createToken method
+      // Step 4: Call the contract's createToken method
       const createArg = createResponse.data.createArg;
       const signature4Meme = createResponse.data.signature;
 
@@ -423,30 +425,9 @@ export class FourMemeProvider extends BaseSwapProvider {
     return accessTokenResponse.data;
   }
 
-  private uploadImageUrl(address: string, network: NetworkName): string {
-    // const response = await fetch('https://four.meme/meme-api/v1/private/user/upload', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     Accept: 'application/json',
-    //     'meme-web-access': signature,
-    //   },
-    //   body: JSON.stringify({
-    //     address,
-    //     networkCode: 'BSC',
-    //   }),
-    // });
-
-    // if (!response.ok) {
-    //   throw new Error(`API request failed with status ${response.status}`);
-    // }
-    // const uploadImageResponse = await response.json();
-
-    // console.log('🤖 Upload image response:', uploadImageResponse);
-
+  private uploadImageUrl(): string {
     return 'https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg';
   }
-
   /**
    * Calls the Four Meme API to create a token and get the createArg
    */
