@@ -34,10 +34,10 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
     [NetworkName.POLYGON]: ethers.parseEther('0.1'), // 0.1 MATIC
     [NetworkName.ARBITRUM]: ethers.parseEther('0.001'), // 0.001 ETH
     [NetworkName.OPTIMISM]: ethers.parseEther('0.001'), // 0.001 ETH
-    [NetworkName.BNB]: ethers.parseEther('0.004'), // 0.004 BNB
-    [NetworkName.SOLANA]: BigInt(30000000), // 0.03 SOL in lamports
+    [NetworkName.BNB]: ethers.parseEther('0.005'), // 0.005 BNB
+    [NetworkName.SOLANA]: BigInt(40000000), // 0.04 SOL in lamports
     [NetworkName.SEPOLIA]: ethers.parseEther('0.001'), // 0.001 ETH
-    [NetworkName.SOLANA_DEVNET]: BigInt(30000000), // 0.03 SOL in lamports
+    [NetworkName.SOLANA_DEVNET]: BigInt(40000000), // 0.04 SOL in lamports
   };
 
   constructor(providerConfig: Map<NetworkName, NetworkProvider>) {
