@@ -16,7 +16,6 @@ export interface StakingToolConfig extends IToolConfig {
 }
 
 export class StakingTool extends BaseTool {
-  public readonly agentNodeSupports: AgentNodeTypes[] = [AgentNodeTypes.EXECUTOR];
   public registry: ProviderRegistry;
   private defaultNetwork: string;
   private supportedNetworks: Set<string>;

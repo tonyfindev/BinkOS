@@ -9,7 +9,6 @@ import { CallbackManager, IToolExecutionCallback } from './callbacks';
 
 export abstract class BaseAgent implements IAgent {
   protected tools: DynamicStructuredTool[] = [];
-  protected toolsByNode: Map<AgentNodeTypes, DynamicStructuredTool[]> = new Map();
   protected plugins: Map<string, IPlugin> = new Map();
   protected callbackManager: CallbackManager = new CallbackManager();
 
@@ -19,9 +18,6 @@ export abstract class BaseAgent implements IAgent {
     const wrappedTool = this.callbackManager.wrapTool(tool.createTool());
 
     this.tools.push(wrappedTool);
-    for (const node of tool.getAgentNodeSupports()) {
-      this.toolsByNode.set(node, [...(this.toolsByNode.get(node) || []), wrappedTool]);
-    }
 
     await this.onToolsUpdated();
   }
@@ -64,10 +60,6 @@ export abstract class BaseAgent implements IAgent {
 
   protected getTools(): DynamicStructuredTool[] {
     return this.tools;
-  }
-
-  protected getToolsByNode(node: AgentNodeTypes): DynamicStructuredTool[] {
-    return this.toolsByNode.get(node) || [];
   }
 
   // Hook for subclasses to handle tool updates

@@ -46,8 +46,12 @@ export class Agent extends BaseAgent {
     await this.initializeExecutor();
   }
 
+  protected getDefaultTools(): ITool[] {
+    return [new GetWalletAddressTool({})];
+  }
+
   private initializeDefaultTools(): void {
-    const defaultTools = [new GetWalletAddressTool({})];
+    const defaultTools = this.getDefaultTools();
 
     // Initialize default tools
     for (const tool of defaultTools) {

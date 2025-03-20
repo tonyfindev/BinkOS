@@ -6,7 +6,6 @@ import { CustomDynamicStructuredTool, ITool, IToolConfig } from './types';
 export abstract class BaseTool implements ITool {
   protected agent!: IAgent;
   protected config: IToolConfig;
-  public readonly agentNodeSupports: AgentNodeTypes[] = [];
 
   constructor(config: IToolConfig) {
     this.config = config;
@@ -19,9 +18,5 @@ export abstract class BaseTool implements ITool {
 
   setAgent(agent: IAgent): void {
     this.agent = agent;
-  }
-
-  getAgentNodeSupports(): AgentNodeTypes[] {
-    return this.agentNodeSupports || [];
   }
 }

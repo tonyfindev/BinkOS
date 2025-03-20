@@ -22,10 +22,6 @@ export interface SwapToolConfig extends IToolConfig {
 }
 
 export class SwapTool extends BaseTool {
-  public readonly agentNodeSupports: AgentNodeTypes[] = [
-    AgentNodeTypes.EXECUTOR,
-    AgentNodeTypes.PLANNER,
-  ];
   public registry: ProviderRegistry;
   private defaultSlippage: number;
   // private defaultNetwork: string;

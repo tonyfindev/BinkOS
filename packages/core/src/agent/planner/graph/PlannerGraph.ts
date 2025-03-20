@@ -97,7 +97,7 @@ export class PlannerGraph {
   }
 
   async updatePlanNode(state: typeof StateAnnotation.State) {
-    const promptActiveTask = `Active task: ${state.active_plan_id}, Selected tasks: ${state.selected_task_indexes}`;
+    const promptActiveTask = `Active task: ${state.active_plan_id}, Selected task indexes: ${state.selected_task_indexes}`;
 
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', this.updatePlanPrompt],

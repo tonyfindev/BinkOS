@@ -31,5 +31,4 @@ export interface ITool {
   getSchema(): z.ZodObject<any>;
   createTool(): CustomDynamicStructuredTool;
   setAgent(agent: IAgent): void;
-  getAgentNodeSupports(): AgentNodeTypes[];
 }

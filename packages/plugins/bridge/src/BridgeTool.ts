@@ -18,10 +18,6 @@ export interface BridgeToolConfig extends IToolConfig {
 }
 
 export class BridgeTool extends BaseTool {
-  public readonly agentNodeSupports: AgentNodeTypes[] = [
-    AgentNodeTypes.EXECUTOR,
-    AgentNodeTypes.PLANNER,
-  ];
   public registry: ProviderRegistry;
   private defaultNetwork: string;
   private supportedNetworks: Set<string>;

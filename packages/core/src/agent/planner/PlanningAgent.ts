@@ -54,8 +54,12 @@ export class PlanningAgent extends Agent {
     super(config, wallet, networks);
   }
 
+  protected getDefaultTools(): ITool[] {
+    return [];
+  }
+
   protected async createExecutor(): Promise<CompiledStateGraph<any, any, any, any, any, any>> {
-    const executorTools = this.getToolsByNode(AgentNodeTypes.EXECUTOR);
+    const executorTools = this.getTools();
 
     const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps.`;
     const defaultPlanPrompt = `NOTE: 
@@ -72,10 +76,8 @@ export class PlanningAgent extends Agent {
       `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. \n. When a task is failed, you need to update task title\n` +
       defaultPlanPrompt;
 
-    const tools = this.getToolsByNode(AgentNodeTypes.EXECUTOR);
-
     let toolsStr = '';
-    for (const tool of tools) {
+    for (const tool of executorTools) {
       const toolJson = convertToOpenAITool(tool);
       toolsStr += `${JSON.stringify({ name: toolJson.function.name })}\n`;
     }
