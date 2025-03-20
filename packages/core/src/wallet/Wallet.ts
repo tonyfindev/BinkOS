@@ -282,7 +282,7 @@ export class Wallet implements IWallet {
       // Try to parse as VersionedTransaction first
       try {
         let tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
-
+        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
         // Sign transaction
         tx.sign([this.#solanaKeypair]);
 
@@ -296,7 +296,12 @@ export class Wallet implements IWallet {
         return {
           hash: signature,
           wait: async () => {
-            await connection.confirmTransaction(signature);
+            await this.waitForSolanaTransaction(
+              connection,
+              signature,
+              latestBlockhash.blockhash,
+              latestBlockhash.lastValidBlockHeight,
+            );
             return {
               hash: signature,
               wait: async () => ({
@@ -313,7 +318,11 @@ export class Wallet implements IWallet {
 
         // If not a VersionedTransaction, try as regular Transaction
         const tx = SolanaTransaction.from(Buffer.from(transaction.data, 'base64'));
-
+        if (!tx.recentBlockhash) {
+          const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+          tx.recentBlockhash = latestBlockhash.blockhash;
+          tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+        }
         // Sign transaction
         tx.sign(this.#solanaKeypair);
 
@@ -327,7 +336,12 @@ export class Wallet implements IWallet {
         return {
           hash: signature,
           wait: async () => {
-            await connection.confirmTransaction(signature);
+            await this.waitForSolanaTransaction(
+              connection,
+              signature,
+              tx.recentBlockhash!,
+              tx.lastValidBlockHeight!,
+            );
             return {
               hash: signature,
               wait: async () => ({

@@ -95,16 +95,20 @@ export class CreateTokenTool extends BaseTool {
     return z.object({
       name: z.string().describe('The name of token created'),
       symbol: z.string().describe('The symbol of token created'),
-      description: z.string().optional().describe('Description of token created'),
+      description: z.string().describe('Description of token created'),
       network: z
         .enum(['bnb'])
         .default(NetworkName.BNB)
         .describe('The network to create the token on'),
       provider: z
-        .enum(providers as [string, ...string[]])
+        .enum(['four-meme'])
         .default('four-meme')
         .describe('The DEX provider to use for the create token.'),
       img: z.string().optional().describe('The logo image to use for the create token.'),
+      amount: z
+        .string()
+        .optional()
+        .describe('Small amount to buy coins helps protect your coin from snipers.'),
     });
   }
 
@@ -121,9 +125,16 @@ export class CreateTokenTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
-          const { name, symbol, description, img, network, provider: preferredProvider } = args;
+          const {
+            name,
+            symbol,
+            description,
+            img,
+            network,
+            amount,
+            provider: preferredProvider,
+          } = args;
           console.log('🤖 Create token Args:', args);
-          console.log('🔄 Doing create token operation...');
 
           // STEP 1: Validate network
           const supportedNetworks = this.getSupportedNetworks();
@@ -161,6 +172,7 @@ export class CreateTokenTool extends BaseTool {
             description,
             network,
             img,
+            amount,
           };
 
           let selectedProvider: any;
@@ -211,7 +223,7 @@ export class CreateTokenTool extends BaseTool {
           } catch (error: any) {
             throw this.createError(
               ErrorStep.TOOL_EXECUTION,
-              `Failed to build the signing message.`,
+              `Failed to build the signature message.`,
               {
                 provider: selectedProvider.getName(),
                 network: network,
@@ -225,8 +237,15 @@ export class CreateTokenTool extends BaseTool {
           });
           // STEP 5: Build create transaction
           let tx;
+          let accessToken;
           try {
-            tx = await selectedProvider.buildCreateToken(createTokenParams, userAddress, signature);
+            accessToken = await selectedProvider.getAccessToken(signature, userAddress, network);
+            tx = await selectedProvider.buildCreateToken(
+              createTokenParams,
+              userAddress,
+              accessToken,
+              signature,
+            );
             console.log('🤖 Create Tx:', tx);
           } catch (error: any) {
             throw this.createError(
@@ -269,11 +288,50 @@ export class CreateTokenTool extends BaseTool {
               },
             );
           }
+
+          // STEP 7: Get token info
+          onProgress?.({
+            progress: 90,
+            message: `Getting token address for ${args.name} with symbol ${args.symbol}`,
+          });
+
+          let token = { ...tx.token };
+
+          if (tx.token.id && selectedProvider.getName() === 'four-meme') {
+            try {
+              // Wait for 25 seconds before fetching token info
+              await new Promise(resolve => setTimeout(resolve, 25000));
+
+              // For Four Meme tokens, get the token address using the token ID
+              const fourMemeProvider = selectedProvider as any;
+              const tokenInfo = await fourMemeProvider.getTokenInfoById(tx.token.id, accessToken);
+
+              if (tokenInfo) {
+                token.address = tokenInfo.address;
+                token.link = tokenInfo.address
+                  ? `https://four.meme/token/${tokenInfo.address}`
+                  : '';
+                token.price = tokenInfo?.price;
+                token.marketCap = tokenInfo?.marketCap;
+              }
+            } catch (error) {
+              // Keep using the original token info if fetching fails
+            }
+          }
+
+          console.log('🤖 Data', {
+            status: 'success',
+            provider: selectedProvider.getName(),
+            token,
+            transactionHash: finalReceipt?.hash,
+            network,
+          });
+
           // Return result as JSON string
           return JSON.stringify({
             status: 'success',
             provider: selectedProvider.getName(),
-            token: tx.token,
+            token,
             transactionHash: finalReceipt?.hash,
             network,
           });
