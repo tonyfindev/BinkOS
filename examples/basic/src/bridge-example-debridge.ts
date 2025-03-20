@@ -75,7 +75,7 @@ async function main() {
   const wallet = new Wallet(
     {
       seedPhrase: settings.get('WALLET_MNEMONIC') || '',
-      index: 8,
+      index: 0,
     },
     network,
   );
@@ -140,9 +140,9 @@ async function main() {
 
   console.log('💱 Example 1:Bridge BNB to SOL on DeBridge Finance');
   const inputResult = await agent.execute({
-    //input: `Bridge 10 USDC from SOL to BNB`,
+    input: `Bridge 0.0012342222 BNB to SOL`,
     //input: `Bridge 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on BNB to amount 5 Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB on solana`, // usdc bnb to usdt sol
-    input: `swap 10% my BNB to SOL`, // bridge and swap
+    //input: `swap 10% my BNB to SOL`, // bridge and swap
     //input: `Bridge 5 USDC on SOL to 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on solana`,
   });
   console.log('✓ Bridge result (input):', inputResult, '\n');
