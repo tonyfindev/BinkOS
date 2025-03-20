@@ -34,10 +34,10 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
     [NetworkName.POLYGON]: ethers.parseEther('0.1'), // 0.1 MATIC
     [NetworkName.ARBITRUM]: ethers.parseEther('0.001'), // 0.001 ETH
     [NetworkName.OPTIMISM]: ethers.parseEther('0.001'), // 0.001 ETH
-    [NetworkName.BNB]: ethers.parseEther('0.001'), // 0.001 BNB
-    [NetworkName.SOLANA]: BigInt(10000000), // 0.001 SOL in lamports
+    [NetworkName.BNB]: ethers.parseEther('0.004'), // 0.004 BNB
+    [NetworkName.SOLANA]: BigInt(30000000), // 0.03 SOL in lamports
     [NetworkName.SEPOLIA]: ethers.parseEther('0.001'), // 0.001 ETH
-    [NetworkName.SOLANA_DEVNET]: BigInt(10000000), // 0.001 SOL in lamports
+    [NetworkName.SOLANA_DEVNET]: BigInt(30000000), // 0.03 SOL in lamports
   };
 
   constructor(providerConfig: Map<NetworkName, NetworkProvider>) {
@@ -215,7 +215,7 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
       // If not enough balance for both, ensure at least gas buffer is available
       if (amountBN <= gasBuffer) {
         throw new Error(
-          `Amount too small. Minimum amount should be greater than ${ethers.formatEther(gasBuffer)} native token to cover gas`,
+          `Amount too small. Minimum amount should be greater than ${ethers.formatUnits(gasBuffer, decimals)} native token to cover gas`,
         );
       }
       // Subtract gas buffer from amount
