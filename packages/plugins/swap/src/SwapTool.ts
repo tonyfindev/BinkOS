@@ -354,14 +354,14 @@ export class SwapTool extends BaseTool {
           });
           console.log('🤖 swapTx', swapTx);
           // Sign and send swap transaction
-          // const receipt = await wallet.signAndSendTransaction(network, {
-          //   to: swapTx.to,
-          //   data: swapTx.data,
-          //   value: BigInt(swapTx.value),
-          // });
+          const receipt = await wallet.signAndSendTransaction(network, {
+            to: swapTx.to,
+            data: swapTx.data,
+            value: BigInt(swapTx.value),
+          });
 
-          // // Wait for transaction to be mined
-          // const finalReceipt = await receipt?.wait();
+          // Wait for transaction to be mined
+          const finalReceipt = await receipt?.wait();
 
           try {
             // Clear token balance caches after successful swap
@@ -383,7 +383,7 @@ export class SwapTool extends BaseTool {
             toToken: quote.toToken,
             fromAmount: quote.fromAmount.toString(),
             toAmount: quote.toAmount.toString(),
-            transactionHash: '231321',
+            transactionHash: finalReceipt?.hash,
             priceImpact: quote.priceImpact,
             type: quote.type,
             network,

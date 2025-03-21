@@ -317,13 +317,13 @@ export class StakingTool extends BaseTool {
           });
 
           // Sign and send Staking transaction
-          // const receipt = await wallet.signAndSendTransaction(network, {
-          //   to: stakingTx.to,
-          //   data: stakingTx.data,
-          //   value: BigInt(stakingTx.value),
-          // });
-          // // Wait for transaction to be mined
-          // const finalReceipt = await receipt.wait();
+          const receipt = await wallet.signAndSendTransaction(network, {
+            to: stakingTx.to,
+            data: stakingTx.data,
+            value: BigInt(stakingTx.value),
+          });
+          // Wait for transaction to be mined
+          const finalReceipt = await receipt.wait();
 
           // onProgress?.({
           //   progress: 100,
@@ -337,7 +337,7 @@ export class StakingTool extends BaseTool {
             tokenB: quote.tokenB,
             amountA: quote.amountA.toString(),
             amountB: quote.amountB.toString(),
-            transactionHash: '32132',
+            transactionHash: finalReceipt.hash,
             type: quote.type,
             network,
           });

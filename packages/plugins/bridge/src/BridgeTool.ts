@@ -324,15 +324,15 @@ export class BridgeTool extends BaseTool {
             message: `Sending bridge transaction to move ${quote.fromAmount} ${quote.fromToken} from ${fromNetwork} to ${toNetwork}.`,
           });
 
-          // const receipt = await wallet.signAndSendTransaction(fromNetwork, bridgeTx as any);
+          const receipt = await wallet.signAndSendTransaction(fromNetwork, bridgeTx as any);
 
           // Wait for transaction to be mined
-          // const finalReceipt = await receipt?.wait();
+          const finalReceipt = await receipt?.wait();
 
-          // onProgress?.({
-          //   progress: 100,
-          //   message: `Bridge complete! Successfully bridged ${quote.fromAmount} ${quote.fromToken} from ${fromNetwork} to ${toNetwork}. Transaction hash: ${finalReceipt?.hash}`,
-          // });
+          onProgress?.({
+            progress: 100,
+            message: `Bridge complete! Successfully bridged ${quote.fromAmount} ${quote.fromToken} from ${fromNetwork} to ${toNetwork}. Transaction hash: ${finalReceipt?.hash}`,
+          });
 
           //Return result as JSON string
           return JSON.stringify({
@@ -341,7 +341,7 @@ export class BridgeTool extends BaseTool {
             toToken: quote.toToken,
             fromAmount: quote.fromAmount.toString(),
             toAmount: quote.toAmount.toString(),
-            transactionHash: 'e21e2121',
+            transactionHash: finalReceipt?.hash,
             priceImpact: quote.priceImpact,
             type: quote.type,
             fromNetwork,
