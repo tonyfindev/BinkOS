@@ -35,6 +35,7 @@ export interface Transaction {
   gasLimit?: bigint;
   spender: string;
   network: NetworkName;
+  lastValidBlockHeight?: number;
 }
 
 export interface ISwapProvider {
