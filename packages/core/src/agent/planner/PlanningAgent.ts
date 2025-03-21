@@ -71,6 +71,7 @@ NOTE:
 - Other: Other request like checking balance, checking transaction, etc.`;
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', supervisorPrompt],
+      new MessagesPlaceholder('chat_history'),
       ['human', `User's request: {input}`],
     ]);
 
@@ -114,6 +115,7 @@ NOTE:
 
     const response = (await planAgent.invoke({
       input: state.input,
+      chat_history: state.chat_history || [],
     })) as any;
 
     if (response?.tool_calls) {
@@ -149,7 +151,7 @@ NOTE:
       chat_history: state.chat_history || [],
     });
 
-    return { chat_history: [response], answer: response.content };
+    return { answer: response.content };
   }
 
   protected async createExecutor(): Promise<CompiledStateGraph<any, any, any, any, any, any>> {
@@ -244,9 +246,14 @@ NOTE:
 
   async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
     if (typeof commandOrParams === 'string') {
-      const result = await this.graph.invoke({ input: commandOrParams });
+      const result = await this.graph.invoke({ input: commandOrParams, chat_history: [] });
+      return result.answer;
+    } else {
+      const result = await this.graph.invoke({
+        ...commandOrParams,
+        chat_history: commandOrParams?.history ?? [],
+      } as any);
       return result.answer;
     }
-    return null;
   }
 }

@@ -1,4 +1,4 @@
-import { HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { BaseMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { BaseLanguageModel } from '@langchain/core/language_models/base';
 import { MessagesPlaceholder } from '@langchain/core/prompts';
@@ -26,6 +26,7 @@ const StateAnnotation = Annotation.Root({
   selected_task_indexes: Annotation<number[]>,
   next_node: Annotation<string>,
   answer: Annotation<string>,
+  chat_history: Annotation<BaseMessage[]>,
 });
 
 export class PlannerGraph {
@@ -58,6 +59,7 @@ export class PlannerGraph {
   async createPlanNode(state: typeof StateAnnotation.State) {
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', this.createPlanPrompt + `\n\nList tools:\n\n{toolsStr}`],
+      new MessagesPlaceholder('chat_history'),
       ['human', `Plan to execute the user's request: {input}`],
     ]);
 
@@ -80,6 +82,7 @@ export class PlannerGraph {
     const response = (await planAgent.invoke({
       input: state.input,
       toolsStr: this.listToolsPrompt,
+      chat_history: [...(state.chat_history ?? [])],
     })) as any;
 
     if (response?.tool_calls) {

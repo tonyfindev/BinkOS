@@ -22,6 +22,7 @@ import { BnbProvider } from '@binkai/rpc-provider';
 // import { FourMemeProvider } from '@binkai/four-meme-provider';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
+import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -239,9 +240,9 @@ async function main() {
   console.log('✓ Plugin registered\n');
 
   // const result = await agent.execute("My balance on BNB chain");
-  const result = await agent.execute(
-    'Buy BINK from exactly 0.0001 BNB with 0.5% slippage on bnb chain.',
-  );
+
+  const chatHistory = [new HumanMessage('1'), new AIMessage('hi')];
+  const result = await agent.execute({ input: '+1 = ?', history: chatHistory });
   console.log('✓ Result:', result, '\n');
 
   // Example 1: Buy with exact input amount on BNB Chain

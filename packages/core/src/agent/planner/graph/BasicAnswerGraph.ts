@@ -23,6 +23,7 @@ const StateAnnotation = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
     reducer: (x, y) => x.concat(y),
   }),
+  chat_history: Annotation<BaseMessage[]>,
   input: Annotation<string>,
   plans: Annotation<
     {
@@ -65,9 +66,10 @@ export class BasicAnswerGraph {
     return 'tools';
   }
 
-  async executorAgentNode(state: typeof StateAnnotation.State) {
+  async agentNode(state: typeof StateAnnotation.State) {
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', this.prompt],
+      new MessagesPlaceholder('chat_history'),
       ['human', '{input}'],
       new MessagesPlaceholder('messages'),
     ]);
@@ -89,6 +91,7 @@ export class BasicAnswerGraph {
     const responseMessage = await agent.invoke({
       input: state.input,
       messages: [...(state.messages ?? [])],
+      chat_history: [...(state.chat_history ?? [])],
     });
 
     if (responseMessage.tool_calls?.length) {
@@ -100,7 +103,7 @@ export class BasicAnswerGraph {
 
   create() {
     const executorGraph = new StateGraph(StateAnnotation)
-      .addNode('agent', this.executorAgentNode.bind(this))
+      .addNode('agent', this.agentNode.bind(this))
       .addNode('tools', new ToolNode(this.tools))
       .addEdge(START, 'agent')
       .addConditionalEdges('agent', this.routeAfterAgent, {
