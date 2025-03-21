@@ -234,6 +234,15 @@ export class Wallet implements IWallet {
         const tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
 
         const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        let lastValidBlockHeight = transaction.lastValidBlockHeight;
+        if (!tx.message.recentBlockhash) {
+          tx.message.recentBlockhash = latestBlockhash.blockhash;
+          lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+        }
+
+        if (!lastValidBlockHeight) {
+          throw new Error('Last valid block height is required');
+        }
         // Sign the transaction
         tx.sign([this.#solanaKeypair]);
 
@@ -246,8 +255,8 @@ export class Wallet implements IWallet {
             await this.waitForSolanaTransaction(
               connection,
               signature,
-              latestBlockhash.blockhash,
-              latestBlockhash.lastValidBlockHeight,
+              tx.message.recentBlockhash,
+              lastValidBlockHeight,
             );
             return {
               hash: signature,
@@ -348,11 +357,15 @@ export class Wallet implements IWallet {
       try {
         let tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
         const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        let lastValidBlockHeight = transaction.lastValidBlockHeight;
         if (!tx.message.recentBlockhash) {
           tx.message.recentBlockhash = latestBlockhash.blockhash;
+          lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
         }
 
-        const lastValidBlockHeight = await connection.getBlockHeight('confirmed');
+        if (!lastValidBlockHeight) {
+          throw new Error('Last valid block height is required');
+        }
 
         // Sign transaction
         tx.sign([this.#solanaKeypair]);

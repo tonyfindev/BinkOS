@@ -412,6 +412,7 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
         value: storedData.quote.tx?.value || '0',
         gasLimit: storedData.quote.tx?.gasLimit,
         network: storedData.quote.fromNetwork,
+        lastValidBlockHeight: storedData.quote.tx?.lastValidBlockHeight,
       };
     } catch (error) {
       console.error('Error building bridge transaction:', error);
