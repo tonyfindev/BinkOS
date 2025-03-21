@@ -36,7 +36,7 @@ const StateAnnotation = Annotation.Root({
   answer: Annotation<string>,
 });
 
-export class BasicAnswerGraph {
+export class BasicQuestionGraph {
   private model: BaseLanguageModel;
   private prompt: string;
   private tools: DynamicStructuredTool[];

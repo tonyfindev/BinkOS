@@ -31,7 +31,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { shouldBindTools } from './utils/llm';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { BasicAnswerGraph } from './graph/BasicAnswerGraph';
+import { BasicQuestionGraph } from './graph/BasicQuestionGraph';
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
 
@@ -192,7 +192,7 @@ NOTE:
       listToolsPrompt: toolsStr,
     }).create();
 
-    const basicAnswerGraph = new BasicAnswerGraph({
+    const basicQuestionGraph = new BasicQuestionGraph({
       model: this.model,
       prompt: this.config.systemPrompt || '',
       tools: this.getRetrievalTools(),
@@ -200,7 +200,7 @@ NOTE:
 
     this.workflow = new StateGraph(StateAnnotation)
       .addNode('supervisor', this.supervisorNode.bind(this))
-      .addNode('basic_answer', basicAnswerGraph)
+      .addNode('basic_question', basicQuestionGraph)
       .addNode('executor_answer', this.executorAnswerNode.bind(this))
       .addNode('planner', plannerGraph)
       .addNode('executor', executorGraph)
@@ -209,13 +209,13 @@ NOTE:
         'supervisor',
         state => {
           if (state.next_node === 'other') {
-            return 'basic_answer';
+            return 'basic_question';
           } else {
             return 'planner';
           }
         },
         {
-          basic_answer: 'basic_answer',
+          basic_question: 'basic_question',
           planner: 'planner',
         },
       )
@@ -234,7 +234,7 @@ NOTE:
         },
       )
       .addEdge('executor', 'planner')
-      .addEdge('basic_answer', END)
+      .addEdge('basic_question', END)
       .addEdge('executor_answer', END);
 
     // const checkpointer = new MemorySaver();
