@@ -581,10 +581,7 @@ export class FourMemeProvider extends BaseSwapProvider {
 
       const receipt = await provider.getTransactionReceipt(tx);
 
-      if (!receipt) {
-        throw new Error(`Transaction receipt not found for hash: ${tx}`);
-      }
-      const tokenCreatedEvent = receipt.logs.find(log => {
+      const tokenCreatedEvent = receipt?.logs.find(log => {
         return log.topics[0] === topic;
       });
       if (tokenCreatedEvent) return tokenCreatedEvent?.address;
