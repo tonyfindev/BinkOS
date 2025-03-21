@@ -146,7 +146,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
             : ethers.formatUnits(bridgeData?.amountOut || 0, tokenIn.decimals),
         toAmount:
           params.type === 'output'
-            ? params.amount
+            ? parseTokenAmount(params.amount, tokenOut.decimals).toString()
             : ethers.formatUnits(bridgeData?.amountOut || 0, tokenOut.decimals),
         fromToken: tokenIn,
         toToken: tokenOut,
