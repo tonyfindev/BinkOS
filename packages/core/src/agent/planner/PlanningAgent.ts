@@ -32,6 +32,7 @@ import { z } from 'zod';
 import { shouldBindTools } from './utils/llm';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { BasicQuestionGraph } from './graph/BasicQuestionGraph';
+
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
 
@@ -53,7 +54,7 @@ const StateAnnotation = Annotation.Root({
 });
 
 export class PlanningAgent extends Agent {
-  private workflow!: StateGraph<any, any, any, any, any, any, any>;
+  private workflow!: StateGraph<any, any, any, any, any, any>;
   public graph!: CompiledStateGraph<any, any, any, any, any, any>;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
@@ -71,7 +72,6 @@ NOTE:
 - Other: Other request like checking balance, checking transaction, etc.`;
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', supervisorPrompt],
-      new MessagesPlaceholder('chat_history'),
       ['human', `User's request: {input}`],
     ]);
 
@@ -115,7 +115,6 @@ NOTE:
 
     const response = (await planAgent.invoke({
       input: state.input,
-      chat_history: state.chat_history || [],
     })) as any;
 
     if (response?.tool_calls) {
@@ -151,7 +150,7 @@ NOTE:
       chat_history: state.chat_history || [],
     });
 
-    return { answer: response.content };
+    return { chat_history: [response], answer: response.content };
   }
 
   protected async createExecutor(): Promise<CompiledStateGraph<any, any, any, any, any, any>> {
@@ -237,23 +236,67 @@ NOTE:
       .addEdge('basic_question', END)
       .addEdge('executor_answer', END);
 
-    // const checkpointer = new MemorySaver();
-
     this.graph = await this.workflow.compile();
 
     return this.graph;
   }
 
+  // Implementing the message persistence and history logic in the execute method
   async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
-    if (typeof commandOrParams === 'string') {
-      const result = await this.graph.invoke({ input: commandOrParams, chat_history: [] });
-      return result.answer;
+    let _history: MessageEntity[] = [];
+
+    // Ensure database is initialized before accessing
+    if (this.db) {
+      if (typeof commandOrParams === 'string') {
+        if (this.context?.user?.id) {
+          _history = await this.db.getMessagesByUserId(this.context.user.id);
+        } else {
+          console.warn('User ID is undefined, skipping history retrieval.');
+        }
+      } else {
+        if (commandOrParams?.threadId) {
+          _history = await this.db.getMessagesByThreadId(commandOrParams.threadId);
+        } else {
+          console.warn('Thread ID is undefined, skipping history retrieval.');
+        }
+      }
     } else {
-      const result = await this.graph.invoke({
-        ...commandOrParams,
-        chat_history: commandOrParams?.history ?? [],
-      } as any);
-      return result.answer;
+      console.error('Database not initialized.');
     }
+
+    const history = _history.map((message: MessageEntity) =>
+      message?.message_type === 'human'
+        ? new HumanMessage(message?.content)
+        : new AIMessage(message?.content),
+    );
+
+    const input = typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
+    const chat_history = history;
+
+    const response = await this.graph.invoke({ input, chat_history });
+
+    try {
+      const threadId = typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
+
+      // Persist human message
+      await this.db?.createMessage(
+        { content: input, user_id: this.context?.user?.id, message_type: 'human' },
+        threadId,
+      );
+
+      // Persist AI message
+      if (response.answer) {
+        await this.db?.createMessage(
+          { content: response.answer, user_id: this.context?.user?.id, message_type: 'ai' },
+          threadId,
+        );
+      }
+
+      console.log('Messages persisted successfully');
+    } catch (dbError) {
+      console.error('Error persisting message:', dbError);
+    }
+
+    return response.answer;
   }
 }

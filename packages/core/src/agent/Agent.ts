@@ -19,8 +19,8 @@ export class Agent extends BaseAgent {
   private wallet: IWallet;
   private executor!: AgentExecutor;
   private networks: NetworksConfig['networks'];
-  private db: DatabaseAdapter<any> | undefined;
-  private context: AgentContext = {};
+  protected db: DatabaseAdapter<any> | undefined;
+  protected context: AgentContext = {};
   protected config: AgentConfig;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
