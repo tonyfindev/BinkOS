@@ -25,6 +25,7 @@ const StateAnnotation = Annotation.Root({
   active_plan_id: Annotation<string>,
   selected_task_indexes: Annotation<number[]>,
   next_node: Annotation<string>,
+  answer: Annotation<string>,
 });
 
 export class PlannerGraph {

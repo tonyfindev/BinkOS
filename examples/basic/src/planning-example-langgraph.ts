@@ -238,11 +238,7 @@ async function main() {
   await agent.registerPlugin(bridgePlugin);
   console.log('✓ Plugin registered\n');
 
-  // const result = await agent.execute("My balance on BNB chain");
-  const result = await agent.execute(
-    'Buy BINK from exactly 0.0001 BNB with 0.5% slippage on bnb chain.',
-  );
-  console.log('✓ Result:', result, '\n');
+  return await agent.graph;
 
   // Example 1: Buy with exact input amount on BNB Chain
   // console.log('💱 Example 1: Buy BINK from exactly 0.0001 BNB with 0.5% slippage on bnb chain.');

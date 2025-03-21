@@ -99,7 +99,7 @@ export class ExecutorGraph {
             },
             {
               name: 'terminate',
-              description: 'Call when you need call other tool',
+              description: 'Call when you do not need call other tool',
               schema: z.object({
                 reason: z.string().optional().describe('Reason for calling terminate tool'),
               }),
