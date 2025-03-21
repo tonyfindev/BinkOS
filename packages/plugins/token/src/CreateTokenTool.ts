@@ -304,13 +304,16 @@ export class CreateTokenTool extends BaseTool {
 
               // For Four Meme tokens, get the token address using the token ID
               const fourMemeProvider = selectedProvider as any;
-              const tokenInfo = await fourMemeProvider.getTokenInfoById(tx.token.id, accessToken);
+              //const tokenInfo = await fourMemeProvider.getTokenInfoById(tx.token.id, accessToken);
 
-              if (tokenInfo) {
-                token.address = tokenInfo.address;
-                token.link = tokenInfo.address
-                  ? `https://four.meme/token/${tokenInfo.address}`
-                  : '';
+              // parse transaction create token
+              const tokenAddress = await fourMemeProvider.parseTransactionCreateToken(
+                finalReceipt?.hash,
+              );
+
+              if (tokenAddress) {
+                token.address = tokenAddress;
+                token.link = tokenAddress ? `https://four.meme/token/${tokenAddress}` : '';
               }
             } catch (error) {
               // Keep using the original token info if fetching fails
