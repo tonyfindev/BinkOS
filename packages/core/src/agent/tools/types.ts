@@ -14,7 +14,7 @@ export interface CustomDynamicStructuredTool {
   name: string;
   description: string;
   func: (
-    input: any,
+    args: any,
     runManager?: CallbackManagerForToolRun,
     config?: RunnableConfig,
     onProgress?: (data: ToolProgress) => void,

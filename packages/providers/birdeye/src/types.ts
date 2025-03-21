@@ -49,6 +49,45 @@ export interface TokenOverviewResponse {
   };
 }
 
+export interface TokenSecurityResponse {
+  success: boolean;
+  data: {
+    creatorAddress: string;
+    creatorOwnerAddress: string;
+    ownerAddress: string;
+    ownerOfOwnerAddress: string;
+    creationTx: string;
+    creationTime: string;
+    creationSlot: string;
+    mintTx: string;
+    mintTime: string;
+    mintSlot: string;
+    creatorBalance: number;
+    ownerBalance: number;
+    ownerPercentage: number;
+    creatorPercentage: number;
+    metaplexUpdateAuthority: string;
+    metaplexOwnerUpdateAuthority: string;
+    metaplexUpdateAuthorityBalance: number;
+    metaplexUpdateAuthorityPercent: number;
+    mutableMetadata: boolean;
+    top10HolderBalance: number;
+    top10HolderPercent: number;
+    top10UserBalance: number;
+    top10UserPercent: number;
+    isTrueToken: boolean;
+    totalSupply: number;
+    preMarketHolder: any[];
+    lockInfo: any;
+    freezeable: boolean;
+    freezeAuthority: string;
+    transferFeeEnable: boolean;
+    transferFeeData: any;
+    isToken2022: boolean;
+    nonTransferable: boolean;
+  };
+}
+
 export interface BirdeyeConfig {
   apiKey?: string;
   baseUrl?: string;

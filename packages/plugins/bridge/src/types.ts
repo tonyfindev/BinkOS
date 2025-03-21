@@ -47,6 +47,7 @@ export interface Transaction {
   gasLimit?: bigint;
   network: NetworkName;
   amountOut?: string;
+  lastValidBlockHeight?: number;
 }
 
 export interface IBridgeProvider {

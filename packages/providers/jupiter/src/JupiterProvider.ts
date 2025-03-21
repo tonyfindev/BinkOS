@@ -239,6 +239,7 @@ export class JupiterProvider extends BaseSwapProvider {
           to: userAddress,
           spender: userAddress,
           data: getSwapBuyAggregator?.swapTransaction || '',
+          lastValidBlockHeight: getSwapBuyAggregator?.lastValidBlockHeight,
           value: parseTokenAmount(adjustedAmount, sourceToken.decimals).toString(),
           network: params.network,
         },

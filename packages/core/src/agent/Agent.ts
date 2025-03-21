@@ -149,7 +149,10 @@ export class Agent extends BaseAgent {
     - Solana: ${SOL_NATIVE_TOKEN_ADDRESS}
     Available networks include: ${Object.keys(this.networks).join(', ')}`;
 
-    const defaultSystemPrompt = `You are a helpful blockchain agent. You can help users interact with different blockchain networks.`;
+    const defaultSystemPrompt = `You are a helpful blockchain agent. You can help users interact with different blockchain networks. 
+    First, you need to understand the user's request and then you need to choose the appropriate tool to execute the user's request.
+    If you get an error after executing the command, show users the process you have done step by step and the problem you got and suggest a solution to fix the error.
+    Ask users if your understanding is correct and if you need to change anything in the process you have done.`;
 
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', `${this.config.systemPrompt ?? defaultSystemPrompt}\n${requiredPrompt}`],
@@ -207,6 +210,9 @@ export class Agent extends BaseAgent {
     let lastError: any = null;
     let result: any;
 
+    const originalInput =
+      typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
+
     while (retryCount <= maxRetries) {
       console.log(`🔴 AI reasoning attempt ${retryCount + 1}/${maxRetries}\n`);
 
@@ -233,7 +239,11 @@ export class Agent extends BaseAgent {
                 const threadId =
                   typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
                 await this.db?.createMessage(
-                  { content: input, user_id: this.context?.user?.id, message_type: 'human' },
+                  {
+                    content: originalInput,
+                    user_id: this.context?.user?.id,
+                    message_type: 'human',
+                  },
                   threadId,
                 );
                 await this.db?.createMessage(
@@ -247,12 +257,12 @@ export class Agent extends BaseAgent {
               return result.output;
             }
 
-            const retryPrompt = `The previous command failed with error: "${result.output}". Please rethink and try to change the params and fix the issue and try again with the command: `;
+            const retryPrompt = `The previous command failed with error: "${result.output}". Please rethink and change your approach, planning different steps/tools to fix the issue. Original command: ${originalInput}`;
 
             if (typeof commandOrParams === 'string') {
-              commandOrParams = retryPrompt + commandOrParams;
+              commandOrParams = retryPrompt;
             } else {
-              commandOrParams.input = retryPrompt + commandOrParams.input;
+              commandOrParams.input = retryPrompt;
             }
 
             console.error(
@@ -266,7 +276,7 @@ export class Agent extends BaseAgent {
               typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
 
             await this.db?.createMessage(
-              { content: input, user_id: this.context?.user?.id, message_type: 'human' },
+              { content: originalInput, user_id: this.context?.user?.id, message_type: 'human' },
               threadId,
             );
 
@@ -298,12 +308,12 @@ export class Agent extends BaseAgent {
 
         // Retry prompt
         const errorMsg = lastError instanceof Error ? lastError.message : String(lastError);
-        const retryPrompt = `The previous command failed with error: "${errorMsg}". Please rethink and try to change the params and fix the issue and try again with the command: `;
+        const retryPrompt = `The previous command failed with error: "${errorMsg}". Please rethink and try to fix the issue. Original command: ${originalInput}`;
 
         if (typeof commandOrParams === 'string') {
-          commandOrParams = retryPrompt + commandOrParams;
+          commandOrParams = retryPrompt;
         } else {
-          commandOrParams.input = retryPrompt + commandOrParams.input;
+          commandOrParams.input = retryPrompt;
         }
       }
     }

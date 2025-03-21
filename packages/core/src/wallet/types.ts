@@ -24,6 +24,7 @@ export interface TransactionRequest {
   data: string;
   value: bigint;
   gasLimit?: bigint;
+  lastValidBlockHeight?: number;
 }
 
 export interface TransactionReceipt {
