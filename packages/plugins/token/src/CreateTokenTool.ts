@@ -300,7 +300,7 @@ export class CreateTokenTool extends BaseTool {
           if (tx.token.id && selectedProvider.getName() === 'four-meme') {
             try {
               // Wait for 25 seconds before fetching token info
-              await new Promise(resolve => setTimeout(resolve, 25000));
+              // await new Promise(resolve => setTimeout(resolve, 25000));
 
               // For Four Meme tokens, get the token address using the token ID
               const fourMemeProvider = selectedProvider as any;

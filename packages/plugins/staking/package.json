@@ -1,6 +1,6 @@
 {
   "name": "@binkai/staking-plugin",
-  "version": "0.1.9-alpha.2",
+  "version": "0.1.9-alpha.5",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {

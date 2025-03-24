@@ -315,7 +315,7 @@ export class BridgeTool extends BaseTool {
 
           onProgress?.({
             progress: 70,
-            message: `Sending bridge transaction to move ${quote.fromAmount} ${quote.fromToken} from ${fromNetwork} to ${toNetwork}.`,
+            message: `Sending bridge transaction to move ${quote.fromAmount} ${quote.fromToken.symbol} from ${fromNetwork} to ${toNetwork}.`,
           });
 
           const receipt = await wallet.signAndSendTransaction(fromNetwork, bridgeTx as any);
@@ -345,7 +345,7 @@ export class BridgeTool extends BaseTool {
           console.error('🚀 ~ BridgeTool ~ func: ~ error:', error);
           return JSON.stringify({
             status: 'error',
-            message: error,
+            message: error instanceof Error ? error.message : 'Unknown error',
           });
         }
       },
