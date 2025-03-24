@@ -5,6 +5,7 @@
     "type": "git",
     "url": "https://github.com/Bink-AI/BinkOS"
   },
+  "homepage": "https://bink.ai/",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "clean": "find . -type d -name 'dist' -not -path '*/node_modules/*' -exec rm -rf {} + && find . -name 'tsconfig.tsbuildinfo' -type f -delete",
