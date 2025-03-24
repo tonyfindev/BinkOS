@@ -85,6 +85,39 @@ When you ask the Planning Agent to do something, it follows this path:
 
 This approach helps the Planning Agent handle both simple requests efficiently and complex tasks thoroughly.
 
+### The Decision-Making Supervisor
+
+The Supervisor is a critical component that acts as the "brain" of the Planning Agent. It analyzes your request and makes a key decision:
+
+- Is this a simple question that can be answered directly?
+- Or is this a complex request that requires planning and execution?
+
+The Supervisor looks for specific indicators in your request:
+
+- **Simple Questions** (Basic Question Path):
+
+  - Information requests: "What's my ETH balance?"
+  - Status queries: "Show me my recent transactions"
+  - Market information: "What's the current price of Bitcoin?"
+  - Account details: "Which wallets do I have connected?"
+  - Basic explanations: "How does staking work?"
+
+- **Complex Requests** (Planning Path):
+  - Any blockchain transaction: "Transfer 0.5 ETH to this address"
+  - Multi-step operations: "Swap USDC to ETH and bridge to Polygon"
+  - Actions requiring approvals: "Stake my ETH in Lido"
+  - Cross-chain operations: "Move my assets from Ethereum to Solana"
+  - Financial strategies: "Rebalance my portfolio to 60% ETH and 40% BTC"
+
+By making this initial distinction, the Supervisor ensures:
+
+- Simple questions get quick, direct answers without unnecessary planning
+- Complex requests get the detailed planning and careful execution they require
+- Your time isn't wasted with complex planning for straightforward questions
+- Critical operations have proper safeguards and error handling
+
+This intelligent routing system gives you the best of both worlds: speed for simple questions and thoroughness for complex tasks.
+
 ### The Expanded View
 
 ![Planning Agent Expanded Workflow](../../../docs/assets/planning-agent-expanded.png)
