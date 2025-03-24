@@ -146,7 +146,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
             : ethers.formatUnits(bridgeData?.amountOut || 0, tokenIn.decimals),
         toAmount:
           params.type === 'output'
-            ? params.amount
+            ? parseTokenAmount(params.amount, tokenOut.decimals).toString()
             : ethers.formatUnits(bridgeData?.amountOut || 0, tokenOut.decimals),
         fromToken: tokenIn,
         toToken: tokenOut,
@@ -159,6 +159,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
           value: bridgeData?.value || '0',
           gasLimit: bridgeData.gasLimit,
           network: params.fromNetwork,
+          lastValidBlockHeight: bridgeData?.lastValidBlockHeight,
         },
       };
       this.storeQuote(quote);
@@ -215,14 +216,17 @@ export class deBridgeProvider extends BaseBridgeProvider {
 
       const data = response.data;
       let dataTx;
+      let lastValidBlockHeight;
       if (params.fromNetwork === 'solana') {
         const connection = new Connection('https://api.mainnet-beta.solana.com');
         const txBuffer = Buffer.from(data.tx.data.slice(2), 'hex');
         const versionedTx = VersionedTransaction.deserialize(txBuffer);
         // add blockhash to versionedTx
-        const { blockhash } = await connection.getLatestBlockhash();
+        const { blockhash, lastValidBlockHeight: lastValidBlockHeightSolana } =
+          await connection.getLatestBlockhash('confirmed');
         versionedTx.message.recentBlockhash = blockhash;
         dataTx = Buffer.from(versionedTx.serialize()).toString('base64');
+        lastValidBlockHeight = lastValidBlockHeightSolana;
         // Update blockhash!
       } else {
         dataTx = data.tx.data;
@@ -232,6 +236,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
         to: params.fromNetwork === 'solana' ? dstChainTokenOutRecipient : data.tx.to,
         data: dataTx,
         value: params.fromNetwork === 'solana' ? srcChainTokenInAmount : data.tx.value,
+        lastValidBlockHeight: lastValidBlockHeight,
         gasLimit: BigInt(700000), // solana not needed gas limit
         network: params.fromNetwork,
         amountOut: data?.estimation?.dstChainTokenOut?.amount,

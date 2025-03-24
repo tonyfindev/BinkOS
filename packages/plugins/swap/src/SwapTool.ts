@@ -16,7 +16,6 @@ import { isSolanaNetwork } from './utils/networkUtils';
 import type { TokenInfo } from '@binkai/token-plugin';
 import { defaultTokens } from '@binkai/token-plugin';
 
-
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
   defaultNetwork?: string;
@@ -128,6 +127,7 @@ export class SwapTool extends BaseTool {
         .number()
         .optional()
         .describe(`Maximum slippage percentage allowed (default: ${this.defaultSlippage})`),
+      atPrice: z.number().default(0).describe('The price at which to place a limit order'),
     });
   }
 
@@ -203,6 +203,7 @@ export class SwapTool extends BaseTool {
             network,
             provider: preferredProvider,
             slippage = this.defaultSlippage,
+            atPrice: atPrice,
           } = args;
 
           console.log('🔄 Doing swap operation...');
@@ -270,8 +271,8 @@ export class SwapTool extends BaseTool {
             amount,
             type: amountType,
             slippage,
+            atPrice,
           };
-
           let selectedProvider: ISwapProvider;
           let quote: SwapQuote;
 
@@ -506,6 +507,7 @@ export class SwapTool extends BaseTool {
               to: swapTx.to,
               data: swapTx.data,
               value: BigInt(swapTx.value),
+              lastValidBlockHeight: swapTx.lastValidBlockHeight,
             });
 
             // Wait for transaction to be mined

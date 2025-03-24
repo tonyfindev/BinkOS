@@ -65,7 +65,6 @@ interface TokenInfoResponse {
     descr: string;
     tokenPrice: {
       price: number;
-      marketCap: number;
     };
     // ... other fields
   };
@@ -532,7 +531,7 @@ export class FourMemeProvider extends BaseSwapProvider {
   async getTokenInfoById(
     tokenId: number,
     accessToken: string,
-  ): Promise<{ address: string; name: string; symbol: string; price: number; marketCap: number }> {
+  ): Promise<{ address: string; name: string; symbol: string }> {
     try {
       const response = await fetch(
         `${CONSTANTS.FOUR_MEME_API_BASE}/private/token/getById?id=${tokenId}`,
@@ -563,14 +562,34 @@ export class FourMemeProvider extends BaseSwapProvider {
         address: tokenInfoResponse.data.address,
         name: tokenInfoResponse.data.name,
         symbol: tokenInfoResponse.data.shortName,
-        price: tokenInfoResponse.data.tokenPrice?.price,
-        marketCap: tokenInfoResponse.data.tokenPrice?.marketCap,
       };
     } catch (error: unknown) {
       console.error('Error getting token info:', error);
       throw new Error(
         `Failed to get token info: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
+    }
+  }
+
+  async parseTransactionCreateToken(tx: string): Promise<any> {
+    try {
+      // Wait for transaction confirmation
+      const provider = new ethers.JsonRpcProvider('https://bsc-dataseed1.binance.org');
+
+      // hash code OwnershipTransferred
+      const topic = '0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0';
+
+      const receipt = await provider.getTransactionReceipt(tx);
+
+      const tokenCreatedEvent = receipt?.logs.find(log => {
+        return log.topics[0] === topic;
+      });
+      if (tokenCreatedEvent) return tokenCreatedEvent?.address;
+
+      return null;
+    } catch (error) {
+      console.error('Error parsing token creation transaction:', error);
+      throw new Error(`Failed to parse transaction: ${error}`);
     }
   }
 }
