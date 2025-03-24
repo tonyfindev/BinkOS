@@ -506,6 +506,7 @@ export class SwapTool extends BaseTool {
               to: swapTx.to,
               data: swapTx.data,
               value: BigInt(swapTx.value),
+              lastValidBlockHeight: swapTx.lastValidBlockHeight,
             });
 
             // Wait for transaction to be mined

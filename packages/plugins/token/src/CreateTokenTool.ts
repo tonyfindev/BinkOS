@@ -300,17 +300,20 @@ export class CreateTokenTool extends BaseTool {
           if (tx.token.id && selectedProvider.getName() === 'four-meme') {
             try {
               // Wait for 25 seconds before fetching token info
-              await new Promise(resolve => setTimeout(resolve, 25000));
+              // await new Promise(resolve => setTimeout(resolve, 25000));
 
               // For Four Meme tokens, get the token address using the token ID
               const fourMemeProvider = selectedProvider as any;
-              const tokenInfo = await fourMemeProvider.getTokenInfoById(tx.token.id, accessToken);
+              //const tokenInfo = await fourMemeProvider.getTokenInfoById(tx.token.id, accessToken);
 
-              if (tokenInfo) {
-                token.address = tokenInfo.address;
-                token.link = tokenInfo.address
-                  ? `https://four.meme/token/${tokenInfo.address}`
-                  : '';
+              // parse transaction create token
+              const tokenAddress = await fourMemeProvider.parseTransactionCreateToken(
+                finalReceipt?.hash,
+              );
+
+              if (tokenAddress) {
+                token.address = tokenAddress;
+                token.link = tokenAddress ? `https://four.meme/token/${tokenAddress}` : '';
               }
             } catch (error) {
               // Keep using the original token info if fetching fails
