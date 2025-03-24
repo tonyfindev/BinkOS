@@ -69,7 +69,7 @@ All of this works together to provide a powerful but easy-to-use interface for m
 
 ### The Simple View
 
-![Planning Agent Simple Workflow](../../docs/assets/planning-agent-simple.png)
+![Planning Agent Simple Workflow](../../../docs/assets/planning-agent-simple.png)
 
 When you ask the Planning Agent to do something, it follows this path:
 
@@ -87,7 +87,7 @@ This approach helps the Planning Agent handle both simple requests efficiently a
 
 ### The Expanded View
 
-![Planning Agent Expanded Workflow](../../docs/assets/planning-agent-expanded.png)
+![Planning Agent Expanded Workflow](../../../docs/assets/planning-agent-expanded.png)
 
 Behind the scenes, the Planning Agent's workflow is more intricate:
 
