@@ -15,11 +15,15 @@ export abstract class BaseAgent implements IAgent {
   async registerTool(tool: ITool): Promise<void> {
     tool.setAgent(this);
     // Wrap the tool with our callback system
-    const wrappedTool = this.callbackManager.wrapTool(tool.createTool());
+    const wrappedTool = this.addTool2CallbackManager(tool);
 
     this.tools.push(wrappedTool);
 
     await this.onToolsUpdated();
+  }
+
+  public addTool2CallbackManager(tool: ITool): DynamicStructuredTool {
+    return this.callbackManager.wrapTool(tool.createTool());
   }
 
   async registerPlugin(plugin: IPlugin): Promise<void> {

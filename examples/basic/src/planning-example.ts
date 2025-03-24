@@ -43,6 +43,10 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
 
     console.log(`${emoji} [${new Date(data.timestamp).toISOString()}] ${data.message}`);
 
+    if (data.state === ToolExecutionState.STARTED) {
+      console.log(`   Input: ${JSON.stringify(data.input)}`);
+    }
+
     if (data.state === ToolExecutionState.IN_PROCESS && data.data) {
       console.log(`   Progress: ${data.data.progress || 0}%`);
     }
@@ -241,8 +245,14 @@ async function main() {
 
   // const result = await agent.execute("My balance on BNB chain");
 
-  const chatHistory = [new HumanMessage('1'), new AIMessage('hi')];
-  const result = await agent.execute({ input: '+1 = ?', history: chatHistory });
+  const chatHistory = [
+    new HumanMessage('Buy BINK'),
+    new AIMessage('Please provide the amount of BNB you want to spend'),
+  ];
+  const result = await agent.execute({
+    input: '0.0001 BNB with 0.5% slippage on bnb chain.',
+    history: chatHistory,
+  });
   console.log('✓ Result:', result, '\n');
 
   // Example 1: Buy with exact input amount on BNB Chain

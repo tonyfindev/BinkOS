@@ -25,12 +25,9 @@ import { Annotation, StateGraph } from '@langchain/langgraph';
 import { convertToOpenAITool } from '@langchain/core/utils/function_calling';
 import { PlannerGraph } from './graph/PlannerGraph';
 import { ExecutorGraph } from './graph/ExecutorGraph';
-import { MemorySaver } from '@langchain/langgraph';
-import { createPlanTool } from './tools/CreatePlanTool';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { shouldBindTools } from './utils/llm';
-import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { BasicQuestionGraph } from './graph/BasicQuestionGraph';
 
 const StateAnnotation = Annotation.Root({
@@ -189,6 +186,7 @@ NOTE:
       updatePlanPrompt: updatePlanPrompt,
       activeTasksPrompt: '',
       listToolsPrompt: toolsStr,
+      agent: this,
     }).create();
 
     const basicQuestionGraph = new BasicQuestionGraph({

@@ -4,11 +4,13 @@ import { BaseLanguageModel } from '@langchain/core/language_models/base';
 import { MessagesPlaceholder } from '@langchain/core/prompts';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { convertToOpenAITool } from '@langchain/core/utils/function_calling';
-import { createPlanTool } from '../tools/CreatePlanTool';
 import { shouldBindTools } from '../utils/llm';
-import { selectTasksTool } from '../tools/SelectTasksTool';
-import { terminateTool } from '../tools/TerminateTool';
-import { updatePlanTool } from '../tools/UpdatePlanTool';
+import { PlanningAgent } from '../PlanningAgent';
+import { CreatePlanTool } from '../tools/CreatePlanTool';
+import { BaseAgent } from '../../BaseAgent';
+import { UpdatePlanTool } from '../tools/UpdatePlanTool';
+import { SelectTasksTool } from '../tools/SelectTasksTool';
+import { TerminateTool } from '../tools/TerminateTool';
 
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
@@ -35,6 +37,7 @@ export class PlannerGraph {
   private updatePlanPrompt: string;
   private activeTasksPrompt: string;
   private listToolsPrompt: string;
+  private agent: BaseAgent;
 
   constructor({
     model,
@@ -42,18 +45,21 @@ export class PlannerGraph {
     updatePlanPrompt,
     activeTasksPrompt,
     listToolsPrompt,
+    agent,
   }: {
     model: BaseLanguageModel;
     createPlanPrompt: string;
     updatePlanPrompt: string;
     activeTasksPrompt: string;
     listToolsPrompt: string;
+    agent: BaseAgent;
   }) {
     this.model = model;
     this.createPlanPrompt = createPlanPrompt;
     this.updatePlanPrompt = updatePlanPrompt;
     this.activeTasksPrompt = activeTasksPrompt;
     this.listToolsPrompt = listToolsPrompt;
+    this.agent = agent;
   }
 
   async createPlanNode(state: typeof StateAnnotation.State) {
@@ -63,7 +69,11 @@ export class PlannerGraph {
       ['human', `Plan to execute the user's request: {input}`],
     ]);
 
-    const tools = [createPlanTool];
+    const createPlanTool = new CreatePlanTool();
+
+    const wrappedCreatePlanTool = this.agent.addTool2CallbackManager(createPlanTool);
+
+    const tools = [wrappedCreatePlanTool];
     let modelWithTools;
     if (shouldBindTools(this.model, tools)) {
       if (!('bindTools' in this.model) || typeof this.model.bindTools !== 'function') {
@@ -109,7 +119,11 @@ export class PlannerGraph {
       new MessagesPlaceholder('executor_response_tools'),
       ['human', `Update current plan: ${promptActiveTask}`],
     ]);
-    const tools = [updatePlanTool];
+
+    const updatePlanTool = new UpdatePlanTool();
+    const wrappedUpdatePlanTool = this.agent.addTool2CallbackManager(updatePlanTool);
+
+    const tools = [wrappedUpdatePlanTool];
     let modelWithTools;
     if (shouldBindTools(this.model, tools)) {
       if (!('bindTools' in this.model) || typeof this.model.bindTools !== 'function') {
@@ -151,7 +165,7 @@ export class PlannerGraph {
       );
       if (updatePlanToolCalls.length > 0) {
         const tasks = updatePlanToolCalls.map((toolCall: any) => toolCall.args.tasks).flat();
-        const result = await updatePlanTool.invoke({
+        const result = await wrappedUpdatePlanTool.invoke({
           plan_id: updatePlanToolCalls[0].args.plan_id,
           tasks,
         });
@@ -183,7 +197,13 @@ export class PlannerGraph {
       ['human', `The current plan: {plan}`],
     ]);
 
-    const tools = [selectTasksTool, terminateTool];
+    const selectTasksTool = new SelectTasksTool();
+    const wrappedSelectTasksTool = this.agent.addTool2CallbackManager(selectTasksTool);
+
+    const terminateTool = new TerminateTool();
+    const wrappedTerminateTool = this.agent.addTool2CallbackManager(terminateTool);
+
+    const tools = [wrappedSelectTasksTool, wrappedTerminateTool];
     let modelWithTools;
     if (shouldBindTools(this.model, tools)) {
       if (!('bindTools' in this.model) || typeof this.model.bindTools !== 'function') {

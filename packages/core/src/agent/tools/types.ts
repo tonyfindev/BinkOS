@@ -18,7 +18,7 @@ export interface CustomDynamicStructuredTool {
     runManager?: CallbackManagerForToolRun,
     config?: RunnableConfig,
     onProgress?: (data: ToolProgress) => void,
-  ) => Promise<string>;
+  ) => Promise<any>;
   schema: z.ZodObject<any>;
   returnDirect?: boolean;
 }
