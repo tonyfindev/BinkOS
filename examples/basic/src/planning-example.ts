@@ -23,6 +23,8 @@ import { BnbProvider } from '@binkai/rpc-provider';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { Connection } from '@solana/web3.js';
+import { JupiterProvider } from '@binkai/jupiter-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -49,7 +51,7 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
 
     if (data.state === ToolExecutionState.COMPLETED && data.data) {
       console.log(
-        `   Result: ${JSON.stringify(data.data).substring(0, 100)}${JSON.stringify(data.data).length > 100 ? '...' : ''}`,
+        `   Result: ${JSON.stringify(data.data).substring(0, 100)}${JSON.stringify(data.data).length ? '...' : ''}`,
       );
     }
 
@@ -139,6 +141,8 @@ async function main() {
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
   console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
+  console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.SOLANA));
+
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new PlanningAgent(
@@ -183,17 +187,19 @@ async function main() {
 
   // Initialize plugin with provider
   await walletPlugin.initialize({
-    defaultChain: 'bnb',
+    // defaultChain: 'bnb',
     providers: [bnbProvider, birdeye],
-    supportedChains: ['bnb'],
+    supportedChains: ['bnb', 'solana'],
   });
   // Configure the plugin with supported chains
   await tokenPlugin.initialize({
-    defaultChain: 'bnb',
+    // defaultChain: 'bnb',
     providers: [birdeye],
     supportedChains: ['solana', 'bnb'],
   });
   console.log('✓ Token plugin initialized\n');
+  const provider_jupiter = new Connection(SOL_RPC);
+  const jupiter = new JupiterProvider(provider_jupiter);
 
   // Create providers with proper chain IDs
   const pancakeswap = new PancakeSwapProvider(provider, 56);
@@ -205,9 +211,9 @@ async function main() {
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
-    defaultChain: 'bnb',
-    providers: [pancakeswap],
-    supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
+    // defaultChain: 'bnb',
+    providers: [pancakeswap, jupiter],
+    supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
 
@@ -215,7 +221,7 @@ async function main() {
   const debridge = new deBridgeProvider(provider);
   // Configure the plugin with supported chains
   await bridgePlugin.initialize({
-    defaultChain: 'bnb',
+    // defaultChain: 'bnb',
     providers: [debridge],
     supportedChains: ['bnb', 'solana'], // These will be intersected with agent's networks
   });
@@ -241,8 +247,8 @@ async function main() {
 
   // const result = await agent.execute("My balance on BNB chain");
 
-  const chatHistory = [new HumanMessage('1'), new AIMessage('hi')];
-  const result = await agent.execute({ input: '+1 = ?', history: chatHistory });
+  // const chatHistory = [new HumanMessage('Swap 100 Bink'), new AIMessage('hi')];
+  const result = await agent.execute({ input: 'Swap 0.01 SOL to  USDC on SOL network' });
   console.log('✓ Result:', result, '\n');
 
   // Example 1: Buy with exact input amount on BNB Chain
