@@ -28,6 +28,7 @@ export interface SwapParams {
   type: 'input' | 'output'; // Whether amount is input or output
   slippage: number;
   limitPrice?: number;
+  orderId?: number[];
 }
 
 export interface Transaction {
