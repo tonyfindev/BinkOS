@@ -99,6 +99,7 @@ export class SwapTool extends BaseTool {
       fromToken: z.string().describe(`The adress of source token on network. (spend)`),
       toToken: z.string().describe(`The adress of destination token on network. (receive)`),
       amount: z.string().describe('The amount of tokens to swap'),
+      limitPrice: z.number().optional().describe('The limit price of the order'),
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
@@ -202,6 +203,7 @@ export class SwapTool extends BaseTool {
             network,
             provider: preferredProvider,
             slippage = this.defaultSlippage,
+            limitPrice,
           } = args;
 
           console.log('🔄 Doing swap operation...');
@@ -269,6 +271,7 @@ export class SwapTool extends BaseTool {
             amount,
             type: amountType,
             slippage,
+            limitPrice,
           };
 
           let selectedProvider: ISwapProvider;

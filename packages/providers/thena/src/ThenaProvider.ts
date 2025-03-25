@@ -1,6 +1,7 @@
 import { SwapQuote, SwapParams, BaseSwapProvider, NetworkProvider } from '@binkai/swap-plugin';
-import { ethers, Provider } from 'ethers';
+import { Contract, ethers, Provider } from 'ethers';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
+import { OrbsABI } from './abis/Orbs';
 
 // Core system constants
 const CONSTANTS = {
@@ -10,6 +11,9 @@ const CONSTANTS = {
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
   THENA_BNB_ADDRESS: '0x0000000000000000000000000000000000000000',
   THENA_API_BASE: 'https://api.odos.xyz/sor/',
+  TIME_DELAY: 60,
+  EXCHANGE_ADDRESS: '0xc2aBC02acd77Bb2407efA22348dA9afC8B375290', // OpenOceanExchange
+  ORBS_ADDRESS: '0x25a0A78f5ad07b2474D3D42F1c1432178465936d',
 } as const;
 
 enum ChainId {
@@ -21,6 +25,7 @@ export class ThenaProvider extends BaseSwapProvider {
   private provider: Provider;
   private chainId: ChainId;
   protected GAS_BUFFER: bigint = ethers.parseEther('0.0003');
+  private orbsContract: Contract;
 
   constructor(provider: Provider, chainId: ChainId = ChainId.BSC) {
     // Create a Map with BNB network and the provider
@@ -30,6 +35,7 @@ export class ThenaProvider extends BaseSwapProvider {
     super(providerMap);
     this.provider = provider;
     this.chainId = chainId;
+    this.orbsContract = new ethers.Contract(CONSTANTS.ORBS_ADDRESS, OrbsABI, this.provider);
   }
 
   getName(): string {
@@ -97,7 +103,7 @@ export class ThenaProvider extends BaseSwapProvider {
         );
 
         if (adjustedAmount !== params.amount) {
-          console.log(`🤖 OKu adjusted input amount from ${params.amount} to ${adjustedAmount}`);
+          console.log(`🤖 Thena adjusted input amount from ${params.amount} to ${adjustedAmount}`);
         }
       }
       const amountIn =
@@ -105,20 +111,46 @@ export class ThenaProvider extends BaseSwapProvider {
           ? ethers.parseUnits(adjustedAmount, sourceToken.decimals)
           : ethers.parseUnits(adjustedAmount, destinationToken.decimals);
 
-      // Fetch optimal swap route
-      const optimalRoute = await this.fetchOptimalRoute(
-        tokenInAddress,
-        tokenOutAddress,
-        userAddress,
-        params.slippage,
-        amountIn.toString(),
-      );
+      console.log('getQuote: ', params);
+      let swapTransactionData;
 
-      // Build swap transaction
-      const swapTransactionData = await this.buildSwapRouteTransaction(optimalRoute, userAddress);
+      let optimalRoute;
+      if (params?.limitPrice) {
+        // need wrapped token BNB
 
-      if (!swapTransactionData) {
-        throw new Error('No swap routes available from Thena');
+        // Fetch optimal limit order route
+        optimalRoute = await this.fetchOptimalRoute(
+          tokenInAddress,
+          tokenOutAddress,
+          userAddress,
+          params.slippage,
+          amountIn.toString(),
+          params.limitPrice,
+        );
+
+        // build limit order transaction
+        // Build swap transaction
+        swapTransactionData = await this.buildLimitOrderRouteTransaction(optimalRoute, userAddress);
+
+        if (!swapTransactionData) {
+          throw new Error('No limit  order routes available from Thena');
+        }
+      } else {
+        // Fetch optimal swap route
+        optimalRoute = await this.fetchOptimalRoute(
+          tokenInAddress,
+          tokenOutAddress,
+          userAddress,
+          params.slippage,
+          amountIn.toString(),
+        );
+
+        // Build swap transaction
+        swapTransactionData = await this.buildSwapRouteTransaction(optimalRoute, userAddress);
+
+        if (!swapTransactionData) {
+          throw new Error('No swap routes available from Thena');
+        }
       }
 
       // Create and store quote
@@ -128,6 +160,7 @@ export class ThenaProvider extends BaseSwapProvider {
         destinationToken,
         swapTransactionData,
         optimalRoute,
+        userAddress,
       );
       this.storeQuoteWithExpiry(swapQuote);
       return swapQuote;
@@ -146,6 +179,7 @@ export class ThenaProvider extends BaseSwapProvider {
     userAddress: string,
     slippage: number,
     amount?: string,
+    limitPrice?: number,
   ) {
     const body = JSON.stringify({
       chainId: this.chainId,
@@ -204,14 +238,45 @@ export class ThenaProvider extends BaseSwapProvider {
     return await transactionResponse.json();
   }
 
+  private async buildLimitOrderRouteTransaction(routeData: any, userAddress: string) {
+    console.log('🚀 ~ ThenaProvider ~ buildLimitOrderRouteTransaction ~ routeData:', routeData);
+
+    const ask = {
+      exchange: CONSTANTS.EXCHANGE_ADDRESS,
+      srcToken: routeData.inTokens[0], // params.fromTokenAddress,
+      dstToken: routeData.outTokens[0], //params.toTokenAddress,
+      srcAmount: routeData.inAmounts[0],
+      srcBidAmount: routeData.inAmounts[0],
+      dstMinAmount: routeData.outAmounts[0],
+      deadline: Math.floor(Date.now() / 1000) + 3600,
+      bidDelay: CONSTANTS.TIME_DELAY,
+      fillDelay: '0',
+      data: '0x',
+    };
+
+    try {
+      const tx = this.orbsContract.interface.encodeFunctionData(
+        'ask((address,address,address,uint256,uint256,uint256,uint32,uint32,uint32,bytes))',
+        [ask],
+      );
+      console.log('🚀 ~ ThenaProvider ~ buildLimitOrderRouteTransaction ~ tx:', tx);
+      return tx;
+    } catch (error) {
+      console.error('Error creating TWAP order:', error);
+      throw error;
+    }
+  }
+
   private createSwapQuote(
     params: SwapParams,
     sourceToken: Token,
     destinationToken: Token,
     swapTransactionData: any,
     routeData: any,
+    walletAddress: string,
   ): SwapQuote {
     const quoteId = ethers.hexlify(ethers.randomBytes(32));
+    console.log('🚀 ~ swapTransactionData:', swapTransactionData);
     return {
       quoteId,
       network: params.network,
@@ -225,12 +290,12 @@ export class ThenaProvider extends BaseSwapProvider {
       route: ['thena'],
       estimatedGas: routeData.gasEstimateValue,
       tx: {
-        to: swapTransactionData.transaction.to,
-        data: swapTransactionData.transaction.data,
-        value: swapTransactionData.transaction.value || '0',
+        to: params.limitPrice ? CONSTANTS.ORBS_ADDRESS : swapTransactionData.transaction.to,
+        data: params.limitPrice ? swapTransactionData : swapTransactionData.transaction.data,
+        value: params.limitPrice ? 0 : swapTransactionData.transaction.value,
         gasLimit: ethers.parseUnits(CONSTANTS.DEFAULT_GAS_LIMIT, 'wei'),
         network: params.network,
-        spender: swapTransactionData.transaction.to,
+        spender: params.limitPrice ? walletAddress : swapTransactionData.transaction.to,
       },
     };
   }

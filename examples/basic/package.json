@@ -22,7 +22,8 @@
     "wallet": "ts-node src/wallet-example.ts",
     "transfer": "ts-node src/transfer-example.ts",
     "build": "tsc",
-    "swap-jupiter": "ts-node src/swap-example-jupiter.ts"
+    "swap-jupiter": "ts-node src/swap-example-jupiter.ts",
+    "limit-order": "ts-node src/limit-order-example-thena.ts"
   },
   "dependencies": {
     "@binkai/bink-provider": "workspace:*",

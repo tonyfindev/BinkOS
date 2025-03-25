@@ -15,6 +15,7 @@ export interface SwapQuote {
   route: string[];
   estimatedGas: string;
   type: 'input' | 'output'; // Whether this is an exact input or exact output swap
+  limitPrice?: number;
   tx?: Transaction;
   slippage: number;
 }
@@ -26,6 +27,7 @@ export interface SwapParams {
   amount: string;
   type: 'input' | 'output'; // Whether amount is input or output
   slippage: number;
+  limitPrice?: number;
 }
 
 export interface Transaction {
