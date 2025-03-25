@@ -4,6 +4,10 @@ import { Connection } from '@solana/web3.js';
 
 export type NetworkProvider = Provider | Connection;
 
+export const WrapToken = {
+  WBNB: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
+} as const;
+
 export interface SwapQuote {
   network: NetworkName;
   quoteId: string;
@@ -133,4 +137,16 @@ export interface ISwapProvider {
     owner: string,
     spender: string,
   ): Promise<bigint>;
+
+  /**
+   * Wrap a token
+   * @param amount The amount to wrap
+   */
+  wrapToken(amount: string, tokenAddress: string): Promise<any>;
+
+  /**
+   * Unwrap a token
+   * @param amount The amount to unwrap
+   */
+  unwrapToken(amount: string, walletAddress: string): Promise<any>;
 }

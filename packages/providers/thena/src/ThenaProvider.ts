@@ -2,6 +2,7 @@ import { SwapQuote, SwapParams, BaseSwapProvider, NetworkProvider } from '@binka
 import { Contract, ethers, Provider } from 'ethers';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 import { OrbsABI } from './abis/Orbs';
+import { WrapTokenABI } from './abis/WrapToken';
 
 // Core system constants
 const CONSTANTS = {
@@ -14,6 +15,7 @@ const CONSTANTS = {
   TIME_DELAY: 60,
   EXCHANGE_ADDRESS: '0xc2aBC02acd77Bb2407efA22348dA9afC8B375290', // OpenOceanExchange
   ORBS_ADDRESS: '0x25a0A78f5ad07b2474D3D42F1c1432178465936d',
+  WRAP_BNB_ADDRESS: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
 } as const;
 
 enum ChainId {
@@ -117,7 +119,6 @@ export class ThenaProvider extends BaseSwapProvider {
       let optimalRoute;
       if (params?.limitPrice) {
         swapTransactionData = null;
-        // need wrapped token BNB
 
         // Fetch optimal limit order route
         optimalRoute = await this.fetchOptimalRoute(
@@ -136,15 +137,13 @@ export class ThenaProvider extends BaseSwapProvider {
           throw new Error('No limit  order routes available from Thena');
         }
       } else if (params?.orderId) {
-        // const orderIds = await this.getAllOrderIds(userAddress);
-        // console.log('🚀 ~ ThenaProvider ~ getQuote ~ orderIds:', orderIds);
         //let limitOrderIds = [];
         swapTransactionData = null;
         const validOrderIds = await Promise.all(
           params?.orderId.map(async (orderId: number) => {
             const isValid = await this.checkValidOrderId(orderId);
             if (isValid) {
-              swapTransactionData = await this.cancelOrder(orderId);
+              swapTransactionData = this.cancelOrder(orderId);
               //limitOrderIds.push(swapTransactionData);
               return orderId;
             }
@@ -259,12 +258,10 @@ export class ThenaProvider extends BaseSwapProvider {
   }
 
   private async buildLimitOrderRouteTransaction(routeData: any, userAddress: string) {
-    console.log('🚀 ~ ThenaProvider ~ buildLimitOrderRouteTransaction ~ routeData:', routeData);
-
     const ask = {
       exchange: CONSTANTS.EXCHANGE_ADDRESS,
-      srcToken: routeData.inTokens[0], // params.fromTokenAddress,
-      dstToken: routeData.outTokens[0], //params.toTokenAddress,
+      srcToken: routeData.inTokens[0],
+      dstToken: routeData.outTokens[0],
       srcAmount: routeData.inAmounts[0],
       srcBidAmount: routeData.inAmounts[0],
       dstMinAmount: routeData.outAmounts[0],
@@ -279,7 +276,7 @@ export class ThenaProvider extends BaseSwapProvider {
         'ask((address,address,address,uint256,uint256,uint256,uint32,uint32,uint32,bytes))',
         [ask],
       );
-      console.log('🚀 ~ ThenaProvider ~ buildLimitOrderRouteTransaction ~ tx:', tx);
+
       return tx;
     } catch (error) {
       console.error('Error creating TWAP order:', error);
@@ -298,7 +295,7 @@ export class ThenaProvider extends BaseSwapProvider {
     return Number(order) >= currentTime ? 1 : 0;
   }
 
-  private async cancelOrder(orderId: number) {
+  private cancelOrder(orderId: number) {
     const tx = this.orbsContract.interface.encodeFunctionData('cancel(uint64)', [orderId]);
     return tx;
   }

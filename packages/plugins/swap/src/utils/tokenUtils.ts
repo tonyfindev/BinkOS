@@ -5,6 +5,9 @@ import { ethers } from 'ethers';
  */
 export const DEFAULT_TOLERANCE_PERCENTAGE = 0.01; // 0.01% tolerance
 
+export const EVM_DECIMALS = 18;
+export const SOL_DECIMALS = 9;
+
 /**
  * Adjusts a token amount to handle precision issues
  * This is useful when comparing amounts with very small differences due to floating point precision

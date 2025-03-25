@@ -7,6 +7,7 @@ import {
   ToolProgress,
   StructuredError,
   ErrorStep,
+  EVM_NATIVE_TOKEN_ADDRESS,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
@@ -15,6 +16,7 @@ import { parseTokenAmount } from './utils/tokenUtils';
 import { isSolanaNetwork } from './utils/networkUtils';
 import type { TokenInfo } from '@binkai/token-plugin';
 import { defaultTokens } from '@binkai/token-plugin';
+import { WrapToken } from './types';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -276,6 +278,7 @@ export class SwapTool extends BaseTool {
 
           let selectedProvider: ISwapProvider;
           let quote: SwapQuote;
+          let isWrapToken = false;
 
           onProgress?.({
             progress: 0,
@@ -298,6 +301,31 @@ export class SwapTool extends BaseTool {
                     providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
                   },
                 );
+              }
+
+              // STEP 5: Handle wrapped token BNB
+              // validate is valid limit order
+              if (swapParams?.limitPrice && swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS) {
+                onProgress?.({
+                  progress: 5,
+                  message: `Wrapping BNB to WBNB`,
+                });
+
+                const wrapTx = await selectedProvider.wrapToken(amount.toString(), WrapToken.WBNB);
+
+                const wallet = this.agent.getWallet();
+                const wrapReceipt = await wallet.signAndSendTransaction(network, {
+                  to: wrapTx.to,
+                  data: wrapTx.data,
+                  value: BigInt(wrapTx.value),
+                });
+
+                // Wait for approval to be mined
+                await wrapReceipt.wait();
+
+                // set wrap token address
+                swapParams.fromToken = WrapToken.WBNB;
+                isWrapToken = true;
               }
 
               try {
@@ -524,6 +552,28 @@ export class SwapTool extends BaseTool {
                 error: error instanceof Error ? error.message : String(error),
               },
             );
+          }
+
+          // STEP 9: unwrap token if needed
+          if (swapParams?.limitPrice && swapParams.fromToken === WrapToken.WBNB && isWrapToken) {
+            onProgress?.({
+              progress: 90,
+              message: `Unwrapping WBNB to BNB`,
+            });
+
+            const unwrapTx = await selectedProvider.unwrapToken(
+              quote.toAmount.toString(),
+              WrapToken.WBNB,
+            );
+            const wallet = this.agent.getWallet();
+            const unwrapReceipt = await wallet.signAndSendTransaction(network, {
+              to: unwrapTx.to,
+              data: unwrapTx.data,
+              value: BigInt(unwrapTx.value),
+            });
+
+            // Wait for approval to be mined
+            await unwrapReceipt.wait();
           }
 
           try {
