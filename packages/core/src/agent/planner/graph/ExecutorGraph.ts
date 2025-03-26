@@ -16,6 +16,7 @@ import { DynamicStructuredTool, tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { AskTool } from '../tools/AskTool';
 import { BaseAgent } from '../../BaseAgent';
+import { PlanningAgent } from '../PlanningAgent';
 
 const createToolCallId = () => {
   // random 5 characters
@@ -46,7 +47,7 @@ export class ExecutorGraph {
   private model: BaseLanguageModel;
   private executorPrompt: string;
   private tools: DynamicStructuredTool[];
-  private agent: BaseAgent;
+  private agent: PlanningAgent;
 
   constructor({
     model,
@@ -57,7 +58,7 @@ export class ExecutorGraph {
     model: BaseLanguageModel;
     executorPrompt: string;
     tools: DynamicStructuredTool[];
-    agent: BaseAgent;
+    agent: PlanningAgent;
   }) {
     this.model = model;
     this.executorPrompt = executorPrompt;
@@ -207,9 +208,11 @@ export class ExecutorGraph {
 
   async askNode(state: typeof StateAnnotation.State) {
     const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+    this.agent.setAskUser(true);
     const userMessage = interrupt({
       question: lastMessage.tool_calls?.[0]?.args?.question ?? '',
     });
+    this.agent.setAskUser(false);
     console.log('userMessage', userMessage);
     const createToolCallId = () => {
       // random 5 characters

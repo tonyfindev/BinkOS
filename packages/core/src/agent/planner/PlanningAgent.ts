@@ -54,6 +54,8 @@ const StateAnnotation = Annotation.Root({
 export class PlanningAgent extends Agent {
   private workflow!: StateGraph<any, any, any, any, any, any>;
   public graph!: CompiledStateGraph<any, any, any, any, any, any>;
+  private isAskUser = false;
+  private askUserTimeout: NodeJS.Timeout | null = null;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super(config, wallet, networks);
@@ -61,6 +63,20 @@ export class PlanningAgent extends Agent {
 
   protected getDefaultTools(): ITool[] {
     return [];
+  }
+
+  public async setAskUser(isAskUser: boolean) {
+    this.isAskUser = isAskUser;
+    if (isAskUser) {
+      this.askUserTimeout = setTimeout(() => {
+        this.isAskUser = false;
+      }, 60 * 1000);
+    } else {
+      if (this.askUserTimeout) {
+        clearTimeout(this.askUserTimeout);
+        this.askUserTimeout = null;
+      }
+    }
   }
 
   async supervisorNode(state: typeof StateAnnotation.State) {
@@ -305,6 +321,9 @@ NOTE:
 
   // Implementing the message persistence and history logic in the execute method
   async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
+    if (this.isAskUser && typeof commandOrParams !== 'string') {
+      return (await this.graph.invoke({ resume: { input: commandOrParams.input } })).answer;
+    }
     let _history: MessageEntity[] = [];
 
     // Ensure database is initialized before accessing
