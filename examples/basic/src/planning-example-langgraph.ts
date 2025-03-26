@@ -22,6 +22,8 @@ import { BnbProvider } from '@binkai/rpc-provider';
 // import { FourMemeProvider } from '@binkai/four-meme-provider';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
+import { JupiterProvider } from '@binkai/jupiter-provider';
+import { Connection } from '@solana/web3.js';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -138,6 +140,7 @@ async function main() {
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
   console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
+  console.log('🤖 Wallet SOL:', await wallet.getAddress(NetworkName.SOLANA));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new PlanningAgent(
@@ -151,6 +154,8 @@ async function main() {
     networks,
   );
   console.log('✓ Agent initialized\n');
+
+  const solanaProvider = new Connection(SOL_RPC);
 
   // Register the tool execution callback
   console.log('🔔 Registering tool execution callback...');
@@ -196,6 +201,8 @@ async function main() {
 
   // Create providers with proper chain IDs
   const pancakeswap = new PancakeSwapProvider(provider, 56);
+  // Create providers with proper chain IDs
+  const jupiter = new JupiterProvider(solanaProvider);
 
   // const okx = new OkxProvider(provider, 56);
 
@@ -205,8 +212,8 @@ async function main() {
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [pancakeswap],
-    supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
+    providers: [pancakeswap, jupiter],
+    supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
 

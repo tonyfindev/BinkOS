@@ -28,7 +28,7 @@ const updatePlan = (
   plan.tasks = plan.tasks.map((task: any, index: number) => {
     const taskToUpdate = tasks.find((task: any) => task.index === index);
     if (taskToUpdate) {
-      const responseTool = responseTools.find(
+      const responseTool = responseTools?.find(
         (tool: ToolMessage) => tool.tool_call_id === taskToUpdate.response_tool_id,
       );
       let responseData = null;

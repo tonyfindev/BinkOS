@@ -19,6 +19,7 @@ import {
   getCurrentTaskInput,
   InMemoryStore,
   LangGraphRunnableConfig,
+  MemorySaver,
   START,
 } from '@langchain/langgraph';
 import { Annotation, StateGraph } from '@langchain/langgraph';
@@ -32,7 +33,7 @@ import { BasicQuestionGraph } from './graph/BasicQuestionGraph';
 
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
-
+  executor_messages: Annotation<string>,
   active_plan_id: Annotation<string>,
   selected_task_indexes: Annotation<number[]>,
   next_node: Annotation<string>,
@@ -155,6 +156,7 @@ NOTE:
 
     const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps.`;
     const defaultPlanPrompt = `NOTE: 
+- Create task ask user to provide more information
 - You must get balance to get any token (must include token symbol and token address) in wallet
 - You need token address when execute on-chain transaction
 - You can create multiple plans to execute the user's request.
@@ -169,15 +171,75 @@ NOTE:
       defaultPlanPrompt;
 
     let toolsStr = '';
+
+    //remove all description in parameters of toolJson.function.parameters
+    const cleanToolParameters = (params: any) => {
+      if (!params || typeof params !== 'object') return params;
+
+      const newParams = { ...params };
+
+      // Remove specific fields at current level
+      if ('description' in newParams) {
+        delete newParams.description;
+      }
+
+      // Remove $schema field
+      if ('$schema' in newParams) {
+        delete newParams.$schema;
+      }
+
+      // Remove additionalProperties field
+      if ('additionalProperties' in newParams) {
+        delete newParams.additionalProperties;
+      }
+
+      // Remove enum field
+      if ('enum' in newParams) {
+        delete newParams.enum;
+      }
+
+      // Remove default field
+      if ('default' in newParams) {
+        delete newParams.default;
+      }
+
+      // Process properties recursively and remove non-required fields
+      if (newParams.properties && typeof newParams.properties === 'object') {
+        const required = Array.isArray(newParams.required) ? newParams.required : [];
+
+        // Process each property and keep only required ones
+        for (const key in newParams.properties) {
+          if (required.includes(key)) {
+            newParams.properties[key] = cleanToolParameters(newParams.properties[key]);
+          } else {
+            // Remove non-required properties
+            delete newParams.properties[key];
+          }
+        }
+      }
+
+      // Process items if it's an array schema
+      if (newParams.items && typeof newParams.items === 'object') {
+        newParams.items = cleanToolParameters(newParams.items);
+      }
+
+      return newParams;
+    };
+
     for (const tool of executorTools) {
       const toolJson = convertToOpenAITool(tool);
-      toolsStr += `${JSON.stringify({ name: toolJson.function.name })}\n`;
+      // Apply the cleanToolParameters function to clean the parameters
+      if (toolJson.function.parameters) {
+        toolJson.function.parameters = cleanToolParameters(toolJson.function.parameters);
+      }
+      toolsStr += `${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n`;
     }
 
     const executorGraph = new ExecutorGraph({
       model: this.model,
       executorPrompt,
       tools: executorTools,
+      agent: this,
     }).create();
 
     const plannerGraph = new PlannerGraph({
@@ -234,7 +296,9 @@ NOTE:
       .addEdge('basic_question', END)
       .addEdge('executor_answer', END);
 
-    this.graph = await this.workflow.compile();
+    const checkpointer = new MemorySaver();
+
+    this.graph = await this.workflow.compile({ checkpointer });
 
     return this.graph;
   }
