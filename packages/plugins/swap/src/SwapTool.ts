@@ -156,7 +156,7 @@ export class SwapTool extends BaseTool {
     type QuoteResult = { provider: ISwapProvider; quote: SwapQuote };
     const validQuotes = quotes.filter((q): q is QuoteResult => q !== null);
     if (validQuotes.length === 0) {
-      throw new Error('Invalid amount for getting quote');
+      throw new Error('No valid quotes found');
     }
 
     // Find the best quote based on amount type
