@@ -147,7 +147,7 @@ export class ExecutorGraph {
       );
       if (askUserToolCalls?.length > 1) {
         let index = 0;
-        askUserToolCalls = askUserToolCalls.reduce((acc: any, toolCall: any) => {
+        const askUserToolCallsString = askUserToolCalls.reduce((acc: any, toolCall: any) => {
           if (index === 0) {
             return `${++index}. ${toolCall.args.question}`;
           }
@@ -161,7 +161,7 @@ export class ExecutorGraph {
                 {
                   id: askUserToolCalls[0].id,
                   name: 'ask_user',
-                  args: { question: askUserToolCalls },
+                  args: { question: askUserToolCallsString },
                 },
               ],
             }),
