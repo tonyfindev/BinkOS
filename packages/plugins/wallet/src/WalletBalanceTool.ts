@@ -9,6 +9,7 @@ import {
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, WalletInfo } from './types';
+import { NetworkName } from '@binkai/core';
 
 export interface WalletToolConfig extends IToolConfig {
   defaultNetwork?: string;
@@ -77,8 +78,8 @@ export class GetWalletBalanceTool extends BaseTool {
     return `Get detailed information about tokens and native currencies in a wallet of all network (Solana, Etherum, BNB), including token balances, token addresses, symbols, and decimals. Supports networks: ${networks}. Available providers: ${providers}. Use this tool when you need to check what tokens or coins a wallet contains, their balances, and detailed token information.`;
   }
 
-  private getsupportedNetworks(): string[] {
-    const agentNetworks = Object.keys(this.agent.getNetworks());
+  private getsupportedNetworks(): NetworkName[] {
+    const agentNetworks = Object.keys(this.agent.getNetworks()) as NetworkName[];
     const providerNetworks = Array.from(this.supportedNetworks);
     return agentNetworks.filter(network => providerNetworks.includes(network));
   }
@@ -94,14 +95,13 @@ export class GetWalletBalanceTool extends BaseTool {
         .string()
         .optional()
         .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
-      network: z
-        .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon'])
-        .describe('The blockchain to query the wallet on.'),
+      // network: z
+      //   .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon'])
+      //   .describe('The blockchain to query the wallet on.'),
     });
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('🛠️ Creating wallet balance tool');
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -113,122 +113,79 @@ export class GetWalletBalanceTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
-          const network = args.network;
           let address = args.address;
-          console.log(`🔍 Getting wallet balance for ${address || 'agent wallet'} on ${network}`);
+          let networkResults: Record<string, any> = {};
 
           // STEP 1: Validate network
           const supportedNetworks = this.getsupportedNetworks();
-          if (!supportedNetworks.includes(network)) {
-            console.error(`❌ Network ${network} is not supported`);
-            throw this.createError(
-              ErrorStep.NETWORK_VALIDATION,
-              `Network ${network} is not supported.`,
-              {
-                requestedNetwork: network,
-                supportedNetworks: supportedNetworks,
-              },
-            );
-          }
-
-          // STEP 2: Get wallet address
-          try {
-            // If no address provided, get it from the agent's wallet
-            if (!address) {
-              console.log('🔑 No address provided, using agent wallet');
-              address = await this.agent.getWallet().getAddress(network);
-              console.log(`🔑 Using agent wallet address: ${address}`);
-            }
-          } catch (error) {
-            console.error(`❌ Failed to get wallet address for network ${network}`);
-            throw error;
-          }
-
-          onProgress?.({
-            progress: 20,
-            message: `Retrieving wallet information for ${address}`,
-          });
-
-          // STEP 3: Check providers
-          const providers = this.registry.getProvidersByNetwork(network);
-          if (providers.length === 0) {
-            console.error(`❌ No providers available for network ${network}`);
-            throw this.createError(
-              ErrorStep.PROVIDER_AVAILABILITY,
-              `No providers available for network ${network}.`,
-              {
-                network: network,
-                availableProviders: this.registry.getProviderNames(),
-                supportedNetworks: Array.from(this.supportedNetworks),
-              },
-            );
-          }
-
-          console.log(`🔄 Found ${providers.length} providers for network ${network}`);
-
-          let results: WalletInfo = {};
-          const errors: Record<string, string> = {};
-
-          // STEP 4: Query providers
-          // Try all providers and collect results
-          for (const provider of providers) {
-            console.log(`🔄 Querying provider: ${provider.getName()}`);
+          for (const network of supportedNetworks) {
             try {
-              const data = await provider.getWalletInfo(address, network);
-              console.log(`✅ Successfully got data from ${provider.getName()}`);
-              results = mergeObjects(results, data);
-            } catch (error) {
-              console.warn(
-                `⚠️ Failed to get wallet info from ${provider.getName()}: ${error instanceof Error ? error.message : error}`,
-              );
-              this.logError(
-                `Failed to get wallet info from ${provider.getName()}: ${error}`,
-                'warn',
-              );
-              errors[provider.getName()] = error instanceof Error ? error.message : String(error);
-            }
-          }
-
-          // If no successful results, throw error
-          if (Object.keys(results).length === 0) {
-            console.error(`❌ All providers failed for ${address}`);
-            throw `All providers failed for ${address}`;
-          }
-
-          console.log(`💰 Wallet info retrieved successfully for ${address}`);
-
-          if (Object.keys(errors).length > 0) {
-            console.warn(`⚠️ Some providers failed but we have partial results`);
-          }
-
-          onProgress?.({
-            progress: 100,
-            message: `Successfully retrieved wallet information for ${address}`,
-          });
-
-          console.log(`✅ Returning wallet balance data for ${address}`);
-
-          if (results.tokens && Array.isArray(results.tokens)) {
-            results.tokens = results.tokens.filter(token => {
-              if (token.symbol === 'BNB' || token.symbol === 'ETH' || token.symbol === 'SOL') {
-                return true;
+              // STEP 2: Get wallet address
+              if (!address) {
+                address = await this.agent.getWallet().getAddress(network as NetworkName);
               }
-              return Number(token.balance) > 0.00001;
+
+              // STEP 3: Check providers
+              const providers = this.registry.getProvidersByNetwork(network);
+              if (providers.length === 0) {
+                networkResults[network] = {
+                  error: `Currently have problem: No providers available for network ${network}`,
+                };
+                continue;
+              }
+
+              let results: WalletInfo = {};
+              let hasSuccessfulProvider = false;
+
+              // STEP 4: Query providers
+              for (const provider of providers) {
+                try {
+                  const data = await provider.getWalletInfo(address, network);
+                  results = mergeObjects(results, data);
+                  hasSuccessfulProvider = true;
+                } catch (error) {
+                  networkResults[network] = {
+                    error: `Currently have problem: Failed to process network ${network} - ${error instanceof Error ? error.message : String(error)}`,
+                  };
+                }
+              }
+
+              // Process results for this network
+              if (hasSuccessfulProvider) {
+                if (results.tokens && Array.isArray(results.tokens)) {
+                  results.tokens = results.tokens.filter(token => {
+                    if (token.symbol === 'BNB' || token.symbol === 'ETH' || token.symbol === 'SOL') {
+                      return true;
+                    }
+                    return Number(token.balance) > 0.00001;
+                  });
+                }
+                networkResults[network] = results;
+              } else {
+                networkResults[network] = {
+                  error: `Currently have problem: All providers failed for network ${network}`,
+                };
+              }
+
+            } catch (error) {
+              networkResults[network] = {
+                error: `Currently have problem: Failed to process network ${network} - ${error instanceof Error ? error.message : String(error)}`,
+              };
+            }
+
+            onProgress?.({
+              progress: ((supportedNetworks.indexOf(network) + 1) / supportedNetworks.length) * 100,
+              message: `Processed network ${network}`,
             });
           }
 
           return JSON.stringify({
             status: 'success',
-            data: results,
-            errors: Object.keys(errors).length > 0 ? errors : undefined,
-            network,
+            data: networkResults,
             address,
           });
         } catch (error) {
-          console.error(
-            '❌ Error in wallet balance tool:',
-            error instanceof Error ? error.message : error,
-          );
+          console.error('❌ Error in wallet balance tool:', error instanceof Error ? error.message : error);
           return this.handleError(error, args);
         }
       },
