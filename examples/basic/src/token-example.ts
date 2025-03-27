@@ -86,7 +86,7 @@ async function main() {
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
     {
-      model: 'gpt-4',
+      model: 'gpt-4o',
       temperature: 0,
     },
     wallet,
@@ -127,7 +127,7 @@ async function main() {
   console.log('💎 Example 2: Get token info by address on BSC');
   const bscAddressResult = await agent.execute({
     input:
-      'Get information about the token with address "0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1" on BNB chain',
+      'Get information about the token with address "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump" on Solana chain',
   });
   console.log('✓ Token info (BSC address):', bscAddressResult, '\n');
 

@@ -15,7 +15,7 @@ export interface BirdeyeTokenResponse {
         market_cap: number | null;
         liquidity: number;
         network: string;
-        logo_uri: string;
+        // logo_uri: string;
         decimals?: number;
       }>;
     }>;
@@ -35,7 +35,7 @@ export interface TokenOverviewResponse {
       twitter?: string;
       discord?: string;
     };
-    //logoURI: string;
+    // logoURI: string;
     price: number;
     liquidity: number;
     priceChange24hPercent: number;
@@ -52,25 +52,20 @@ export interface TokenOverviewResponse {
 export interface TokenSecurityResponse {
   success: boolean;
   data: {
-    creatorAddress: string;
-    creatorOwnerAddress: string;
-    ownerAddress: string;
-    ownerOfOwnerAddress: string;
-    creationTx: string;
-    creationTime: string;
-    creationSlot: string;
-    mintTx: string;
-    mintTime: string;
-    mintSlot: string;
-    creatorBalance: number;
-    ownerBalance: number;
-    ownerPercentage: number;
-    creatorPercentage: number;
-    metaplexUpdateAuthority: string;
-    metaplexOwnerUpdateAuthority: string;
-    metaplexUpdateAuthorityBalance: number;
-    metaplexUpdateAuthorityPercent: number;
+    // bsc
+    buyTax: string;
+    canTakeBackOwnership: string;
+    hiddenOwner: string;
+    isHoneypot: string;
+    sellTax: string;
+    isMintable: string;
+    // solana
     mutableMetadata: boolean;
+    fakeToken: any;
+    freezeable: any;
+    freezeAuthority: any;
+    transferFeeEnable: any;
+
     top10HolderBalance: number;
     top10HolderPercent: number;
     top10UserBalance: number;
@@ -79,9 +74,6 @@ export interface TokenSecurityResponse {
     totalSupply: number;
     preMarketHolder: any[];
     lockInfo: any;
-    freezeable: boolean;
-    freezeAuthority: string;
-    transferFeeEnable: boolean;
     transferFeeData: any;
     isToken2022: boolean;
     nonTransferable: boolean;

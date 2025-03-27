@@ -15,11 +15,23 @@ export interface TokenInfoSecurity {
   marketCap?: number;
   volume24h?: number;
   priceChange24h?: number;
-  //logoURI?: string;
+  // logoURI?: string;
   verified?: boolean;
+  // bsc
+  buyTax: any;
+  canTakeBackOwnership: string;
+  hiddenOwner: string;
+  isHoneypot: string;
+  sellTax: string;
+  isMintable: string;
+  // solana
+  mutableMetadata: boolean;
+  fakeToken: any;
+  freezeable: any;
+  freezeAuthority: any;
+  transferFeeEnable: any;
+
   top10HolderBalance: number;
-  freezeAuthority: string;
-  freezeable: boolean;
   nonTransferable: boolean;
   lockInfo: any;
   priceUpdatedAt?: number; // Timestamp when price was last updated
@@ -36,10 +48,23 @@ export interface TokenInfo {
     usd?: number;
     nativeToken?: number;
   };
+  buyTax?: string;
+  canTakeBackOwnership?: string;
+  hiddenOwner?: string;
+  isHoneypot?: string;
+  sellTax?: string;
+  isMintable?: string;
+  // solana
+  mutableMetadata?: boolean;
+  fakeToken?: any;
+  freezeable?: any;
+  freezeAuthority?: any;
+  transferFeeEnable?: any;
+
   marketCap?: number;
   volume24h?: number;
   priceChange24h?: number;
-  //logoURI?: string;
+  // logoURI?: string;
   verified?: boolean;
   priceUpdatedAt?: number;
 }
@@ -86,7 +111,7 @@ export const TokenInfoSchema = z.object({
   marketCap: z.number().optional(),
   volume24h: z.number().optional(),
   priceChange24h: z.number().optional(),
-  //logoURI: z.string().optional(),
+  // logoURI: z.string().optional(),
   verified: z.boolean().optional(),
   priceUpdatedAt: z.number().optional(),
 });
