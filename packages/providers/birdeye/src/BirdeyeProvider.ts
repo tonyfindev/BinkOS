@@ -138,13 +138,13 @@ export class BirdeyeProvider implements ITokenProvider, IWalletProvider {
     network: NetworkName,
   ): TokenInfoSecurity {
     return {
-      address: tokenData.address,
-      symbol: tokenData.symbol,
-      name: tokenData.name,
-      decimals: tokenData.decimals || 0,
+      address: tokenData?.address,
+      symbol: tokenData?.symbol,
+      name: tokenData?.name,
+      decimals: tokenData?.decimals || 0,
       network,
       price: {
-        usd: tokenData.price,
+        usd: tokenData?.price,
       },
       marketCap: tokenData.market_cap || undefined,
       volume24h: tokenData.volume_24h_usd,
@@ -178,13 +178,13 @@ export class BirdeyeProvider implements ITokenProvider, IWalletProvider {
     network: NetworkName,
   ): TokenInfoSecurity {
     return {
-      address: data.address,
-      symbol: data.symbol,
-      name: data.name,
-      decimals: data.decimals,
+      address: data?.address,
+      symbol: data?.symbol,
+      name: data?.name,
+      decimals: data?.decimals,
       network,
       price: {
-        usd: data.price,
+        usd: data?.price,
       },
       marketCap: data.marketCap ?? data.mc,
       volume24h: data.v24hUSD,

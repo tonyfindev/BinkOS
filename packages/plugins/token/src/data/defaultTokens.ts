@@ -12,7 +12,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Binance Coin',
       decimals: 18,
       network: NetworkName.BNB,
-      // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/bnb.png',
+      //logoURI: 'https://tokens.pancakeswap.finance/images/symbol/bnb.png',
       verified: true,
     },
     '0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1': {
@@ -32,7 +32,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Binance USD',
       decimals: 18,
       network: NetworkName.BNB,
-      // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/busd.png',
+      //logoURI: 'https://tokens.pancakeswap.finance/images/symbol/busd.png',
       verified: true,
     },
     // USDT
@@ -95,8 +95,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       symbol: 'USDC',
       name: 'USD Coin',
       decimals: 6,
-      network: NetworkName.ETHEREUM,
-      // logoURI: 'https://tokens.uniswap.org/images/usdc.png',
+      network: NetworkName.ETHEREUM,      // logoURI: 'https://tokens.uniswap.org/images/usdc.png',
       verified: true,
     },
     // WBTC
