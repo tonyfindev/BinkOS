@@ -70,7 +70,7 @@ export class ExecutorGraph {
 
     // If no tools are called, we can finish (respond to the user)
     if (!lastMessage?.tool_calls?.length) {
-      return END;
+      return 'end';
     }
 
     if (lastMessage?.tool_calls?.length && lastMessage?.tool_calls[0]?.name === 'terminate') {
@@ -213,16 +213,20 @@ export class ExecutorGraph {
       .addNode('executor_tools', new ToolNode(this.tools))
       .addNode('executor_terminate', this.executorTerminateNode.bind(this))
       .addNode('ask_user', this.askNode.bind(this))
+      .addNode('end', () => {
+        return {};
+      })
       .addEdge(START, 'executor_agent')
       .addConditionalEdges('executor_agent', this.routeAfterAgent, {
-        __end__: END,
+        end: 'end',
         ask_user: 'ask_user',
         executor_tools: 'executor_tools',
         executor_terminate: 'executor_terminate',
       })
       .addEdge('ask_user', 'executor_agent')
       .addEdge('executor_tools', 'executor_agent')
-      .addEdge('executor_terminate', END);
+      .addEdge('executor_terminate', 'end')
+      .addEdge('end', END);
 
     return executorGraph.compile();
   }

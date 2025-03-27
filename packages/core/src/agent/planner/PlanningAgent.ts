@@ -28,7 +28,7 @@ import { PlannerGraph } from './graph/PlannerGraph';
 import { ExecutorGraph } from './graph/ExecutorGraph';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { shouldBindTools } from './utils/llm';
+import { cleanToolParameters, shouldBindTools } from './utils/llm';
 import { BasicQuestionGraph } from './graph/BasicQuestionGraph';
 
 const StateAnnotation = Annotation.Root({
@@ -148,24 +148,6 @@ NOTE:
     return this.getTools().filter(t => toolNames.includes(t.name));
   }
 
-  async executorAnswerNode(state: typeof StateAnnotation.State) {
-    const prompt = ChatPromptTemplate.fromMessages([
-      ['system', this.config.systemPrompt || ''],
-      new MessagesPlaceholder('chat_history'),
-      ['human', `{input}`],
-      ['human', 'plans: {plans}'],
-      ['system', 'You need to response user after execute the plan'],
-    ]);
-
-    const response = await prompt.pipe(this.model).invoke({
-      input: state.input,
-      plans: JSON.stringify(state.plans),
-      chat_history: state.chat_history || [],
-    });
-
-    return { chat_history: [response], answer: response.content };
-  }
-
   protected async createExecutor(): Promise<CompiledStateGraph<any, any, any, any, any, any>> {
     const executorTools = this.getTools();
 
@@ -208,6 +190,7 @@ NOTE:
       createPlanPrompt: createPlanPrompt,
       updatePlanPrompt: updatePlanPrompt,
       activeTasksPrompt: '',
+      answerPrompt: this.config.systemPrompt || '',
       listToolsPrompt: toolsStr,
       agent: this,
     }).create();
@@ -221,7 +204,6 @@ NOTE:
     this.workflow = new StateGraph(StateAnnotation)
       .addNode('supervisor', this.supervisorNode.bind(this))
       .addNode('basic_question', basicQuestionGraph)
-      .addNode('executor_answer', this.executorAnswerNode.bind(this))
       .addNode('planner', plannerGraph)
       .addNode('executor', executorGraph)
       .addEdge(START, 'supervisor')
@@ -242,20 +224,19 @@ NOTE:
       .addConditionalEdges(
         'planner',
         state => {
-          if (state.next_node === END) {
-            return 'executor_answer';
+          if (state.next_node === END && state.answer != null) {
+            return END;
           } else {
             return 'executor';
           }
         },
         {
           executor: 'executor',
-          executor_answer: 'executor_answer',
+          END,
         },
       )
       .addEdge('executor', 'planner')
-      .addEdge('basic_question', END)
-      .addEdge('executor_answer', END);
+      .addEdge('basic_question', END);
 
     const checkpointer = new MemorySaver();
 
@@ -325,7 +306,4 @@ NOTE:
 
     return response.answer;
   }
-}
-function cleanToolParameters(parameters: Record<string, unknown>): Record<string, unknown> {
-  throw new Error('Function not implemented.');
 }

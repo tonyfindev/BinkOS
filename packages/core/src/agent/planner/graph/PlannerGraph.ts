@@ -40,19 +40,21 @@ export class PlannerGraph {
   private activeTasksPrompt: string;
   private listToolsPrompt: string;
   private agent: BaseAgent;
-
+  private answerPrompt: string;
   constructor({
     model,
     createPlanPrompt,
     updatePlanPrompt,
     activeTasksPrompt,
     listToolsPrompt,
+    answerPrompt,
     agent,
   }: {
     model: BaseLanguageModel;
     createPlanPrompt: string;
     updatePlanPrompt: string;
     activeTasksPrompt: string;
+    answerPrompt: string;
     listToolsPrompt: string;
     agent: BaseAgent;
   }) {
@@ -61,6 +63,7 @@ export class PlannerGraph {
     this.updatePlanPrompt = updatePlanPrompt;
     this.activeTasksPrompt = activeTasksPrompt;
     this.listToolsPrompt = listToolsPrompt;
+    this.answerPrompt = answerPrompt;
     this.agent = agent;
   }
 
@@ -186,14 +189,14 @@ export class PlannerGraph {
     });
     if (planToTerminate) {
       return {
-        next_node: END,
+        next_node: 'end',
       };
     }
 
     const prompt = ChatPromptTemplate.fromMessages([
       [
         'system',
-        `Based on the plan, Select the tasks to executor need handle, You can select multiple tasks. \n` +
+        `Based on the plan, Select the tasks to executor need handle, You can select multiple tasks. You should prioritize tasks that require more information.\n` +
           this.activeTasksPrompt,
       ],
       ['human', `The current plan: {plan}`],
@@ -237,10 +240,12 @@ export class PlannerGraph {
           selected_task_indexes: toolArgs.task_indexes,
           active_plan_id: toolArgs.plan_id,
           executor_input: next_input,
+          next_node: END,
+          answer: null,
         };
       } else if (toolName === 'terminate') {
         return {
-          next_node: END,
+          next_node: 'planning_answer',
         };
       }
     }
@@ -250,18 +255,51 @@ export class PlannerGraph {
     return !state?.plans || state?.plans.length === 0 ? 'create_plan' : 'update_plan';
   }
 
+  async answerNode(state: typeof StateAnnotation.State) {
+    const prompt = ChatPromptTemplate.fromMessages([
+      ['system', this.answerPrompt || ''],
+      new MessagesPlaceholder('chat_history'),
+      ['human', `{input}`],
+      ['human', 'plans: {plans}'],
+      ['system', 'You need to response user after execute the plan'],
+    ]);
+
+    const response = await prompt.pipe(this.model).invoke({
+      input: state.input,
+      plans: JSON.stringify(state.plans),
+      chat_history: state.chat_history || [],
+    });
+
+    return { chat_history: [response], answer: response.content, next_node: END };
+  }
+
   create() {
     const plannerGraph = new StateGraph(StateAnnotation)
       .addNode('create_plan', this.createPlanNode.bind(this))
       .addNode('update_plan', this.updatePlanNode.bind(this))
       .addNode('select_tasks', this.selectTasksNode.bind(this))
+      .addNode('planning_answer', this.answerNode.bind(this))
+      .addNode('end', () => {
+        return {};
+      })
       .addConditionalEdges(START, this.shouldCreateOrUpdatePlan, {
         create_plan: 'create_plan',
         update_plan: 'update_plan',
       })
+      .addConditionalEdges(
+        'select_tasks',
+        (state: typeof StateAnnotation.State) => {
+          return state.next_node === END && state.answer == null ? 'end' : 'planning_answer';
+        },
+        {
+          end: 'end',
+          planning_answer: 'planning_answer',
+        },
+      )
       .addEdge('create_plan', 'select_tasks')
       .addEdge('update_plan', 'select_tasks')
-      .addEdge('select_tasks', END);
+      .addEdge('planning_answer', 'end')
+      .addEdge('end', END);
 
     return plannerGraph.compile();
   }

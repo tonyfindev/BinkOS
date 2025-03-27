@@ -56,7 +56,7 @@ export function shouldBindTools(
 }
 
 // remove description, $schema, additionalProperties, enum, default in parameters of toolJson.function.parameters
-const cleanToolParameters = (params: any) => {
+export const cleanToolParameters = (params: any) => {
   if (!params || typeof params !== 'object') return params;
 
   const newParams = { ...params };
