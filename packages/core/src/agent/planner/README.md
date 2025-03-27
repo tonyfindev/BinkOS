@@ -71,84 +71,76 @@ All of this works together to provide a powerful but easy-to-use interface for m
 
 ![Planning Agent Simple Workflow](../../../docs/assets/planning-agent-simple.png)
 
-When you ask the Planning Agent to do something, it follows this path:
+Think of the Planning Agent as a smart helper with different departments that work together. Here's the simple picture:
 
-1. **Supervisor**: First, it looks at your request and decides what kind of help you need.
+1. **Supervisor**: This is like the receptionist who looks at your request and decides which department should handle it.
 
-2. It then takes one of three routes:
+2. The receptionist then sends your request down one of these paths:
 
-   - **Basic Question Path**: For simple questions that don't need complex planning
-   - **Planning Path**: For tasks that need multiple steps to execute
-   - **Executor Answer**: After completing tasks, it provides a clear response
+   - **Basic Question Path**: For simple questions like "What's my balance?" - gets you a quick answer
+   - **Planner Path**: For complex requests like "Transfer tokens between blockchains" - needs careful planning
+   - **Executor Path**: For actually carrying out the plans that were made
 
-3. All paths eventually lead to a complete answer to your request.
+3. No matter which path your request takes, you'll always get a clear answer at the end.
 
-This approach helps the Planning Agent handle both simple requests efficiently and complex tasks thoroughly.
+This smart system means you get fast answers for simple questions and careful handling for complex tasks.
 
 ### The Decision-Making Supervisor
 
-The Supervisor is a critical component that acts as the "brain" of the Planning Agent. It analyzes your request and makes a key decision:
+The Supervisor is like a smart traffic controller for your requests. It asks:
 
-- Is this a simple question that can be answered directly?
-- Or is this a complex request that requires planning and execution?
+- Can this be answered with a simple lookup? (Basic Question)
+- Or does this need a step-by-step plan to complete? (Planning)
 
-The Supervisor looks for specific indicators in your request:
+Here's what the Supervisor looks for:
 
 - **Simple Questions** (Basic Question Path):
 
-  - Information requests: "What's my ETH balance?"
-  - Status queries: "Show me my recent transactions"
-  - Market information: "What's the current price of Bitcoin?"
-  - Account details: "Which wallets do I have connected?"
-  - Basic explanations: "How does staking work?"
+  - Checking balances: "What's my ETH balance?"
+  - Transaction history: "Show me my recent transactions"
+  - Price checks: "What's the current price of Bitcoin?"
+  - Account info: "Which wallets do I have connected?"
+  - Learning: "How does staking work?"
 
 - **Complex Requests** (Planning Path):
-  - Any blockchain transaction: "Transfer 0.5 ETH to this address"
-  - Multi-step operations: "Swap USDC to ETH and bridge to Polygon"
-  - Actions requiring approvals: "Stake my ETH in Lido"
+  - Any money movement: "Transfer 0.5 ETH to this address"
+  - Multi-step tasks: "Swap USDC to ETH and bridge to Polygon"
+  - Actions needing permission: "Stake my ETH in Lido"
   - Cross-chain operations: "Move my assets from Ethereum to Solana"
-  - Financial strategies: "Rebalance my portfolio to 60% ETH and 40% BTC"
+  - Portfolio management: "Rebalance my portfolio to 60% ETH and 40% BTC"
 
-By making this initial distinction, the Supervisor ensures:
+This smart sorting system gives you:
 
-- Simple questions get quick, direct answers without unnecessary planning
-- Complex requests get the detailed planning and careful execution they require
-- Your time isn't wasted with complex planning for straightforward questions
-- Critical operations have proper safeguards and error handling
-
-This intelligent routing system gives you the best of both worlds: speed for simple questions and thoroughness for complex tasks.
+- Quick answers when speed matters
+- Careful planning when accuracy is crucial
+- The right level of attention for every request
 
 ### The Expanded View
 
 ![Planning Agent Expanded Workflow](../../../docs/assets/planning-agent-expanded.png)
 
-Behind the scenes, the Planning Agent's workflow is more intricate:
+Behind the scenes, there's a bit more happening. Imagine a company with specialized departments:
 
-1. **Supervisor**: Analyzes your request and routes it to the appropriate system.
+1. **Supervisor**: The main desk that receives all requests and directs traffic.
 
-2. If it's a **Basic Question**:
+2. If your request is a **Basic Question**:
 
-   - The agent calls relevant tools to find information
-   - It crafts a response directly without complex planning
-   - This path is fast and efficient for simple queries
+   - It goes to the "agent" department that can quickly look up information
+   - This team has access to various "tools" to find what you need
+   - You get a direct answer without any complicated processes
+   - The path ends with a clear response
 
-3. If it needs **Planning**:
+3. If your request needs **Planning**:
 
-   - **Create Plan**: Breaks down your request into specific tasks
-   - **Update Plan**: Continuously refines the plan as tasks complete
-   - **Select Tasks**: Determines which tasks to execute next
-   - These components work together to create and manage a smart execution plan
+   - **Create Plan**: Like a project manager breaking down your big request into smaller tasks
+   - **Update Plan**: Adjusts the plan as each step completes (like when a map reroutes if there's traffic)
+   - **Select Tasks**: Chooses which task to do next in the right order
+   - **Planning Answer**: Prepares a clear explanation of what happened
 
-4. For the **Execution**:
+4. For actually doing the tasks, there's the **Executor**:
+   - **Executor Agent**: The team that carries out the planned tasks
+   - **Executor Tools**: Special equipment for interacting with different blockchains
+   - **Ask User**: Sometimes checks with you if they need more information
+   - **Executor Terminate**: Can stop the process if needed (like if something goes wrong)
 
-   - **Executor Agent**: Takes the selected tasks and executes them
-   - Uses specialized tools to interact with blockchains
-   - Can terminate if needed (e.g., if errors can't be resolved)
-   - Reports results back to the planner
-
-5. Finally, the **Executor Answer** system:
-   - Collects all results from the execution
-   - Translates technical details into human-friendly language
-   - Presents you with a clear summary of what was accomplished
-
-This multi-stage process allows the Planning Agent to handle very complex blockchain operations while keeping you informed every step of the way. Most importantly, all this complexity happens behind the scenes, so you only need to make a simple request to get powerful results.
+All these teams work together seamlessly - you just ask what you want, and the Planning Agent handles all this complexity behind the scenes. You only see the final result: your task completed successfully with a clear explanation of what happened.
