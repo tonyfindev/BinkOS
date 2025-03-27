@@ -15,7 +15,7 @@ export interface TokenInfoSecurity {
   marketCap?: number;
   volume24h?: number;
   priceChange24h?: number;
-  logoURI?: string;
+  //logoURI?: string;
   verified?: boolean;
   top10HolderBalance: number;
   freezeAuthority: string;
@@ -39,7 +39,7 @@ export interface TokenInfo {
   marketCap?: number;
   volume24h?: number;
   priceChange24h?: number;
-  logoURI?: string;
+  //logoURI?: string;
   verified?: boolean;
   priceUpdatedAt?: number;
 }
@@ -86,7 +86,7 @@ export const TokenInfoSchema = z.object({
   marketCap: z.number().optional(),
   volume24h: z.number().optional(),
   priceChange24h: z.number().optional(),
-  logoURI: z.string().optional(),
+  //logoURI: z.string().optional(),
   verified: z.boolean().optional(),
   priceUpdatedAt: z.number().optional(),
 });
