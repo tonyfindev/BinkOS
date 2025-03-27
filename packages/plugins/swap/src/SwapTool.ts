@@ -516,7 +516,7 @@ export class SwapTool extends BaseTool {
             toToken: quote.toToken,
             fromAmount: quote.fromAmount.toString(),
             toAmount: quote.toAmount.toString(),
-            transactionHash: finalReceipt?.hash || '',
+            transactionHash: finalReceipt.hash,
             priceImpact: quote.priceImpact,
             type: quote.type,
             network,

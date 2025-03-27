@@ -243,7 +243,7 @@ export class CancelLimitOrdersTool extends BaseTool {
               //unwrap token if needed
               userAddress = await wallet.getAddress(network);
               const amount = statusOrderId[6][4];
-              const unwrapTx = await selectedProvider.unwrapToken(amount, userAddress);
+              const unwrapTx = await selectedProvider.unwrapToken(amount.toString(), userAddress);
 
               const unwrapReceipt = await wallet.signAndSendTransaction(network, {
                 to: WrapToken.WBNB,
