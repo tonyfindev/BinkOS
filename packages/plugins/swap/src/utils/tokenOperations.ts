@@ -13,6 +13,7 @@ import {
   isSolanaNetwork,
   validateNetwork,
 } from './networkUtils';
+import { Metaplex } from '@metaplex-foundation/js';
 
 // Default cache TTL (30 minutes)
 export const DEFAULT_CACHE_TTL = 30 * 60 * 1000;
@@ -51,26 +52,47 @@ export async function getTokenInfoSolana(
   tokenAddress: string,
   network: NetworkName,
 ): Promise<Token> {
-  const connection = getSolanaProviderForNetwork(network);
-  const tokenMint = new PublicKey(tokenAddress);
-  const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
+  try {
+    const connection = getSolanaProviderForNetwork(network);
+    const tokenMint = new PublicKey(tokenAddress);
+    const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
 
-  if (!tokenInfo.value || !('parsed' in tokenInfo.value.data)) {
-    throw new Error(`Invalid token info for ${tokenAddress} on ${network}`);
+    if (!tokenInfo.value || !('parsed' in tokenInfo.value.data)) {
+      throw new Error(`Invalid token info for ${tokenAddress} on ${network}`);
+    }
+
+    const parsedData = tokenInfo.value.data.parsed;
+    if (!('info' in parsedData)) {
+      throw new Error(`Missing token info for ${tokenAddress}`);
+    }
+
+    const { decimals, symbol } = parsedData.info;
+
+    const metadata = await parseMetaplexMetadata(connection, tokenAddress);
+
+    return {
+      address: tokenAddress,
+      decimals: Number(decimals),
+      symbol: metadata?.symbol || symbol,
+    };
+  } catch (error) {
+    throw new Error(`Error getting token info for ${tokenAddress} on ${network}: ${error}`);
   }
+}
 
-  const parsedData = tokenInfo.value.data.parsed;
-  if (!('info' in parsedData)) {
-    throw new Error(`Missing token info for ${tokenAddress}`);
+async function parseMetaplexMetadata(connection: Connection, mintAddress: string): Promise<any> {
+  try {
+    const metaplex = Metaplex.make(connection);
+    const token = await metaplex.nfts().findByMint({ mintAddress: new PublicKey(mintAddress) });
+    return {
+      name: token.name,
+      symbol: token.symbol,
+      uri: token.uri,
+      mintAddress,
+    };
+  } catch (error) {
+    throw new Error(`Error parsing Metaplex metadata: ${error}`);
   }
-
-  const { decimals, symbol } = parsedData.info;
-
-  return {
-    address: tokenAddress,
-    decimals: Number(decimals),
-    symbol,
-  };
 }
 
 /**

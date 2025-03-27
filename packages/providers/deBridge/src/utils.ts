@@ -1,7 +1,4 @@
 import { NetworkName } from '@binkai/core';
-import { Connection, ParsedAccountData } from '@solana/web3.js';
-import { PublicKey } from '@solana/web3.js';
-import { ethers, Contract, Interface, Provider } from 'ethers';
 
 export enum ChainID {
   ARBITRUM_ONE = 42161,
@@ -61,66 +58,9 @@ export const MAPPING_TOKEN_TAKER = {
 } as const;
 export type SupportedTokenTaker = keyof typeof MAPPING_TOKEN_TAKER;
 
-//deBridgeContract: '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251',
-
 export interface TokenInfo {
   address: string;
   decimals: number;
   symbol: string;
   chainId: number;
 }
-
-export const getTokenInfoSolana = async (tokenAddress: string, rpc: string): Promise<TokenInfo> => {
-  // For native SOL
-  if (tokenAddress === Tokens.SOL) {
-    return {
-      address: tokenAddress,
-      decimals: 9,
-      symbol: 'SOL',
-      chainId: ChainID.SOLANA,
-    };
-  }
-
-  // For other SPL tokens
-  const connection = new Connection(rpc);
-  const mint = new PublicKey(tokenAddress);
-  try {
-    const mintInfo = await connection.getParsedAccountInfo(mint);
-    if (!mintInfo.value || !mintInfo.value.data) {
-      throw new Error('Failed to fetch token mint info');
-    }
-    const parsedData = mintInfo.value.data as ParsedAccountData;
-    return {
-      address: tokenAddress,
-      decimals: parsedData.parsed.info.decimals,
-      symbol: parsedData.parsed.info.symbol,
-      chainId: ChainID.SOLANA,
-    };
-  } catch (error) {
-    console.error('Error fetching Solana token decimals:', error);
-    throw new Error(`Failed to get decimals for token ${tokenAddress}`);
-  }
-};
-
-export const getTokenInfoEVM = async (
-  tokenAddress: string,
-  rpc: string,
-  chainId: number,
-): Promise<TokenInfo> => {
-  const provider = new ethers.JsonRpcProvider(rpc);
-
-  const erc20Interface = new Interface([
-    'function decimals() view returns (uint8)',
-    'function symbol() view returns (string)',
-  ]);
-
-  const contract = new Contract(tokenAddress, erc20Interface, provider);
-  const [decimals, symbol] = await Promise.all([contract.decimals(), contract.symbol()]);
-
-  return {
-    address: tokenAddress.toLowerCase() as `0x${string}`,
-    decimals: Number(decimals),
-    symbol,
-    chainId: chainId,
-  };
-};

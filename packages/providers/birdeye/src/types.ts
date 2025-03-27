@@ -35,7 +35,7 @@ export interface TokenOverviewResponse {
       twitter?: string;
       discord?: string;
     };
-    logoURI: string;
+    //logoURI: string;
     price: number;
     liquidity: number;
     priceChange24hPercent: number;
