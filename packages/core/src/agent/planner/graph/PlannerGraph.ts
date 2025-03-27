@@ -15,7 +15,6 @@ import { AskTool } from '../tools/AskTool';
 
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
-  executor_messages: Annotation<string>,
   input: Annotation<string>,
   executor_response_tools: Annotation<ToolMessage[]>,
   plans: Annotation<
@@ -206,10 +205,7 @@ export class PlannerGraph {
     const terminateTool = new TerminateTool();
     const wrappedTerminateTool = this.agent.addTool2CallbackManager(terminateTool);
 
-    const askTool = new AskTool();
-    const wrappedAskTool = this.agent.addTool2CallbackManager(askTool);
-
-    const tools = [wrappedSelectTasksTool, wrappedTerminateTool, wrappedAskTool];
+    const tools = [wrappedSelectTasksTool, wrappedTerminateTool];
     let modelWithTools;
     if (shouldBindTools(this.model, tools)) {
       if (!('bindTools' in this.model) || typeof this.model.bindTools !== 'function') {
@@ -246,74 +242,15 @@ export class PlannerGraph {
         return {
           next_node: END,
         };
-      } else if (toolName === 'ask') {
-        return {
-          next_node: 'ask',
-          ask_question: toolArgs.question,
-        };
       }
     }
-  }
-
-  async askNode(state: typeof StateAnnotation.State) {
-    const message = interrupt({
-      question: state.ask_question,
-    });
-    const createToolCallId = () => {
-      // random 5 characters
-      return Math.random().toString(36).substring(2, 8);
-    };
-    const toolCallId = createToolCallId();
-    return {
-      executor_response_tools: [
-        ...(state.executor_response_tools ?? []),
-        new AIMessage({
-          content: '',
-          tool_calls: [
-            {
-              id: toolCallId,
-              name: 'ask',
-              args: {
-                question: state.ask_question,
-              },
-            },
-          ],
-        }),
-        new ToolMessage({
-          content: message,
-          tool_call_id: toolCallId,
-          name: 'ask',
-        }),
-      ],
-    };
   }
 
   shouldCreateOrUpdatePlan(state: typeof StateAnnotation.State) {
     return !state?.plans || state?.plans.length === 0 ? 'create_plan' : 'update_plan';
   }
 
-  routeAfterSelectTasks(state: typeof StateAnnotation.State) {
-    return state.next_node === 'ask' ? 'ask' : END;
-  }
-
   create() {
-    // const plannerGraph = new StateGraph(StateAnnotation)
-    //   .addNode('create_plan', this.createPlanNode.bind(this))
-    //   .addNode('update_plan', this.updatePlanNode.bind(this))
-    //   .addNode('select_tasks', this.selectTasksNode.bind(this))
-    //   // .addNode('ask', this.askNode.bind(this))
-    //   // .addEdge('ask', 'update_plan')
-    //   .addConditionalEdges(START, this.shouldCreateOrUpdatePlan, {
-    //     create_plan: 'create_plan',
-    //     update_plan: 'update_plan',
-    //   })
-    //   .addEdge('create_plan', 'select_tasks')
-    //   .addEdge('update_plan', 'select_tasks')
-    //   .addConditionalEdges('select_tasks', this.routeAfterSelectTasks, {
-    //     ask: 'ask',
-    //     __end__: END,
-    //   });
-
     const plannerGraph = new StateGraph(StateAnnotation)
       .addNode('create_plan', this.createPlanNode.bind(this))
       .addNode('update_plan', this.updatePlanNode.bind(this))

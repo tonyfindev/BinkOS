@@ -26,7 +26,6 @@ const createToolCallId = () => {
 const StateAnnotation = Annotation.Root({
   executor_response_tools: Annotation<ToolMessage[]>,
   executor_input: Annotation<string>,
-  executor_messages: Annotation<string>,
   messages: Annotation<BaseMessage[]>({
     reducer: (x, y) => x.concat(y),
   }),
@@ -141,31 +140,10 @@ export class ExecutorGraph {
       messages: [...(state.messages ?? [])],
     });
 
-    // if (
-    //   !responseMessage.tool_calls?.length ||
-    //   (responseMessage?.tool_calls?.length && responseMessage?.tool_calls[0]?.name === 'terminate')
-    // ) {
-    //   const responseTools = this.getExecutorResponseTools(state.messages);
-    //   return {
-    //     messages: [responseMessage],
-    //     executor_response_tools: responseTools,
-    //   };
-    // }
-
     return { messages: [responseMessage] };
   }
 
   getExecutorResponseTools(messages: BaseMessage[]) {
-    console.log(
-      'getExecutorResponseTools',
-      messages.map(m => {
-        return m.constructor.name;
-      }),
-    );
-    console.log(
-      'messages',
-      messages?.filter((m: BaseMessage) => m.constructor.name == 'ToolMessage'),
-    );
     const responseTools = messages
       ?.filter((m: BaseMessage) => m.constructor.name == 'ToolMessage')
       .map((item: BaseMessage) => {
@@ -181,7 +159,7 @@ export class ExecutorGraph {
               content:
                 'You asked user: ' +
                 askUserMessage?.tool_calls?.[0]?.args?.question +
-                '\n User response: ' +
+                '\nUser response: ' +
                 item.content,
             };
           }
@@ -193,7 +171,6 @@ export class ExecutorGraph {
 
   async executorTerminateNode(state: typeof StateAnnotation.State) {
     const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
-    console.log('executorTerminateNode', this.getExecutorResponseTools(state.messages));
     return {
       executor_response_tools: [
         ...this.getExecutorResponseTools(state.messages),
@@ -213,7 +190,6 @@ export class ExecutorGraph {
       question: lastMessage.tool_calls?.[0]?.args?.question ?? '',
     });
     this.agent.setAskUser(false);
-    console.log('userMessage', userMessage);
     const createToolCallId = () => {
       // random 5 characters
       return Math.random().toString(36).substring(2, 8);
