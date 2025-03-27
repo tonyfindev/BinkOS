@@ -221,7 +221,6 @@ export class JupiterProvider extends BaseSwapProvider {
 
       // build transaction
       const getSwapBuyAggregator = await this.getSwapBuyAggregator(swapData, userAddress);
-
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
       const quote: SwapQuote = {
         quoteId: quoteId,

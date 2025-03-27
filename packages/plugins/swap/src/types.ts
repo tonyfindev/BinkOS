@@ -26,6 +26,7 @@ export interface SwapParams {
   amount: string;
   type: 'input' | 'output'; // Whether amount is input or output
   slippage: number;
+  atPrice?: number;
 }
 
 export interface Transaction {

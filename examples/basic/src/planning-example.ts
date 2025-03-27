@@ -248,7 +248,7 @@ async function main() {
   // const result = await agent.execute("My balance on BNB chain");
 
   // const chatHistory = [new HumanMessage('Swap 100 Bink'), new AIMessage('hi')];
-  const result = await agent.execute({ input: 'Swap 0.01 SOL to  USDC on SOL network' });
+  const result = await agent.execute({ input: 'Swap 5% SOL to USDC' });
   console.log('✓ Result:', result, '\n');
 
   // Example 1: Buy with exact input amount on BNB Chain
