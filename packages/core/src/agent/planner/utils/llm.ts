@@ -54,3 +54,57 @@ export function shouldBindTools(
   }
   return false;
 }
+
+// remove description, $schema, additionalProperties, enum, default in parameters of toolJson.function.parameters
+export const cleanToolParameters = (params: any) => {
+  if (!params || typeof params !== 'object') return params;
+
+  const newParams = { ...params };
+
+  // Remove specific fields at current level
+  if ('description' in newParams) {
+    delete newParams.description;
+  }
+
+  // Remove $schema field
+  if ('$schema' in newParams) {
+    delete newParams.$schema;
+  }
+
+  // Remove additionalProperties field
+  if ('additionalProperties' in newParams) {
+    delete newParams.additionalProperties;
+  }
+
+  // Remove enum field
+  if ('enum' in newParams) {
+    delete newParams.enum;
+  }
+
+  // Remove default field
+  if ('default' in newParams) {
+    delete newParams.default;
+  }
+
+  // Process properties recursively and remove non-required fields
+  if (newParams.properties && typeof newParams.properties === 'object') {
+    const required = Array.isArray(newParams.required) ? newParams.required : [];
+
+    // Process each property and keep only required ones
+    for (const key in newParams.properties) {
+      if (required.includes(key)) {
+        newParams.properties[key] = cleanToolParameters(newParams.properties[key]);
+      } else {
+        // Remove non-required properties
+        delete newParams.properties[key];
+      }
+    }
+  }
+
+  // Process items if it's an array schema
+  if (newParams.items && typeof newParams.items === 'object') {
+    newParams.items = cleanToolParameters(newParams.items);
+  }
+
+  return newParams;
+};

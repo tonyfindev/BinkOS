@@ -93,11 +93,11 @@ export class BridgeTool extends BaseTool {
     return z.object({
       fromNetwork: z
         .enum(supportedNetworks as [string, ...string[]])
-        .default(this.defaultNetwork)
+        // .default(this.defaultNetwork)
         .describe('The blockchain network to execute the bridge from'),
       toNetwork: z
         .enum(supportedNetworks as [string, ...string[]])
-        .default(this.defaultNetwork)
+        // .default(this.defaultNetwork)
         .describe(
           'The blockchain network to execute the bridge to or on symbor native token. Example: Solana similar SOL or on BNB',
         ),

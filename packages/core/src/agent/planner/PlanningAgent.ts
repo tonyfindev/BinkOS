@@ -19,6 +19,7 @@ import {
   getCurrentTaskInput,
   InMemoryStore,
   LangGraphRunnableConfig,
+  MemorySaver,
   START,
 } from '@langchain/langgraph';
 import { Annotation, StateGraph } from '@langchain/langgraph';
@@ -27,12 +28,12 @@ import { PlannerGraph } from './graph/PlannerGraph';
 import { ExecutorGraph } from './graph/ExecutorGraph';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { shouldBindTools } from './utils/llm';
+import { cleanToolParameters, shouldBindTools } from './utils/llm';
 import { BasicQuestionGraph } from './graph/BasicQuestionGraph';
+import { threadId } from 'worker_threads';
 
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
-
   active_plan_id: Annotation<string>,
   selected_task_indexes: Annotation<number[]>,
   next_node: Annotation<string>,
@@ -53,6 +54,8 @@ const StateAnnotation = Annotation.Root({
 export class PlanningAgent extends Agent {
   private workflow!: StateGraph<any, any, any, any, any, any>;
   public graph!: CompiledStateGraph<any, any, any, any, any, any>;
+  private isAskUser = false;
+  private askUserTimeout: NodeJS.Timeout | null = null;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super(config, wallet, networks);
@@ -60,6 +63,20 @@ export class PlanningAgent extends Agent {
 
   protected getDefaultTools(): ITool[] {
     return [];
+  }
+
+  public async setAskUser(isAskUser: boolean) {
+    this.isAskUser = isAskUser;
+    if (isAskUser) {
+      this.askUserTimeout = setTimeout(() => {
+        this.isAskUser = false;
+      }, 60 * 1000);
+    } else {
+      if (this.askUserTimeout) {
+        clearTimeout(this.askUserTimeout);
+        this.askUserTimeout = null;
+      }
+    }
   }
 
   async supervisorNode(state: typeof StateAnnotation.State) {
@@ -132,29 +149,14 @@ NOTE:
     return this.getTools().filter(t => toolNames.includes(t.name));
   }
 
-  async executorAnswerNode(state: typeof StateAnnotation.State) {
-    const prompt = ChatPromptTemplate.fromMessages([
-      ['system', this.config.systemPrompt || ''],
-      new MessagesPlaceholder('chat_history'),
-      ['human', `{input}`],
-      ['human', 'plans: {plans}'],
-      ['system', 'You need to response user after execute the plan'],
-    ]);
-
-    const response = await prompt.pipe(this.model).invoke({
-      input: state.input,
-      plans: JSON.stringify(state.plans),
-      chat_history: state.chat_history || [],
-    });
-
-    return { chat_history: [response], answer: response.content };
-  }
-
   protected async createExecutor(): Promise<CompiledStateGraph<any, any, any, any, any, any>> {
     const executorTools = this.getTools();
 
-    const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps.`;
+    const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps. 
+NOTE:
+- Never call a tool more than once`;
     const defaultPlanPrompt = `NOTE: 
+- Create task ask user to provide more information
 - You must get balance to get any token (must include token symbol and token address) in wallet
 - You need token address when execute on-chain transaction
 - You can create multiple plans to execute the user's request.
@@ -169,15 +171,21 @@ NOTE:
       defaultPlanPrompt;
 
     let toolsStr = '';
+
     for (const tool of executorTools) {
       const toolJson = convertToOpenAITool(tool);
-      toolsStr += `${JSON.stringify({ name: toolJson.function.name })}\n`;
+      // Apply the cleanToolParameters function to clean the parameters
+      if (toolJson.function.parameters) {
+        toolJson.function.parameters = cleanToolParameters(toolJson.function.parameters);
+      }
+      toolsStr += `${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n`;
     }
 
     const executorGraph = new ExecutorGraph({
       model: this.model,
       executorPrompt,
       tools: executorTools,
+      agent: this,
     }).create();
 
     const plannerGraph = new PlannerGraph({
@@ -185,6 +193,7 @@ NOTE:
       createPlanPrompt: createPlanPrompt,
       updatePlanPrompt: updatePlanPrompt,
       activeTasksPrompt: '',
+      answerPrompt: this.config.systemPrompt || '',
       listToolsPrompt: toolsStr,
       agent: this,
     }).create();
@@ -198,7 +207,6 @@ NOTE:
     this.workflow = new StateGraph(StateAnnotation)
       .addNode('supervisor', this.supervisorNode.bind(this))
       .addNode('basic_question', basicQuestionGraph)
-      .addNode('executor_answer', this.executorAnswerNode.bind(this))
       .addNode('planner', plannerGraph)
       .addNode('executor', executorGraph)
       .addEdge(START, 'supervisor')
@@ -219,28 +227,48 @@ NOTE:
       .addConditionalEdges(
         'planner',
         state => {
-          if (state.next_node === END) {
-            return 'executor_answer';
+          if (state.next_node === END && state.answer != null) {
+            return END;
           } else {
             return 'executor';
           }
         },
         {
           executor: 'executor',
-          executor_answer: 'executor_answer',
+          __end__: END,
         },
       )
       .addEdge('executor', 'planner')
-      .addEdge('basic_question', END)
-      .addEdge('executor_answer', END);
+      .addEdge('basic_question', END);
 
-    this.graph = await this.workflow.compile();
+    const checkpointer = new MemorySaver();
+
+    this.graph = await this.workflow.compile({ checkpointer });
 
     return this.graph;
   }
 
   // Implementing the message persistence and history logic in the execute method
   async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
+    if (typeof commandOrParams === 'string') {
+      commandOrParams = {
+        input: commandOrParams,
+        threadId: uuidv4(),
+      };
+    }
+
+    if (this.isAskUser && typeof commandOrParams !== 'string') {
+      return (
+        await this.graph.invoke(
+          { resume: { input: commandOrParams.input } },
+          {
+            configurable: {
+              thread_id: commandOrParams.threadId,
+            },
+          },
+        )
+      ).answer;
+    }
     let _history: MessageEntity[] = [];
 
     // Ensure database is initialized before accessing
@@ -271,7 +299,14 @@ NOTE:
     const input = typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
     const chat_history = history;
 
-    const response = await this.graph.invoke({ input, chat_history });
+    const response = await this.graph.invoke(
+      { input, chat_history },
+      {
+        configurable: {
+          thread_id: commandOrParams.threadId,
+        },
+      },
+    );
 
     try {
       const threadId = typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
@@ -297,4 +332,7 @@ NOTE:
 
     return response.answer;
   }
+}
+function uuidv4(): `${string}-${string}-${string}-${string}-${string}` | undefined {
+  throw new Error('Function not implemented.');
 }

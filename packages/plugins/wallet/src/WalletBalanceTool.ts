@@ -101,6 +101,7 @@ export class GetWalletBalanceTool extends BaseTool {
         .describe('The wallet address to query (optional - use agent wallet if not provided)'),
       network: z
         .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon'])
+        .optional()
         .describe('The blockchain to query the wallet on.'),
     });
   }

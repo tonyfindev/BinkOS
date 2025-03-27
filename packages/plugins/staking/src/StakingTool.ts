@@ -95,7 +95,7 @@ export class StakingTool extends BaseTool {
         ),
       network: z
         .enum(supportedNetworks as [string, ...string[]])
-        .default(this.defaultNetwork)
+        // .default(this.defaultNetwork)
         .describe('The blockchain network to execute the staking on'),
       provider: z
         .enum(providers as [string, ...string[]])
