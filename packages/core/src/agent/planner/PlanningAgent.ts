@@ -151,7 +151,9 @@ NOTE:
   protected async createExecutor(): Promise<CompiledStateGraph<any, any, any, any, any, any>> {
     const executorTools = this.getTools();
 
-    const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps.`;
+    const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps. 
+NOTE:
+- Never call a tool more than once`;
     const defaultPlanPrompt = `NOTE: 
 - Create task ask user to provide more information
 - You must get balance to get any token (must include token symbol and token address) in wallet
