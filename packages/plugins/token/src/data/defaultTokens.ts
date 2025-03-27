@@ -12,7 +12,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Binance Coin',
       decimals: 18,
       network: NetworkName.BNB,
-      logoURI: 'https://tokens.pancakeswap.finance/images/symbol/bnb.png',
+      //logoURI: 'https://tokens.pancakeswap.finance/images/symbol/bnb.png',
       verified: true,
     },
     '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c': {
@@ -30,8 +30,8 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Bink AI',
       decimals: 18,
       network: NetworkName.BNB,
-      logoURI:
-        'https://tokens.pancakeswap.finance/images/0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1.png',
+      // logoURI:
+      // 'https://tokens.pancakeswap.finance/images/0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1.png',
       verified: true,
     },
     // BUSD
@@ -41,7 +41,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Binance USD',
       decimals: 18,
       network: NetworkName.BNB,
-      logoURI: 'https://tokens.pancakeswap.finance/images/symbol/busd.png',
+      //logoURI: 'https://tokens.pancakeswap.finance/images/symbol/busd.png',
       verified: true,
     },
     // USDT
@@ -51,7 +51,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Tether USD',
       decimals: 18,
       network: NetworkName.BNB,
-      logoURI: 'https://tokens.pancakeswap.finance/images/symbol/usdt.png',
+      // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/usdt.png',
       verified: true,
     },
     // CAKE
@@ -61,7 +61,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'PancakeSwap Token',
       decimals: 18,
       network: NetworkName.BNB,
-      logoURI: 'https://tokens.pancakeswap.finance/images/symbol/cake.png',
+      // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/cake.png',
       verified: true,
     },
     // USDC
@@ -71,7 +71,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'USD Coin',
       decimals: 18,
       network: NetworkName.BNB,
-      logoURI: 'https://tokens.pancakeswap.finance/images/symbol/usdc.png',
+      // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/usdc.png',
       verified: true,
     },
   },
@@ -85,7 +85,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Ethereum',
       decimals: 18,
       network: NetworkName.ETHEREUM,
-      logoURI: 'https://tokens.uniswap.org/images/ethereum.png',
+      // logoURI: 'https://tokens.uniswap.org/images/ethereum.png',
       verified: true,
     },
     // USDT
@@ -95,7 +95,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Tether USD',
       decimals: 6,
       network: NetworkName.ETHEREUM,
-      logoURI: 'https://tokens.uniswap.org/images/usdt.png',
+      // logoURI: 'https://tokens.uniswap.org/images/usdt.png',
       verified: true,
     },
     // USDC
@@ -104,8 +104,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       symbol: 'USDC',
       name: 'USD Coin',
       decimals: 6,
-      network: NetworkName.ETHEREUM,
-      logoURI: 'https://tokens.uniswap.org/images/usdc.png',
+      network: NetworkName.ETHEREUM, // logoURI: 'https://tokens.uniswap.org/images/usdc.png',
       verified: true,
     },
     // WBTC
@@ -115,7 +114,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Wrapped BTC',
       decimals: 8,
       network: NetworkName.ETHEREUM,
-      logoURI: 'https://tokens.uniswap.org/images/wbtc.png',
+      // logoURI: 'https://tokens.uniswap.org/images/wbtc.png',
       verified: true,
     },
   },
@@ -129,8 +128,8 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Solana',
       decimals: 9,
       network: NetworkName.SOLANA,
-      logoURI:
-        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111111/logo.png',
+      // logoURI:
+      // 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111111/logo.png',
       verified: true,
     },
     // USDC
@@ -140,8 +139,8 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'USD Coin',
       decimals: 6,
       network: NetworkName.SOLANA,
-      logoURI:
-        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+      // logoURI:
+      // 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
       verified: true,
     },
     // USDT
@@ -151,8 +150,8 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Tether USD',
       decimals: 6,
       network: NetworkName.SOLANA,
-      logoURI:
-        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.png',
+      // logoURI:
+      // 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.png',
       verified: true,
     },
     // Bonk
@@ -162,8 +161,8 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Bonk',
       decimals: 5,
       network: NetworkName.SOLANA,
-      logoURI:
-        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/logo.png',
+      // logoURI:
+      // 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/logo.png',
       verified: true,
     },
     // Raydium
@@ -173,8 +172,8 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Raydium',
       decimals: 6,
       network: NetworkName.SOLANA,
-      logoURI:
-        'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R/logo.png',
+      // logoURI:
+      // 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R/logo.png',
       verified: true,
     },
     // Jupiter
@@ -184,8 +183,8 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Jupiter',
       decimals: 6,
       network: NetworkName.SOLANA,
-      logoURI:
-        'https://tokens.debridge.finance/Logo/7565164/JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN/small/token-logo.png',
+      // logoURI:
+      // 'https://tokens.debridge.finance/Logo/7565164/JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN/small/token-logo.png',
       verified: true,
     },
     // TRUMP
@@ -195,8 +194,8 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Official Trump',
       decimals: 6,
       network: NetworkName.SOLANA,
-      logoURI:
-        'https://tokens.debridge.finance/Logo/7565164/6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN/small/token-logo.png',
+      // logoURI:
+      // 'https://tokens.debridge.finance/Logo/7565164/6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN/small/token-logo.png',
       verified: true,
     },
   },

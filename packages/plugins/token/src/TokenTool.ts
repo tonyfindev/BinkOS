@@ -113,7 +113,6 @@ export class GetTokenInfoTool extends BaseTool {
     });
   }
 
-  // Helper to normalize address based on network
   private normalizeAddress(address: string, network: NetworkName): string {
     // For Solana networks, keep the original case
     if (network === NetworkName.SOLANA || network === NetworkName.SOLANA_DEVNET) {
@@ -426,8 +425,17 @@ export class GetTokenInfoTool extends BaseTool {
               tokenInfo = await provider.getTokenInfo({ query, network, includePrice });
               console.log(`✅ Found token info from ${preferredProvider}`);
             } catch (error: any) {
-              console.error(`❌ Provider ${preferredProvider} error: ${error}`);
-              throw error;
+              console.error(`❌ Provider ${preferredProvider} could not find token "${query}"`);
+              throw this.createError(
+                ErrorStep.TOKEN_NOT_FOUND,
+                `Provider ${preferredProvider} could not find token "${query}" on network ${network}.`,
+                {
+                  query: query,
+                  network: network,
+                  provider: preferredProvider,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              );
             }
 
             // STEP 4: Handle price retrieval if needed
@@ -470,8 +478,17 @@ export class GetTokenInfoTool extends BaseTool {
               });
               console.log(`✅ Found token info for ${query}`);
             } catch (error: any) {
-              console.error(`❌ Token tool error: ${error}`);
-              throw error;
+              console.error(`❌ Could not find token "${query}" on network ${network}`);
+              throw this.createError(
+                ErrorStep.TOKEN_NOT_FOUND,
+                `Could not find token "${query}" on network ${network} using any provider.`,
+                {
+                  query: query,
+                  network: network,
+                  providers: this.registry.getProvidersByNetwork(network).map(p => p.getName()),
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              );
             }
           }
 
@@ -492,7 +509,51 @@ export class GetTokenInfoTool extends BaseTool {
             message: `Successfully retrieved information for ${tokenInfo.name || tokenInfo.symbol || query}${tokenInfo.price?.usd ? ` (Current price: $${tokenInfo.price.usd})` : ''}.`,
           });
 
-          // Return result as JSON string
+          if (!tokenInfo.verified) {
+            if (tokenInfo.buyTax !== '0' && tokenInfo.buyTax !== undefined) {
+              tokenInfo.buyTax +=
+                ' - Transfer fee will cause the actual value received when transferring a token to be less than expected, and high transfer fee may lead to large losses.';
+            }
+            if (
+              tokenInfo.canTakeBackOwnership !== '0' &&
+              tokenInfo.canTakeBackOwnership !== undefined
+            ) {
+              tokenInfo.canTakeBackOwnership +=
+                ' - Owner can regain ownership to manipulate the contract.';
+            }
+            if (tokenInfo.hiddenOwner !== '0' && tokenInfo.hiddenOwner !== undefined) {
+              tokenInfo.hiddenOwner +=
+                ' - Anonymous owner, potentially able to manipulate the contract.';
+            }
+            if (tokenInfo.isHoneypot !== '0' && tokenInfo.isHoneypot !== undefined) {
+              tokenInfo.isHoneypot +=
+                ' - If a token is Honeypot, very high chance it is a scam. Buyers may not be able to sell this token, or the token contains malicious code.';
+            }
+            if (tokenInfo.isMintable !== '0' && tokenInfo.isMintable !== undefined) {
+              tokenInfo.isMintable +=
+                ' - Owner can mint additional tokens, increasing the total supply.';
+            }
+            if (tokenInfo.sellTax !== '0' && tokenInfo.sellTax !== undefined) {
+              tokenInfo.sellTax +=
+                ' - Transfer fee will cause the actual value received when transferring a token to be less than expected, and high transfer fee may lead to large losses.';
+            }
+            if (tokenInfo.fakeToken !== null && tokenInfo.fakeToken !== undefined) {
+              tokenInfo.fakeToken +=
+                ' - This token is either a scam or imitation of another token.';
+            }
+            if (tokenInfo.freezeable !== null && tokenInfo.freezeable !== undefined) {
+              tokenInfo.freezeable +=
+                ' - Token SPL V2 element - the authority can freeze every token from transferring among wallets.';
+            }
+            if (tokenInfo.freezeAuthority !== null && tokenInfo.freezeAuthority !== undefined) {
+              tokenInfo.freezeAuthority +=
+                ' - Freeze Authority is who can freeze every token from transferring among wallets.';
+            }
+            if (tokenInfo.transferFeeEnable !== null && tokenInfo.transferFeeEnable !== undefined) {
+              tokenInfo.transferFeeEnable +=
+                ' -The authority can charge a percentage fee when this token is transferred among wallets.';
+            }
+          }
           console.log(`✅ Returning token info for ${tokenInfo.symbol || query}`);
           return JSON.stringify({
             status: 'success',

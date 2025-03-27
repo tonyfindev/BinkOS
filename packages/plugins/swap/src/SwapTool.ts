@@ -130,6 +130,7 @@ export class SwapTool extends BaseTool {
         .number()
         .optional()
         .describe(`Maximum slippage percentage allowed (default: ${this.defaultSlippage})`),
+      atPrice: z.number().default(0).describe('The price at which to place a limit order'),
     });
   }
 
@@ -268,7 +269,6 @@ export class SwapTool extends BaseTool {
             slippage,
             limitPrice,
           };
-
           let selectedProvider: ISwapProvider;
           let quote: SwapQuote;
           let isWrapToken = false;
