@@ -33,14 +33,21 @@ const updatePlan = (
       );
       let responseData = null;
       if (responseTool) {
+        let responseToolData = null;
         try {
-          responseData = JSON.parse(responseTool.content as string);
+          responseToolData = JSON.parse(responseTool.content as string);
         } catch (e) {
-          responseData = responseTool.content;
+          responseToolData = responseTool.content;
         }
 
         const responseDataPaths = taskToUpdate.response_data_paths;
-        responseData = pick(responseData, responseDataPaths);
+        responseData = pick(responseToolData, responseDataPaths);
+        if (Object.keys(responseData).length === 0) {
+          responseData = responseToolData;
+        }
+      } else {
+        const responseDataPaths = taskToUpdate.response_data_paths;
+        responseData = responseDataPaths;
       }
 
       return {

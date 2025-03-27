@@ -140,6 +140,36 @@ export class ExecutorGraph {
       messages: [...(state.messages ?? [])],
     });
 
+    if (responseMessage.tool_calls?.length) {
+      //filter tool calls only ask_user
+      let askUserToolCalls = responseMessage.tool_calls.filter(
+        (toolCall: any) => toolCall.name === 'ask_user',
+      );
+      if (askUserToolCalls?.length > 1) {
+        let index = 0;
+        askUserToolCalls = askUserToolCalls.reduce((acc: any, toolCall: any) => {
+          if (index === 0) {
+            return `${++index}. ${toolCall.args.question}`;
+          }
+          return acc + `\n${++index}. ${toolCall.args.question}`;
+        }, '');
+        return {
+          messages: [
+            new AIMessage({
+              content: '',
+              tool_calls: [
+                {
+                  id: askUserToolCalls[0].id,
+                  name: 'ask_user',
+                  args: { question: askUserToolCalls },
+                },
+              ],
+            }),
+          ],
+        };
+      }
+    }
+
     return { messages: [responseMessage] };
   }
 
