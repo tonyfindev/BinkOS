@@ -234,7 +234,7 @@ NOTE:
         },
         {
           executor: 'executor',
-          END,
+          __end__: END,
         },
       )
       .addEdge('executor', 'planner')
