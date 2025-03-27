@@ -6,7 +6,7 @@ import {
   IToolConfig,
   NetworkName,
   ToolProgress,
-  ErrorStep
+  ErrorStep,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ITokenProvider, TokenInfo, TokenQueryParams } from './types';
@@ -194,7 +194,7 @@ export class GetTokenInfoTool extends BaseTool {
         if (updatedTokenInfo.price?.usd) {
           // Round the price for display
           const roundedPrice = roundNumber(updatedTokenInfo.price.usd, 6);
-         
+
           // Create a merged token with base info from original and price from updated
           const mergedToken: TokenInfo = {
             ...tokenInfo,
@@ -388,7 +388,7 @@ export class GetTokenInfoTool extends BaseTool {
               {
                 requestedNetwork: network,
                 supportedNetworks: supportedNetworks,
-              }
+              },
             );
           }
 
@@ -416,7 +416,7 @@ export class GetTokenInfoTool extends BaseTool {
                   availableProviders: this.registry
                     .getProvidersByNetwork(network)
                     .map(p => p.getName()),
-                }
+                },
               );
             }
 
@@ -426,17 +426,8 @@ export class GetTokenInfoTool extends BaseTool {
               tokenInfo = await provider.getTokenInfo({ query, network, includePrice });
               console.log(`✅ Found token info from ${preferredProvider}`);
             } catch (error: any) {
-              console.error(`❌ Provider ${preferredProvider} could not find token "${query}"`);
-              throw this.createError(
-                ErrorStep.TOKEN_NOT_FOUND,
-                `Provider ${preferredProvider} could not find token "${query}" on network ${network}.`,
-                {
-                  query: query,
-                  network: network,
-                  provider: preferredProvider,
-                  error: error instanceof Error ? error.message : String(error),
-                }
-              );
+              console.error(`❌ Provider ${preferredProvider} error: ${error}`);
+              throw error;
             }
 
             // STEP 4: Handle price retrieval if needed
@@ -479,17 +470,8 @@ export class GetTokenInfoTool extends BaseTool {
               });
               console.log(`✅ Found token info for ${query}`);
             } catch (error: any) {
-              console.error(`❌ Could not find token "${query}" on network ${network}`);
-              throw this.createError(
-                ErrorStep.TOKEN_NOT_FOUND,
-                `Could not find token "${query}" on network ${network} using any provider.`,
-                {
-                  query: query,
-                  network: network,
-                  providers: this.registry.getProvidersByNetwork(network).map(p => p.getName()),
-                  error: error instanceof Error ? error.message : String(error),
-                }
-              );
+              console.error(`❌ Token tool error: ${error}`);
+              throw error;
             }
           }
 
@@ -501,7 +483,9 @@ export class GetTokenInfoTool extends BaseTool {
           tokenInfo.volume24h = roundNumber(tokenInfo.volume24h, 0);
           tokenInfo.marketCap = roundNumber(tokenInfo.marketCap, 0);
 
-          console.log(`💰 Token info retrieved: ${tokenInfo.symbol || query} ${tokenInfo.price?.usd ? `($${tokenInfo.price.usd})` : ''}`);
+          console.log(
+            `💰 Token info retrieved: ${tokenInfo.symbol || query} ${tokenInfo.price?.usd ? `($${tokenInfo.price.usd})` : ''}`,
+          );
 
           onProgress?.({
             progress: 100,
@@ -518,7 +502,7 @@ export class GetTokenInfoTool extends BaseTool {
           });
         } catch (error: any) {
           console.error('❌ Token info error:', error);
-          
+
           // Use BaseTool's error handling
           return this.handleError(error, args);
         }

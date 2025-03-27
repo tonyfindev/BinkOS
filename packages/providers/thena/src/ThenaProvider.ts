@@ -5,7 +5,7 @@ import { OrbsABI } from './abis/Orbs';
 import { WrapTokenABI } from './abis/WrapToken';
 
 // Core system constants
-const CONSTANTS = {
+export const CONSTANTS = {
   DEFAULT_GAS_LIMIT: '350000',
   APPROVE_GAS_LIMIT: '50000',
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
@@ -125,9 +125,9 @@ export class ThenaProvider extends BaseSwapProvider {
           tokenInAddress,
           tokenOutAddress,
           userAddress,
-          params.slippage,
+          params?.slippage,
           amountIn.toString(),
-          params.limitPrice,
+          params?.limitPrice,
         );
 
         // build limit order transaction
@@ -136,31 +136,13 @@ export class ThenaProvider extends BaseSwapProvider {
         if (!swapTransactionData) {
           throw new Error('No limit  order routes available from Thena');
         }
-      } else if (params?.orderId) {
-        //let limitOrderIds = [];
-        swapTransactionData = null;
-        const validOrderIds = await Promise.all(
-          params?.orderId.map(async (orderId: number) => {
-            const isValid = await this.checkValidOrderId(orderId);
-            if (isValid) {
-              swapTransactionData = this.cancelOrder(orderId);
-              //limitOrderIds.push(swapTransactionData);
-              return orderId;
-            }
-          }),
-        );
-        console.log('🚀 ~ ThenaProvider ~ getQuote ~ validOrderIds:', validOrderIds);
-
-        if (!swapTransactionData) {
-          throw new Error('No cancel order id invailable from Thena');
-        }
       } else {
         // Fetch optimal swap route
         optimalRoute = await this.fetchOptimalRoute(
           tokenInAddress,
           tokenOutAddress,
           userAddress,
-          params.slippage,
+          params?.slippage,
           amountIn.toString(),
         );
 
@@ -289,7 +271,7 @@ export class ThenaProvider extends BaseSwapProvider {
     return orderIds.map((id: any) => Number(id));
   }
 
-  private async checkValidOrderId(orderId: number) {
+  public async checkValidOrderId(orderId: number) {
     const currentTime = Math.floor(Date.now() / 1000);
     const order = await this.orbsContract.status(orderId);
     return Number(order) >= currentTime ? 1 : 0;
@@ -297,7 +279,12 @@ export class ThenaProvider extends BaseSwapProvider {
 
   private cancelOrder(orderId: number) {
     const tx = this.orbsContract.interface.encodeFunctionData('cancel(uint64)', [orderId]);
-    return tx;
+    return { tx, to: CONSTANTS.ORBS_ADDRESS };
+  }
+
+  private async getStatusOrderId(orderId: number) {
+    const order = await this.orbsContract.order(orderId);
+    return order;
   }
 
   private createSwapQuote(
@@ -314,24 +301,20 @@ export class ThenaProvider extends BaseSwapProvider {
       network: params.network,
       fromToken: sourceToken,
       toToken: destinationToken,
-      fromAmount: params.orderId
-        ? '0'
-        : ethers.formatUnits(routeData.inAmounts[0], sourceToken.decimals),
-      toAmount: params.orderId
-        ? '0'
-        : ethers.formatUnits(routeData.outAmounts[0], destinationToken.decimals),
+      fromAmount: ethers.formatUnits(routeData.inAmounts[0], sourceToken.decimals),
+      toAmount: ethers.formatUnits(routeData.outAmounts[0], destinationToken.decimals),
       slippage: 100, // 10% default slippage
       type: params.type,
-      priceImpact: params.orderId ? 0 : routeData.priceImpact || 0,
+      priceImpact: routeData.priceImpact || 0,
       route: ['thena'],
-      estimatedGas: params.orderId ? 0 : routeData.gasEstimateValue,
+      estimatedGas: routeData.gasEstimateValue,
       tx: {
-        to: params.limitPrice ? CONSTANTS.ORBS_ADDRESS : swapTransactionData.transaction.to,
-        data: params.limitPrice ? swapTransactionData : swapTransactionData.transaction.data,
-        value: params.limitPrice ? 0 : swapTransactionData.transaction.value,
+        to: params?.limitPrice ? CONSTANTS.ORBS_ADDRESS : swapTransactionData.transaction.to,
+        data: params?.limitPrice ? swapTransactionData : swapTransactionData.transaction.data,
+        value: params?.limitPrice ? 0 : swapTransactionData.transaction.value,
         gasLimit: ethers.parseUnits(CONSTANTS.DEFAULT_GAS_LIMIT, 'wei'),
         network: params.network,
-        spender: params.limitPrice ? walletAddress : swapTransactionData.transaction.to,
+        spender: params?.limitPrice ? walletAddress : swapTransactionData.transaction.to,
       },
     };
   }

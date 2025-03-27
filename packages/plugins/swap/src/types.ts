@@ -150,3 +150,31 @@ export interface ISwapProvider {
    */
   unwrapToken(amount: string, walletAddress: string): Promise<any>;
 }
+
+export interface ILimitOrderProvider extends ISwapProvider {
+  /**
+   * Get all order IDs for a wallet address
+   * @param walletAddress The address of the wallet to get orders for
+   * @returns Promise<number[]> Array of order IDs
+   */
+  getAllOrderIds(walletAddress: string): Promise<number[]>;
+
+  /**
+   * Cancel a specific limit order
+   * @param orderId The ID of the order to cancel
+   * @returns Promise with tx and to
+   */
+  cancelOrder(orderId: number): Promise<{
+    tx: string;
+    to: string;
+  }>;
+
+  /**
+   * Check if an order ID is valid and exists
+   * @param orderId The ID of the order to check
+   * @returns Promise<boolean> Whether the order ID is valid
+   */
+  checkValidOrderId(orderId: number): Promise<boolean>;
+
+  getStatusOrderId(orderId: number): Promise<any>;
+}
