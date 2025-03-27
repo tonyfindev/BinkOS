@@ -133,25 +133,42 @@ NOTE:
     return this.getTools().filter(t => toolNames.includes(t.name));
   }
 
-  async executorAnswerNode(state: typeof StateAnnotation.State) {
-    const prompt = ChatPromptTemplate.fromMessages([
-      ['system', this.config.systemPrompt || ''],
-      new MessagesPlaceholder('chat_history'),
-      ['human', `{input}`],
-      ['human', 'plans: {plans}'],
-      ['system', 'You need to response user after execute the plan'],
-    ]);
+  // Move executor answer node to planner graph
 
-    const response = await prompt.pipe(this.model).invoke({
-      input: state.input,
-      plans: JSON.stringify(state.plans),
-      chat_history: state.chat_history || [],
-    });
+  // async executorAnswerNode(state: typeof StateAnnotation.State) {
+  //   const prompt = ChatPromptTemplate.fromMessages([
+  //     ['system', this.config.systemPrompt || ''],
+  //     new MessagesPlaceholder('chat_history'),
+  //     ['human', `{input}`],
+  //     ['human', 'plans: {plans}'],
+  //     ['system', 'You need to response user after execute the plan'],
+  //   ]);
 
-    return { chat_history: [response], answer: response.content };
-  }
+  //   const response = await prompt.pipe(this.model).invoke({
+  //     input: state.input,
+  //     plans: JSON.stringify(state.plans),
+  //     chat_history: state.chat_history || [],
+  //   });
+
+  //   return { chat_history: [response], answer: response.content };
+  // }
 
   protected async createExecutor(): Promise<CompiledStateGraph<any, any, any, any, any, any>> {
+    // Add debug logging
+    const debugState = (state: any, node: string) => {
+      console.log(`ℹ️ PlanningAgent: State at ${node}`, {
+        next_node: state.next_node,
+        current_node: node,
+        has_plans: state.plans?.length > 0,
+      });
+    };
+
+    // Add this debug wrapper to nodes
+    const withDebug = (nodeName: string, fn: Function) => async (state: any) => {
+      debugState(state, nodeName);
+      return await fn(state);
+    };
+
     const executorTools = this.getTools();
 
     const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps.`;
@@ -172,7 +189,7 @@ NOTE:
 
     let toolsStr = '';
 
-    //remove all description in parameters of toolJson.function.parameters
+    // Remove all description in parameters of toolJson.function.parameters
     const cleanToolParameters = (params: any) => {
       if (!params || typeof params !== 'object') return params;
 
@@ -249,6 +266,7 @@ NOTE:
       activeTasksPrompt: '',
       listToolsPrompt: toolsStr,
       agent: this,
+      config: this.config,
     }).create();
 
     const basicQuestionGraph = new BasicQuestionGraph({
@@ -258,9 +276,8 @@ NOTE:
     }).create();
 
     this.workflow = new StateGraph(StateAnnotation)
-      .addNode('supervisor', this.supervisorNode.bind(this))
+      .addNode('supervisor', withDebug('supervisor', this.supervisorNode.bind(this)))
       .addNode('basic_question', basicQuestionGraph)
-      .addNode('executor_answer', this.executorAnswerNode.bind(this))
       .addNode('planner', plannerGraph)
       .addNode('executor', executorGraph)
       .addEdge(START, 'supervisor')
@@ -268,8 +285,10 @@ NOTE:
         'supervisor',
         state => {
           if (state.next_node === 'other') {
+            console.log('🔀 PlanningAgent: Routing to basic_question');
             return 'basic_question';
           } else {
+            console.log('🔀 PlanningAgent: Routing to planner');
             return 'planner';
           }
         },
@@ -281,49 +300,84 @@ NOTE:
       .addConditionalEdges(
         'planner',
         state => {
+          console.log('ℹ️ PlanningAgent: Planner decision point', {
+            next_node: state.next_node,
+            has_answer: !!state.answer,
+            executor_limit_reached: state.executor_response_tools?.some(
+              t => t.name === 'executor_limit_reached',
+            ),
+          });
+
+          // Check for executor_answer signal from ExecutorGraph
+          if (state.executor_response_tools?.some(t => t.name === 'executor_limit_reached')) {
+            console.log('🔴 PlanningAgent: Tool limit detected, routing to END');
+            return END;
+          }
+
           if (state.next_node === END) {
-            return 'executor_answer';
+            console.log('🔀 PlanningAgent: State signals END, terminating workflow');
+            return END;
           } else {
+            console.log('🔀 PlanningAgent: Routing to executor');
             return 'executor';
           }
         },
         {
           executor: 'executor',
-          executor_answer: 'executor_answer',
+          [END]: END,
         },
       )
-      .addEdge('executor', 'planner')
-      .addEdge('basic_question', END)
-      .addEdge('executor_answer', END);
+      .addConditionalEdges(
+        'executor',
+        state => {
+          console.log('ℹ️ PlanningAgent: Executor to Planner transition', {
+            next_node: state.next_node,
+            executor_limit_reached: state.executor_response_tools?.some(
+              t => t.name === 'executor_limit_reached',
+            ),
+          });
+
+          console.log('🔀 PlanningAgent: Routing back to planner');
+          return 'planner';
+        },
+        {
+          planner: 'planner',
+        },
+      )
+      .addEdge('basic_question', END);
 
     const checkpointer = new MemorySaver();
 
     this.graph = await this.workflow.compile({ checkpointer });
+    console.log('🚀 PlanningAgent: Workflow graph compiled successfully');
 
     return this.graph;
   }
 
   // Implementing the message persistence and history logic in the execute method
   async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
+    console.log('🚀 PlanningAgent: Starting execution');
     let _history: MessageEntity[] = [];
 
     // Ensure database is initialized before accessing
     if (this.db) {
       if (typeof commandOrParams === 'string') {
         if (this.context?.user?.id) {
+          console.log('🔄 PlanningAgent: Fetching message history for user');
           _history = await this.db.getMessagesByUserId(this.context.user.id);
         } else {
-          console.warn('User ID is undefined, skipping history retrieval.');
+          console.log('🔴 PlanningAgent: User ID undefined, skipping history retrieval');
         }
       } else {
         if (commandOrParams?.threadId) {
+          console.log('🔄 PlanningAgent: Fetching message history for thread');
           _history = await this.db.getMessagesByThreadId(commandOrParams.threadId);
         } else {
-          console.warn('Thread ID is undefined, skipping history retrieval.');
+          console.log('🔴 PlanningAgent: Thread ID undefined, skipping history retrieval');
         }
       }
     } else {
-      console.error('Database not initialized.');
+      console.log('🔴 PlanningAgent: Database not initialized');
     }
 
     const history = _history.map((message: MessageEntity) =>
@@ -335,12 +389,14 @@ NOTE:
     const input = typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
     const chat_history = history;
 
+    console.log('🔄 PlanningAgent: Invoking workflow graph');
     const response = await this.graph.invoke({ input, chat_history });
 
     try {
       const threadId = typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
 
       // Persist human message
+      console.log('🔄 PlanningAgent: Persisting human message');
       await this.db?.createMessage(
         { content: input, user_id: this.context?.user?.id, message_type: 'human' },
         threadId,
@@ -348,15 +404,16 @@ NOTE:
 
       // Persist AI message
       if (response.answer) {
+        console.log('🔄 PlanningAgent: Persisting AI response');
         await this.db?.createMessage(
           { content: response.answer, user_id: this.context?.user?.id, message_type: 'ai' },
           threadId,
         );
       }
 
-      console.log('Messages persisted successfully');
+      console.log('✅ PlanningAgent: Messages persisted successfully');
     } catch (dbError) {
-      console.error('Error persisting message:', dbError);
+      console.log('🔴 PlanningAgent: Error persisting messages', dbError);
     }
 
     return response.answer;
