@@ -23,7 +23,8 @@
     "limit-order": "ts-node src/limit-order-example.ts",
     "transfer": "ts-node src/transfer-example.ts",
     "build": "tsc",
-    "swap-jupiter": "ts-node src/swap-example-jupiter.ts"
+    "swap-jupiter": "ts-node src/swap-example-jupiter.ts",
+    "wallet-alchemy": "ts-node src/wallet-alchemy-example.ts"
   },
   "dependencies": {
     "@binkai/bink-provider": "workspace:*",
@@ -46,6 +47,7 @@
     "@binkai/token-plugin": "workspace:*",
     "@binkai/venus-provider": "workspace:*",
     "@binkai/wallet-plugin": "workspace:*",
+    "@binkai/alchemy-provider": "workspace:*",
     "@coral-xyz/anchor": "^0.30.1",
     "@langchain/core": "^0.3.32",
     "@pancakeswap/sdk": "^5.7.7",
