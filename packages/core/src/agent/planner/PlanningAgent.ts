@@ -30,6 +30,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { cleanToolParameters, shouldBindTools } from './utils/llm';
 import { BasicQuestionGraph } from './graph/BasicQuestionGraph';
+import { threadId } from 'worker_threads';
 
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
@@ -249,8 +250,24 @@ NOTE:
 
   // Implementing the message persistence and history logic in the execute method
   async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
+    if (typeof commandOrParams === 'string') {
+      commandOrParams = {
+        input: commandOrParams,
+        threadId: uuidv4(),
+      };
+    }
+
     if (this.isAskUser && typeof commandOrParams !== 'string') {
-      return (await this.graph.invoke({ resume: { input: commandOrParams.input } })).answer;
+      return (
+        await this.graph.invoke(
+          { resume: { input: commandOrParams.input } },
+          {
+            configurable: {
+              thread_id: commandOrParams.threadId,
+            },
+          },
+        )
+      ).answer;
     }
     let _history: MessageEntity[] = [];
 
@@ -282,7 +299,14 @@ NOTE:
     const input = typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
     const chat_history = history;
 
-    const response = await this.graph.invoke({ input, chat_history });
+    const response = await this.graph.invoke(
+      { input, chat_history },
+      {
+        configurable: {
+          thread_id: commandOrParams.threadId,
+        },
+      },
+    );
 
     try {
       const threadId = typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
@@ -308,4 +332,7 @@ NOTE:
 
     return response.answer;
   }
+}
+function uuidv4(): `${string}-${string}-${string}-${string}-${string}` | undefined {
+  throw new Error('Function not implemented.');
 }
