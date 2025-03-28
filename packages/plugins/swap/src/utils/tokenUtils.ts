@@ -5,6 +5,9 @@ import { ethers } from 'ethers';
  */
 export const DEFAULT_TOLERANCE_PERCENTAGE = 0.01; // 0.01% tolerance
 
+export const EVM_DECIMALS = 18;
+export const SOL_DECIMALS = 9;
+
 /**
  * Adjusts a token amount to handle precision issues
  * This is useful when comparing amounts with very small differences due to floating point precision
@@ -110,7 +113,7 @@ export function formatTokenAmount(amount: bigint, decimals: number): string {
  */
 export function parseTokenAmount(amount: string, decimals: number): bigint {
   try {
-    // Handle edge cases
+    // Handle edge cases for string amounts
     if (!amount || amount === '0') return BigInt(0);
 
     // Check if the amount has more decimal places than allowed
