@@ -450,13 +450,10 @@ export class FourMemeProvider extends BaseSwapProvider {
   }
 
   private async uploadImageUrl(imgUrl: string, accessToken: string): Promise<string> {
-    console.log('🚀 ~ FourMemeProvider ~ uploadImageUrl ~ imgUrl----:', imgUrl);
     if (imgUrl && !imgUrl.startsWith('https://static.four.meme')) {
-      console.log('------1');
       try {
         const url = `${CONSTANTS.FOUR_MEME_API_BASE}/private/token/upload`;
 
-        console.log('🚀 ~ FourMemeProvider ~ uploadImageUrl ~ url:', url);
         // Fetch the image
         const imageResponse = await fetch(imgUrl);
         const arrayBuffer = await imageResponse.arrayBuffer();
@@ -484,14 +481,12 @@ export class FourMemeProvider extends BaseSwapProvider {
           throw new Error(`Upload image failed with status ${response.status}`);
         }
         const responseData = await response.json();
-        console.log('🚀 ~ FourMemeProvider ~ uploadImageUrl ~ responseData:', responseData);
         return responseData.data;
       } catch (error) {
         console.error('Error uploadFile', error instanceof Error ? error.message : String(error));
         return 'https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg';
       }
     } else {
-      console.log('------2');
       return imgUrl;
     }
   }
