@@ -15,6 +15,15 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       //logoURI: 'https://tokens.pancakeswap.finance/images/symbol/bnb.png',
       verified: true,
     },
+    '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c': {
+      address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
+      symbol: 'WBNB',
+      name: 'Wrapped BNB (WBNB)',
+      decimals: 18,
+      network: NetworkName.BNB,
+      //logoURI: 'https://tokens.pancakeswap.finance/images/symbol/bnb.png',
+      verified: true,
+    },
     '0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1': {
       address: '0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1',
       symbol: 'BINK',
@@ -95,7 +104,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       symbol: 'USDC',
       name: 'USD Coin',
       decimals: 6,
-      network: NetworkName.ETHEREUM,      // logoURI: 'https://tokens.uniswap.org/images/usdc.png',
+      network: NetworkName.ETHEREUM, // logoURI: 'https://tokens.uniswap.org/images/usdc.png',
       verified: true,
     },
     // WBTC
