@@ -295,14 +295,6 @@ export class SwapTool extends BaseTool {
                 );
               }
 
-              //check limit order only support thena provider
-              if (swapParams?.limitPrice && selectedProvider.getName() !== 'thena') {
-                throw this.createError(
-                  ErrorStep.PROVIDER_VALIDATION,
-                  `Provider ${selectedProvider.getName()} does not support limit order.`,
-                );
-              }
-
               // STEP 5: Handle wrapped token BNB
               // validate is valid limit order
               if (swapParams?.limitPrice && swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS) {

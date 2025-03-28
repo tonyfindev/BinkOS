@@ -119,6 +119,11 @@ export class FourMemeProvider extends BaseSwapProvider {
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      // check is valid limit order
+      if (params?.limitPrice) {
+        throw new Error('FourMeme does not support limit order for native token swaps');
+      }
+
       const [tokenIn, tokenOut] = await Promise.all([
         this.getToken(params.fromToken, params.network),
         this.getToken(params.toToken, params.network),
