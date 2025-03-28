@@ -20,7 +20,6 @@
     "create-token": "ts-node src/create-token-example.ts",
     "knowledge": "ts-node src/knowledge-example.ts",
     "wallet": "ts-node src/wallet-example.ts",
-    "limit-order": "ts-node src/limit-order-example.ts",
     "transfer": "ts-node src/transfer-example.ts",
     "build": "tsc",
     "swap-jupiter": "ts-node src/swap-example-jupiter.ts",

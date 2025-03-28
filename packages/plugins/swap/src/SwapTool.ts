@@ -271,7 +271,6 @@ export class SwapTool extends BaseTool {
           };
           let selectedProvider: ISwapProvider;
           let quote: SwapQuote;
-          let isWrapToken = false;
 
           onProgress?.({
             progress: 0,
@@ -293,6 +292,14 @@ export class SwapTool extends BaseTool {
                     requestedNetwork: network,
                     providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
                   },
+                );
+              }
+
+              //check limit order only support thena provider
+              if (swapParams?.limitPrice && selectedProvider.getName() !== 'thena') {
+                throw this.createError(
+                  ErrorStep.PROVIDER_VALIDATION,
+                  `Provider ${selectedProvider.getName()} does not support limit order.`,
                 );
               }
 
@@ -321,7 +328,6 @@ export class SwapTool extends BaseTool {
                 }
                 // set wrap token address
                 swapParams.fromToken = WrapToken.WBNB;
-                isWrapToken = true;
 
                 onProgress?.({
                   progress: 8,
@@ -467,7 +473,7 @@ export class SwapTool extends BaseTool {
           }
 
           // STEP 9: unwrap token if needed
-          // if (swapParams?.limitPrice && swapParams.fromToken === WrapToken.WBNB && isWrapToken) {
+          // if (swapParams?.limitPrice && swapParams.fromToken === WrapToken.WBNB) {
           //   const wallet = this.agent.getWallet();
           //   userAddress = await wallet.getAddress(network);
           //   onProgress?.({
