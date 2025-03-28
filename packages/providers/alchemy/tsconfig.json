@@ -1,0 +1,20 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true
+  },
+  "include": ["src/**/*", "src/index.ts"],
+  "references": [
+    {
+      "path": "../../core"
+    },
+    {
+      "path": "../../plugins/token"
+    },
+    {
+      "path": "../../plugins/wallet"
+    }
+  ]
+}
