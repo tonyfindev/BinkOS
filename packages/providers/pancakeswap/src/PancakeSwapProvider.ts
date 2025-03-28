@@ -84,6 +84,11 @@ export class PancakeSwapProvider extends BaseSwapProvider {
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      // check is valid limit order
+      if (params?.limitPrice) {
+        throw new Error('PancakeSwap does not support limit order for native token swaps');
+      }
+
       if (params.fromToken === Native.onChain(this.chainId).wrapped.address) {
         params.fromToken = EVM_NATIVE_TOKEN_ADDRESS;
       }
