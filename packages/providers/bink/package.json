@@ -1,6 +1,6 @@
 {
   "name": "@binkai/bink-provider",
-  "version": "0.1.12-alpha.0",
+  "version": "0.1.12-alpha.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@binkai/core": "workspace:*",
-    "@binkai/knowledge-plugin": "workspace:*",
     "@binkai/image-plugin": "workspace:*",
+    "@binkai/knowledge-plugin": "workspace:*",
     "axios": "^1.6.7",
     "zod": "^3.22.4"
   },
