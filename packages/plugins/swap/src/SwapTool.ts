@@ -7,6 +7,7 @@ import {
   ToolProgress,
   StructuredError,
   ErrorStep,
+  EVM_NATIVE_TOKEN_ADDRESS,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
@@ -15,6 +16,7 @@ import { parseTokenAmount } from './utils/tokenUtils';
 import { isSolanaNetwork } from './utils/networkUtils';
 import type { TokenInfo } from '@binkai/token-plugin';
 import { defaultTokens } from '@binkai/token-plugin';
+import { WrapToken } from './types';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -99,6 +101,7 @@ export class SwapTool extends BaseTool {
       fromToken: z.string().describe(`The adress of source token on network. (spend)`),
       toToken: z.string().describe(`The adress of destination token on network. (receive)`),
       amount: z.string().describe('The amount of tokens to swap'),
+      limitPrice: z.number().default(0).describe('The price at which to place a limit order'),
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
@@ -127,7 +130,7 @@ export class SwapTool extends BaseTool {
         .number()
         .optional()
         .describe(`Maximum slippage percentage allowed (default: ${this.defaultSlippage})`),
-      atPrice: z.number().default(0).describe('The price at which to place a limit order'),
+      //atPrice: z.number().default(0).describe('The price at which to place a limit order'),
     });
   }
 
@@ -203,7 +206,7 @@ export class SwapTool extends BaseTool {
             network,
             provider: preferredProvider,
             slippage = this.defaultSlippage,
-            atPrice: atPrice,
+            limitPrice,
           } = args;
 
           console.log('🔄 Doing swap operation...');
@@ -264,10 +267,11 @@ export class SwapTool extends BaseTool {
             amount,
             type: amountType,
             slippage,
-            atPrice,
+            limitPrice,
           };
           let selectedProvider: ISwapProvider;
           let quote: SwapQuote;
+          let isWrapToken = false;
 
           onProgress?.({
             progress: 0,
@@ -292,6 +296,39 @@ export class SwapTool extends BaseTool {
                 );
               }
 
+              // STEP 5: Handle wrapped token BNB
+              // validate is valid limit order
+              if (swapParams?.limitPrice && swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS) {
+                onProgress?.({
+                  progress: 5,
+                  message: `Wrapping BNB to WBNB`,
+                });
+
+                const wrapTx = await selectedProvider.wrapToken(amount.toString(), WrapToken.WBNB);
+
+                const wallet = this.agent.getWallet();
+                const wrapReceipt = await wallet.signAndSendTransaction(network, {
+                  to: wrapTx.to,
+                  data: wrapTx.data,
+                  value: BigInt(wrapTx.value),
+                });
+
+                // Wait for approval to be mined
+                const wrapResult = await wrapReceipt.wait();
+
+                if (!wrapResult?.hash) {
+                  throw new Error(`Failed to wrap BNB to WBNB`);
+                }
+                // set wrap token address
+                swapParams.fromToken = WrapToken.WBNB;
+                isWrapToken = true;
+
+                onProgress?.({
+                  progress: 8,
+                  message: `Successfully wrapped BNB to WBNB`,
+                });
+              }
+
               try {
                 quote = await selectedProvider.getQuote(swapParams, userAddress);
               } catch (error: any) {
@@ -313,7 +350,6 @@ export class SwapTool extends BaseTool {
               }
             }
           } catch (error: any) {
-
             console.warn(`Failed to get quote:`, error);
             throw error;
           }
@@ -334,7 +370,6 @@ export class SwapTool extends BaseTool {
           } catch (error: any) {
             throw error; // Re-throw structured errors
           }
-
 
           onProgress?.({
             progress: 20,
@@ -431,6 +466,34 @@ export class SwapTool extends BaseTool {
             throw error;
           }
 
+          // STEP 9: unwrap token if needed
+          // if (swapParams?.limitPrice && swapParams.fromToken === WrapToken.WBNB && isWrapToken) {
+          //   const wallet = this.agent.getWallet();
+          //   userAddress = await wallet.getAddress(network);
+          //   onProgress?.({
+          //     progress: 90,
+          //     message: `Unwrapping WBNB to BNB`,
+          //   });
+
+          //   const unwrapTx = await selectedProvider.unwrapToken(amount.toString(), userAddress);
+
+          //   const unwrapReceipt = await wallet.signAndSendTransaction(network, {
+          //     to: WrapToken.WBNB,
+          //     data: unwrapTx.data,
+          //     value: BigInt(0),
+          //     gasLimit: unwrapTx?.gasLimit || '85000',
+          //   });
+
+          //   // Wait for approval to be mined
+          //   const unwraptxh = await unwrapReceipt.wait();
+          //   if (unwraptxh?.hash) {
+          //     onProgress?.({
+          //       progress: 95,
+          //       message: `Successfully unwrapped WBNB to BNB. Transaction hash: ${unwraptxh?.hash}`,
+          //     });
+          //   }
+          // }
+
           try {
             // Clear token balance caches after successful swap
             selectedProvider.invalidateBalanceCache(quote.fromToken.address, userAddress, network);
@@ -438,7 +501,6 @@ export class SwapTool extends BaseTool {
           } catch (error: any) {
             console.error('Error clearing token balance caches:', error);
             // Non-critical error, don't throw
-            
           }
 
           onProgress?.({
