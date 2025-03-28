@@ -10,7 +10,6 @@ import {
 import { ImagePlugin } from '@binkai/image-plugin';
 import { ethers } from 'ethers';
 import { FourMemeProvider } from '@binkai/four-meme-provider';
-// import { BirdeyeProvider } from '@binkai/birdeye-provider';
 
 // Hardcoded RPC URLs for demonstration
 const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
@@ -103,10 +102,7 @@ async function main() {
   const provider = new ethers.JsonRpcProvider(BNB_RPC);
 
   const fourMeme = new FourMemeProvider(provider, 56);
-  // const birdeye = new BirdeyeProvider({
-  //   apiKey: settings.get('BIRDEYE_API_KEY'),
-  // });
-  // Configure the plugin with supported chains
+
   await tokenPlugin.initialize({
     defaultChain: 'bnb',
     providers: [fourMeme as any],
@@ -125,17 +121,8 @@ async function main() {
     input: 'Create a image based on style cartoon and funny',
   });
   console.log('✓ Token created:', result, '\n');
-  // Get plugin information
-  // const registeredPlugin = agent.getPlugin('token') as ImagePlugin;
 
-  // Check available providers for each chain
   console.log('📊 Available providers by chain:');
-  // const chains = registeredPlugin.getSupportedNetworks();
-  // for (const chain of chains) {
-  //   const providers = registeredPlugin.getProvidersForNetwork(chain);
-  //   console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
-  // }
-  // console.log();
 }
 
 main().catch(error => {

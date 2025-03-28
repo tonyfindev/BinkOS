@@ -4,11 +4,13 @@ import {
   CustomDynamicStructuredTool,
   ErrorStep,
   IToolConfig,
+  settings,
   NetworkName,
   ToolProgress,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IImageProvider } from './types';
+import axios from 'axios';
 
 export interface CreateImageToolConfig extends IToolConfig {
   supportedNetworks?: NetworkName[];
@@ -76,6 +78,10 @@ export class CreateImageTool extends BaseTool {
 
   createTool(): CustomDynamicStructuredTool {
     console.log('🛠️ Creating create image tool');
+
+    // Get API URL from environment or use default
+    const API_BASE_URL = settings.get('IMAGE_API_URL') || '';
+
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -87,14 +93,91 @@ export class CreateImageTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
-          const { prompt, image_url, provider: preferredProvider } = args;
+          const { prompt, image_url } = args;
           console.log('🤖 Create image Args:', args);
 
-          //       // Return result as JSON string
+          // Generate a unique request ID
+          const requestId = `req-${Math.random().toString(36).substring(2, 15)}`;
+
+          onProgress?.({
+            progress: 30,
+            message: 'Sending image generation request',
+          });
+
+          // Send image generation request using environment variable
+          try {
+            await axios.post(`${API_BASE_URL}/image/generate`, {
+              prompt,
+              url: image_url || '',
+              requestId,
+            });
+          } catch (error: any) {
+            throw this.createError(
+              ErrorStep.API_REQUEST,
+              `Failed to generate image: ${error.message}`,
+              { error: error.message },
+            );
+          }
+
+          // Poll for image status using environment variable
+          let imageData = null;
+          let attempts = 0;
+          const maxAttempts = 150;
+          const pollingInterval = 2000;
+
+          while (attempts < maxAttempts) {
+            try {
+              const response = await axios.get(`${API_BASE_URL}/image/status/${requestId}`);
+              const status = response.data;
+
+              if (status.data.status === 'success') {
+                imageData = status.data.data;
+                break;
+              } else if (status.data.status === 'error') {
+                throw this.createError(
+                  ErrorStep.API_RESPONSE,
+                  `Image generation failed: ${status.data.message || 'Unknown error'}`,
+                  { error: status.data.message },
+                );
+              }
+
+              const progressPercentage = 50 + Math.min(40, attempts * (40 / maxAttempts));
+              onProgress?.({
+                progress: progressPercentage,
+                message: `Processing image generation... (${Math.round(progressPercentage)}%)`,
+              });
+
+              await new Promise(resolve => setTimeout(resolve, pollingInterval));
+              attempts++;
+            } catch (error: any) {
+              throw this.createError(
+                ErrorStep.API_RESPONSE,
+                `Failed to check image status: ${error.message}`,
+                { error: error.message },
+              );
+            }
+          }
+
+          if (!imageData) {
+            throw this.createError(
+              ErrorStep.API_RESPONSE,
+              'Image generation timed out after 5 minutes',
+              { error: 'Timeout' },
+            );
+          }
+
+          onProgress?.({
+            progress: 100,
+            message: 'Image generated successfully',
+          });
+
+          // Return result as JSON string
           return JSON.stringify({
             status: 'success',
+            fileName: imageData?.fileName,
+            imageUrl: imageData?.downloadUrl,
+            prompt,
           });
-          //       });
         } catch (error: any) {
           // Use BaseTool's error handling
           return this.handleError(error, args);
