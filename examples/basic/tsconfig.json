@@ -19,7 +19,8 @@
     { "path": "../../packages/plugins/wallet" },
     { "path": "../../packages/plugins/staking" },
     { "path": "../../packages/providers/thena" },
-    { "path": "../../packages/providers/birdeye" }
+    { "path": "../../packages/providers/birdeye" },
+    { "path": "../../packages/providers/alchemy" }
   ],
   "include": ["src/**/*"]
 }
