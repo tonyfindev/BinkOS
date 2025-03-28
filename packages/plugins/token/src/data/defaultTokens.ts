@@ -21,7 +21,7 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       name: 'Wrapped BNB (WBNB)',
       decimals: 18,
       network: NetworkName.BNB,
-      logoURI: 'https://tokens.pancakeswap.finance/images/symbol/bnb.png',
+      //logoURI: 'https://tokens.pancakeswap.finance/images/symbol/bnb.png',
       verified: true,
     },
     '0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1': {
