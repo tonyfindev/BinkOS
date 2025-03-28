@@ -53,6 +53,9 @@ importers:
       '@binkai/four-meme-provider':
         specifier: workspace:*
         version: link:../../packages/providers/four-meme
+      '@binkai/image-plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugins/image
       '@binkai/jupiter-provider':
         specifier: workspace:*
         version: link:../../packages/providers/jupiter
@@ -253,6 +256,28 @@ importers:
         specifier: ^5.0.0
         version: 5.7.3
 
+  packages/plugins/image:
+    dependencies:
+      '@binkai/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@langchain/core':
+        specifier: ^0.3.32
+        version: 0.3.32(openai@4.79.3(encoding@0.1.13)(ws@8.18.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.1))
+      zod:
+        specifier: ^3.22.4
+        version: 3.24.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.17.14
+      rimraf:
+        specifier: ^5.0.0
+        version: 5.0.10
+      typescript:
+        specifier: ^5.0.0
+        version: 5.7.3
+
   packages/plugins/knowledge:
     dependencies:
       '@binkai/core':
@@ -417,6 +442,9 @@ importers:
       '@binkai/core':
         specifier: workspace:*
         version: link:../../core
+      '@binkai/image-plugin':
+        specifier: workspace:*
+        version: link:../../plugins/image
       '@binkai/knowledge-plugin':
         specifier: workspace:*
         version: link:../../plugins/knowledge
