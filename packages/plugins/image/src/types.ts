@@ -1,25 +1,15 @@
-import { NetworkName } from '@binkai/core';
-import { z } from 'zod';
-
-export interface CreateTokenParams {
-  name: string;
-  symbol: string;
-  description: string;
-  img?: string;
-  totalSupply?: number;
-  raisedAmount?: number;
-  saleRate?: number;
-  network: NetworkName;
-  amount?: number;
+export interface CreateImageResponse {
+  status: string;
+  fileName: string;
+  imageUrl: string;
 }
 
-export interface TokenQueryParams {
-  query: string; // Can be address or symbol
-  network: NetworkName;
-  includePrice?: boolean;
+export interface CreateImageParams {
+  prompt: string;
+  image_url?: string;
 }
 
 export interface IImageProvider {
   getName(): string;
-  getSupportedNetworks(): NetworkName[];
+  createImage(params: CreateImageParams): Promise<CreateImageResponse>;
 }

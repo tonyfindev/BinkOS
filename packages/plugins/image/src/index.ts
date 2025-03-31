@@ -1,3 +1,4 @@
+export * from './CreateImageTool';
 export * from './ImagePlugin';
-export * from './ProviderRegistry';
 export * from './types';
+export * from './ProviderRegistry';

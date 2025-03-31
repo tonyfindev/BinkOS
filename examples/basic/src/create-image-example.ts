@@ -10,6 +10,7 @@ import {
 import { ImagePlugin } from '@binkai/image-plugin';
 import { ethers } from 'ethers';
 import { FourMemeProvider } from '@binkai/four-meme-provider';
+import { BinkProvider } from '@binkai/bink-provider';
 
 // Hardcoded RPC URLs for demonstration
 const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
@@ -97,30 +98,33 @@ async function main() {
 
   // Create and configure the image plugin
   console.log('🔍 Initializing token plugin...');
-  const tokenPlugin = new ImagePlugin();
+  const imagePlugin = new ImagePlugin();
 
   const provider = new ethers.JsonRpcProvider(BNB_RPC);
 
-  const fourMeme = new FourMemeProvider(provider, 56);
-
-  await tokenPlugin.initialize({
+  const binkProvider = new BinkProvider({
+    apiKey: settings.get('BINK_API_KEY') || '',
+    baseUrl: settings.get('BINK_API_URL') || '',
+  });
+  await imagePlugin.initialize({
     defaultChain: 'bnb',
-    providers: [fourMeme as any],
+    providers: [binkProvider],
     supportedChains: ['bnb'],
   });
   console.log('✓ Token plugin initialized\n');
 
   // Register the plugin with the agent
   console.log('🔌 Registering token plugin with agent...');
-  await agent.registerPlugin(tokenPlugin);
+  await agent.registerPlugin(imagePlugin);
   console.log('✓ Plugin registered\n');
 
   // Example 1: Create a image
   console.log('💎 Example 1: Create a token on BSC');
   const result = await agent.execute({
-    input: 'Create a image based on style cartoon and funny',
+    input:
+      'Create a image based on image https://cdn.shopify.com/s/files/1/0583/4820/8201/files/Picture4_480x480.png?v=1723119015, style cartoon and funny',
   });
-  console.log('✓ Token created:', result, '\n');
+  console.log('✓ Image created:', result, '\n');
 
   console.log('📊 Available providers by chain:');
 }

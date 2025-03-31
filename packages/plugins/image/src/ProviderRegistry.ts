@@ -1,15 +1,14 @@
-import { NetworkName } from '@binkai/core';
 import { IImageProvider } from './types';
 
 export class ProviderRegistry {
-  private providers: IImageProvider[] = [];
+  private providers: Map<string, IImageProvider> = new Map();
 
   registerProvider(provider: IImageProvider): void {
-    this.providers.push(provider);
+    this.providers.set(provider.getName(), provider);
   }
 
   getProvider(name: string): IImageProvider {
-    const provider = this.providers.find(p => p.getName() === name);
+    const provider = this.providers.get(name);
     if (!provider) {
       throw new Error(`Provider ${name} not found`);
     }
@@ -17,13 +16,6 @@ export class ProviderRegistry {
   }
 
   getProviderNames(): string[] {
-    return this.providers.map(provider => provider.getName());
-  }
-
-  getProvidersByNetwork(network: NetworkName | '*'): IImageProvider[] {
-    if (network === '*') {
-      return this.providers;
-    }
-    return this.providers.filter(provider => provider.getSupportedNetworks().includes(network));
+    return Array.from(this.providers.keys());
   }
 }
