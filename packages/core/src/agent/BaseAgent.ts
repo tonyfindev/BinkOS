@@ -104,6 +104,14 @@ export abstract class BaseAgent implements IAgent {
     this.callbackManager.unregisterToolExecutionCallback(callback);
   }
 
+  invokeTool(toolName: string, params: any): Promise<any> {
+    const tool = this.tools.find(t => t.name === toolName);
+    if (!tool) {
+      throw new Error(`Tool ${toolName} not found`);
+    }
+    return tool.invoke(params);
+  }
+
   // Core agent functionality that must be implemented
   abstract execute(command: string): Promise<any>;
   abstract execute(params: AgentExecuteParams): Promise<string>;
