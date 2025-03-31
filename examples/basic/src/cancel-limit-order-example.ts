@@ -14,10 +14,13 @@ import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { WalletPlugin } from '@binkai/wallet-plugin';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BnbProvider } from '@binkai/rpc-provider';
+import { Connection } from '@solana/web3.js';
+import { JupiterProvider } from '@binkai/jupiter-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
+const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 
 async function main() {
   console.log('🚀 Starting BinkOS limit order example...\n');
@@ -56,6 +59,18 @@ async function main() {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18,
+        },
+      },
+    },
+    [NetworkName.SOLANA]: {
+      type: 'solana' as NetworkType,
+      config: {
+        rpcUrl: SOL_RPC,
+        name: 'Solana',
+        nativeCurrency: {
+          name: 'Solana',
+          symbol: 'SOL',
+          decimals: 9,
         },
       },
     },
@@ -121,6 +136,7 @@ async function main() {
   });
   // Create providers with proper chain IDs
   const thena = new ThenaProvider(provider, 56);
+  const jupiter = new JupiterProvider(new Connection(SOL_RPC));
 
   // Initialize plugin with provider
   await walletPlugin.initialize({
@@ -140,7 +156,7 @@ async function main() {
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [thena],
+    providers: [thena, jupiter],
     supportedChains: ['bnb', 'ethereum'],
   });
   console.log('✓ Swap plugin initialized\n');
@@ -177,8 +193,11 @@ async function main() {
 
   console.log(`Example 2: cancel limit order 123456 via thena on bnb`);
   const result2 = await agent.execute({
+    // input: `
+    //    cancel limit order 123456 via thena on bnb
+    //   `,
     input: `
-       cancel limit order 123456 via thena on bnb
+       cancel limit order 8wZwGN2d6d522jcbQpvQA4rvrnVzJNsqQoXpAWxV8hqb via jupiter on solana
       `,
   });
   console.log('✓ cancel limit order result:', result2, '\n');

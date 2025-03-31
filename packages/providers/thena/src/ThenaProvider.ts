@@ -277,7 +277,7 @@ export class ThenaProvider extends BaseSwapProvider {
     return Number(order) >= currentTime ? 1 : 0;
   }
 
-  private cancelOrder(orderId: number) {
+  private cancelOrder(orderId: number, userAddress?: string) {
     const tx = this.orbsContract.interface.encodeFunctionData('cancel(uint64)', [orderId]);
     return { tx, to: CONSTANTS.ORBS_ADDRESS };
   }

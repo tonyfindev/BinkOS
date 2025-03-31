@@ -195,21 +195,27 @@ export class GetLimitOrdersTool extends BaseTool {
             progress: 70,
             message: `Found ${allOrders.length} orders. Validating each order...`,
           });
-
-          // Validate each order
           let validatedCount = 0;
-          const validOrders = await Promise.all(
-            allOrders.map(async (orderId, index) => {
-              onProgress?.({
-                progress: 70 + Math.floor((index / allOrders.length) * 25),
-                message: `Validating order ${index + 1}/${allOrders.length}...`,
-              });
+          let validOrders;
+          console.log('🤖 Selected provider:', selectedProvider.getName());
+          if (selectedProvider.getName() === 'jupiter') {
+            // Validate each order
+            validatedCount = allOrders.length;
+            validOrders = allOrders;
+          } else {
+            validOrders = await Promise.all(
+              allOrders.map(async (orderId, index) => {
+                onProgress?.({
+                  progress: 70 + Math.floor((index / allOrders.length) * 25),
+                  message: `Validating order ${index + 1}/${allOrders.length}...`,
+                });
 
-              const isValid = await selectedProvider.checkValidOrderId(orderId);
-              validatedCount += isValid ? 1 : 0;
-              return isValid ? orderId : null;
-            }),
-          ).then(orders => orders.filter(Boolean));
+                const isValid = await selectedProvider.checkValidOrderId(orderId);
+                validatedCount += isValid ? 1 : 0;
+                return isValid ? orderId : null;
+              }),
+            ).then(orders => orders.filter(Boolean));
+          }
 
           onProgress?.({
             progress: 95,
