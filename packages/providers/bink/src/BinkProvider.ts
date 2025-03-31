@@ -7,8 +7,6 @@ import {
 
 import { IImageProvider, CreateImageParams, CreateImageResponse } from '@binkai/image-plugin';
 
-import { settings } from '@binkai/core';
-
 export interface BinkProviderConfig {
   apiKey: string;
   baseUrl: string;
