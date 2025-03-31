@@ -394,8 +394,6 @@ export class FourMemeProvider extends BaseSwapProvider {
         Accept: 'application/json',
         origin: 'https://four.meme',
         referer: 'https://four.meme/create-token',
-        'user-agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
       body: JSON.stringify({
         accountAddress,
@@ -423,8 +421,6 @@ export class FourMemeProvider extends BaseSwapProvider {
         Accept: 'application/json',
         origin: 'https://four.meme',
         referer: 'https://four.meme/create-token',
-        'user-agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
       body: JSON.stringify({
         verifyInfo: {
@@ -542,8 +538,6 @@ export class FourMemeProvider extends BaseSwapProvider {
             Accept: 'application/json',
             'meme-web-access': accessToken,
             Referer: 'https://four.meme/create-token',
-            'User-Agent':
-              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
           },
         },
       );
