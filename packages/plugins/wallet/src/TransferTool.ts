@@ -1,8 +1,14 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig, NetworkName } from '@binkai/core';
+import {
+  BaseTool,
+  CustomDynamicStructuredTool,
+  IToolConfig,
+  NetworkName,
+  ToolProgress,
+} from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
-import { IWalletProvider, TransferParams } from './types';
+import { IWalletProvider, TransferParams, TransferQuote } from './types';
 import { ethers } from 'ethers';
 
 export function validateTokenAddress(address: string): boolean {
@@ -90,13 +96,81 @@ export class TransferTool extends BaseTool {
     });
   }
 
+  async getQuote(
+    args: any,
+    onProgress?: (data: ToolProgress) => void,
+  ): Promise<{ selectedProvider: IWalletProvider; quote: TransferQuote; userAddress: string }> {
+    const {
+      token,
+      toAddress,
+      amount,
+      network = this.defaultNetwork,
+      provider: preferredProvider,
+    } = args;
+    // Validate token address
+    if (!validateTokenAddress(token)) {
+      throw new Error(`Invalid token address for network ${network}: ${token}`);
+    }
+
+    // Get agent's wallet and address
+    const wallet = this.agent.getWallet();
+    const userAddress = await wallet.getAddress(network);
+
+    // Validate network is supported
+    const supportedNetworks = this.getSupportedNetworks();
+    if (!supportedNetworks.includes(network)) {
+      throw new Error(
+        `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
+      );
+    }
+    const transferParams: TransferParams = {
+      network: network as NetworkName,
+      token,
+      toAddress,
+      amount,
+    };
+    // Get the provider
+    const selectedProvider = this.registry.getProvider(preferredProvider);
+    // Validate provider supports the network
+    if (!selectedProvider.getSupportedNetworks().includes(network as NetworkName)) {
+      throw new Error(`Provider ${preferredProvider} does not support network ${network}`);
+    }
+
+    // Get quote
+    const quote = await selectedProvider?.getQuote?.(transferParams, userAddress);
+    if (!quote) {
+      throw new Error('No quote found');
+    }
+
+    // Check balance
+    const balanceCheck = await selectedProvider?.checkBalance?.(quote, userAddress);
+    if (!balanceCheck?.isValid) {
+      throw new Error(`Insufficient balance: ${balanceCheck?.message}`);
+    }
+
+    return {
+      selectedProvider,
+      quote,
+      userAddress,
+    };
+  }
+
+  async simulateQuoteTool(args: any): Promise<TransferQuote> {
+    return (await this.getQuote(args)).quote;
+  }
+
   createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
     return {
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
-      func: async (args: any) => {
+      func: async (
+        args: any,
+        runManager?: any,
+        config?: any,
+        onProgress?: (data: ToolProgress) => void,
+      ) => {
         try {
           const {
             token,
@@ -108,47 +182,9 @@ export class TransferTool extends BaseTool {
 
           console.log('🤖 Transfer Args:', args);
 
-          // Validate token address
-          if (!validateTokenAddress(token)) {
-            throw new Error(`Invalid token address for network ${network}: ${token}`);
-          }
-
+          const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();
-          const userAddress = await wallet.getAddress(network);
-
-          // Validate network is supported
-          const supportedNetworks = this.getSupportedNetworks();
-          if (!supportedNetworks.includes(network)) {
-            throw new Error(
-              `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
-            );
-          }
-          const transferParams: TransferParams = {
-            network: network as NetworkName,
-            token,
-            toAddress,
-            amount,
-          };
-          // Get the provider
-          const selectedProvider = this.registry.getProvider(preferredProvider);
-          // Validate provider supports the network
-          if (!selectedProvider.getSupportedNetworks().includes(network as NetworkName)) {
-            throw new Error(`Provider ${preferredProvider} does not support network ${network}`);
-          }
-
-          // Get quote
-          const quote = await selectedProvider?.getQuote?.(transferParams, userAddress);
-          if (!quote) {
-            throw new Error('No quote found');
-          }
-
-          // Check balance
-          const balanceCheck = await selectedProvider?.checkBalance?.(quote, userAddress);
-          if (!balanceCheck?.isValid) {
-            throw new Error(`Insufficient balance: ${balanceCheck?.message}`);
-          }
-
           // Build transaction
           const transferTx = await selectedProvider?.buildTransferTransaction?.(quote, userAddress);
           if (!transferTx) {

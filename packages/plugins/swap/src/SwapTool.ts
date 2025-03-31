@@ -182,6 +182,207 @@ export class SwapTool extends BaseTool {
     }, validQuotes[0]);
   }
 
+  async getQuote(
+    args: any,
+    onProgress?: (data: ToolProgress) => void,
+  ): Promise<{
+    selectedProvider: ISwapProvider;
+    quote: SwapQuote;
+    userAddress: string;
+  }> {
+    const {
+      fromToken,
+      toToken,
+      amount,
+      amountType,
+      network,
+      provider: preferredProvider,
+      slippage = this.defaultSlippage,
+    } = args;
+    // STEP 1: Validate network
+    const supportedNetworks = this.getSupportedNetworks();
+    if (!supportedNetworks.includes(network)) {
+      throw this.createError(ErrorStep.NETWORK_VALIDATION, `Network ${network} is not supported.`, {
+        requestedNetwork: network,
+        supportedNetworks: supportedNetworks,
+      });
+    }
+
+    // STEP 2: Validate token addresses
+    if (!validateTokenAddress(fromToken, network)) {
+      throw this.createError(
+        ErrorStep.TOKEN_NOT_FOUND,
+        `Invalid fromToken address for network ${network}: ${fromToken}`,
+        {
+          token: fromToken,
+          network: network,
+          tokenType: 'fromToken',
+        },
+      );
+    }
+
+    if (!validateTokenAddress(toToken, network)) {
+      throw this.createError(
+        ErrorStep.TOKEN_NOT_FOUND,
+        `Invalid toToken address for network ${network}: ${toToken}`,
+        {
+          token: toToken,
+          network: network,
+          tokenType: 'toToken',
+        },
+      );
+    }
+
+    // STEP 3: Get wallet address
+    let userAddress;
+    try {
+      // Get agent's wallet and address
+      const wallet = this.agent.getWallet();
+      userAddress = await wallet.getAddress(network);
+    } catch (error: any) {
+      throw this.createError(
+        ErrorStep.WALLET_ACCESS,
+        `Failed to get wallet address for network ${network}.`,
+        {
+          network: network,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+
+    const swapParams: SwapParams = {
+      network,
+      fromToken,
+      toToken,
+      amount,
+      type: amountType,
+      slippage,
+    };
+
+    let selectedProvider: ISwapProvider;
+    let quote: SwapQuote;
+
+    onProgress?.({
+      progress: 0,
+      message: 'Searching for the best exchange rate for your swap.',
+    });
+
+    // STEP 4: Get provider and quote
+    try {
+      if (preferredProvider) {
+        selectedProvider = this.registry.getProvider(preferredProvider);
+
+        // Validate provider supports the network
+        if (!selectedProvider.getSupportedNetworks().includes(network)) {
+          throw this.createError(
+            ErrorStep.PROVIDER_VALIDATION,
+            `Provider ${preferredProvider} does not support network ${network}.`,
+            {
+              provider: preferredProvider,
+              requestedNetwork: network,
+              providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
+            },
+          );
+        }
+
+        try {
+          quote = await selectedProvider.getQuote(swapParams, userAddress);
+        } catch (error: any) {
+          throw this.createError(
+            ErrorStep.PRICE_RETRIEVAL,
+            `Failed to get quote from provider ${preferredProvider}.`,
+            {
+              provider: preferredProvider,
+              network: network,
+              fromToken: fromToken,
+              toToken: toToken,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
+        }
+      } else {
+        try {
+          const bestQuote = await this.findBestQuote(
+            {
+              ...swapParams,
+              network,
+            },
+            userAddress,
+          );
+          selectedProvider = bestQuote.provider;
+          quote = bestQuote.quote;
+        } catch (error: any) {
+          throw this.createError(
+            ErrorStep.PRICE_RETRIEVAL,
+            `Failed to find any valid quotes for your swap.`,
+            {
+              network: network,
+              fromToken: fromToken,
+              toToken: toToken,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
+        }
+      }
+    } catch (error: any) {
+      if ('step' in error) {
+        throw error; // Re-throw structured errors
+      }
+
+      console.warn(`Failed to get quote:`, error);
+      throw this.createError(ErrorStep.PRICE_RETRIEVAL, `Failed to get a quote for your swap.`, {
+        network: network,
+        fromToken: fromToken,
+        toToken: toToken,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    console.log('🤖 The selected provider is:', selectedProvider.getName());
+
+    onProgress?.({
+      progress: 10,
+      message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this swap.`,
+    });
+
+    // STEP 5: Check balance
+    try {
+      const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
+      if (!balanceCheck.isValid) {
+        throw this.createError(
+          ErrorStep.DATA_RETRIEVAL,
+          balanceCheck.message || 'Insufficient balance for swap',
+          {
+            network: network,
+            fromToken: quote.fromToken.symbol || fromToken,
+            requiredAmount: quote.fromAmount,
+            userAddress: userAddress,
+          },
+        );
+      }
+    } catch (error: any) {
+      if ('step' in error) {
+        throw error; // Re-throw structured errors
+      }
+
+      throw this.createError(ErrorStep.DATA_RETRIEVAL, `Failed to verify your token balance.`, {
+        network: network,
+        fromToken: quote.fromToken.symbol || fromToken,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return {
+      selectedProvider,
+      quote,
+      userAddress,
+    };
+  }
+
+  async simulateQuoteTool(args: any): Promise<SwapQuote> {
+    return (await this.getQuote(args)).quote;
+  }
+
   createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
     return {
@@ -208,190 +409,7 @@ export class SwapTool extends BaseTool {
           console.log('🔄 Doing swap operation...');
           console.log('🤖 Swap Args:', args);
 
-          // STEP 1: Validate network
-          const supportedNetworks = this.getSupportedNetworks();
-          if (!supportedNetworks.includes(network)) {
-            throw this.createError(
-              ErrorStep.NETWORK_VALIDATION,
-              `Network ${network} is not supported.`,
-              {
-                requestedNetwork: network,
-                supportedNetworks: supportedNetworks,
-              },
-            );
-          }
-
-          // STEP 2: Validate token addresses
-          if (!validateTokenAddress(fromToken, network)) {
-            throw this.createError(
-              ErrorStep.TOKEN_NOT_FOUND,
-              `Invalid fromToken address for network ${network}: ${fromToken}`,
-              {
-                token: fromToken,
-                network: network,
-                tokenType: 'fromToken',
-              },
-            );
-          }
-
-          if (!validateTokenAddress(toToken, network)) {
-            throw this.createError(
-              ErrorStep.TOKEN_NOT_FOUND,
-              `Invalid toToken address for network ${network}: ${toToken}`,
-              {
-                token: toToken,
-                network: network,
-                tokenType: 'toToken',
-              },
-            );
-          }
-
-          // STEP 3: Get wallet address
-          let userAddress;
-          try {
-            // Get agent's wallet and address
-            const wallet = this.agent.getWallet();
-            userAddress = await wallet.getAddress(network);
-          } catch (error: any) {
-            throw this.createError(
-              ErrorStep.WALLET_ACCESS,
-              `Failed to get wallet address for network ${network}.`,
-              {
-                network: network,
-                error: error instanceof Error ? error.message : String(error),
-              },
-            );
-          }
-
-          const swapParams: SwapParams = {
-            network,
-            fromToken,
-            toToken,
-            amount,
-            type: amountType,
-            slippage,
-          };
-
-          let selectedProvider: ISwapProvider;
-          let quote: SwapQuote;
-
-          onProgress?.({
-            progress: 0,
-            message: 'Searching for the best exchange rate for your swap.',
-          });
-
-          // STEP 4: Get provider and quote
-          try {
-            if (preferredProvider) {
-              selectedProvider = this.registry.getProvider(preferredProvider);
-
-              // Validate provider supports the network
-              if (!selectedProvider.getSupportedNetworks().includes(network)) {
-                throw this.createError(
-                  ErrorStep.PROVIDER_VALIDATION,
-                  `Provider ${preferredProvider} does not support network ${network}.`,
-                  {
-                    provider: preferredProvider,
-                    requestedNetwork: network,
-                    providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
-                  },
-                );
-              }
-
-              try {
-                quote = await selectedProvider.getQuote(swapParams, userAddress);
-              } catch (error: any) {
-                throw this.createError(
-                  ErrorStep.PRICE_RETRIEVAL,
-                  `Failed to get quote from provider ${preferredProvider}.`,
-                  {
-                    provider: preferredProvider,
-                    network: network,
-                    fromToken: fromToken,
-                    toToken: toToken,
-                    error: error instanceof Error ? error.message : String(error),
-                  },
-                );
-              }
-            } else {
-              try {
-                const bestQuote = await this.findBestQuote(
-                  {
-                    ...swapParams,
-                    network,
-                  },
-                  userAddress,
-                );
-                selectedProvider = bestQuote.provider;
-                quote = bestQuote.quote;
-              } catch (error: any) {
-                throw this.createError(
-                  ErrorStep.PRICE_RETRIEVAL,
-                  `Failed to find any valid quotes for your swap.`,
-                  {
-                    network: network,
-                    fromToken: fromToken,
-                    toToken: toToken,
-                    error: error instanceof Error ? error.message : String(error),
-                  },
-                );
-              }
-            }
-          } catch (error: any) {
-            if ('step' in error) {
-              throw error; // Re-throw structured errors
-            }
-
-            console.warn(`Failed to get quote:`, error);
-            throw this.createError(
-              ErrorStep.PRICE_RETRIEVAL,
-              `Failed to get a quote for your swap.`,
-              {
-                network: network,
-                fromToken: fromToken,
-                toToken: toToken,
-                error: error instanceof Error ? error.message : String(error),
-              },
-            );
-          }
-
-          console.log('🤖 The selected provider is:', selectedProvider.getName());
-
-          onProgress?.({
-            progress: 10,
-            message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this swap.`,
-          });
-
-          // STEP 5: Check balance
-          try {
-            const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
-            if (!balanceCheck.isValid) {
-              throw this.createError(
-                ErrorStep.DATA_RETRIEVAL,
-                balanceCheck.message || 'Insufficient balance for swap',
-                {
-                  network: network,
-                  fromToken: quote.fromToken.symbol || fromToken,
-                  requiredAmount: quote.fromAmount,
-                  userAddress: userAddress,
-                },
-              );
-            }
-          } catch (error: any) {
-            if ('step' in error) {
-              throw error; // Re-throw structured errors
-            }
-
-            throw this.createError(
-              ErrorStep.DATA_RETRIEVAL,
-              `Failed to verify your token balance.`,
-              {
-                network: network,
-                fromToken: quote.fromToken.symbol || fromToken,
-                error: error instanceof Error ? error.message : String(error),
-              },
-            );
-          }
+          const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
 
           onProgress?.({
             progress: 20,

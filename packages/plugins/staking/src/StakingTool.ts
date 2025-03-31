@@ -146,6 +146,112 @@ export class StakingTool extends BaseTool {
     }, validQuotes[0]);
   }
 
+  async getQuote(
+    args: any,
+    onProgress?: (data: ToolProgress) => void,
+  ): Promise<{ selectedProvider: IStakingProvider; quote: StakingQuote; userAddress: string }> {
+    const {
+      tokenA,
+      tokenB,
+      amountA,
+      amountB,
+      type,
+      network = this.defaultNetwork,
+      provider: preferredProvider,
+    } = args;
+
+    // Validate token addresses
+    if (!validateTokenAddress(tokenA, network)) {
+      throw new Error(`Invalid tokenA address for network ${network}: ${tokenA}`);
+    }
+
+    // Get agent's wallet and address
+    const wallet = this.agent.getWallet();
+    const userAddress = await wallet.getAddress(network);
+
+    // Validate network is supported
+    const supportedNetworks = this.getSupportedNetworks();
+    if (!supportedNetworks.includes(network)) {
+      throw new Error(
+        `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
+      );
+    }
+
+    const stakingParams: StakingParams = {
+      network,
+      tokenA,
+      tokenB,
+      amountA,
+      amountB,
+      type,
+    };
+
+    let selectedProvider: IStakingProvider;
+    let quote: StakingQuote;
+
+    onProgress?.({
+      progress: 10,
+      message: `Searching for the best ${type} rate for your tokens.`,
+    });
+
+    if (preferredProvider) {
+      try {
+        selectedProvider = this.registry.getProvider(preferredProvider);
+        // Validate provider supports the network
+        if (!selectedProvider.getSupportedNetworks().includes(network)) {
+          throw new Error(`Provider ${preferredProvider} does not support network ${network}`);
+        }
+        quote = await selectedProvider.getQuote(stakingParams, userAddress);
+      } catch (error) {
+        console.warn(`Failed to get quote from preferred provider ${preferredProvider}:`, error);
+        console.log('🔄 Falling back to checking all providers for best quote...');
+        const bestQuote = await this.findBestQuote(
+          {
+            ...stakingParams,
+            network,
+          },
+          userAddress,
+        );
+        selectedProvider = bestQuote.provider;
+        quote = bestQuote.quote;
+      }
+    } else {
+      const bestQuote = await this.findBestQuote(
+        {
+          ...stakingParams,
+          network,
+        },
+        userAddress,
+      );
+      selectedProvider = bestQuote.provider;
+      quote = bestQuote.quote;
+    }
+
+    console.log('🤖 The selected provider is:', selectedProvider.getName());
+
+    onProgress?.({
+      progress: 20,
+      message: `Verifying you have sufficient ${quote.tokenA.symbol || 'tokens'} for this ${type} operation.`,
+    });
+
+    // Check user's balance before proceeding
+    const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
+
+    if (!balanceCheck.isValid) {
+      throw new Error(balanceCheck.message || 'Insufficient balance for staking');
+    }
+
+    return {
+      selectedProvider,
+      quote,
+      userAddress,
+    };
+  }
+
+  async simulateQuoteTool(args: any): Promise<StakingQuote> {
+    return (await this.getQuote(args)).quote;
+  }
+
   createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
     return {
@@ -171,91 +277,9 @@ export class StakingTool extends BaseTool {
 
           console.log('🤖 Staking Args:', args);
 
-          // Validate token addresses
-          if (!validateTokenAddress(tokenA, network)) {
-            throw new Error(`Invalid tokenA address for network ${network}: ${tokenA}`);
-          }
+          const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
 
-          // Get agent's wallet and address
           const wallet = this.agent.getWallet();
-          const userAddress = await wallet.getAddress(network);
-
-          // Validate network is supported
-          const supportedNetworks = this.getSupportedNetworks();
-          if (!supportedNetworks.includes(network)) {
-            throw new Error(
-              `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
-            );
-          }
-
-          const stakingParams: StakingParams = {
-            network,
-            tokenA,
-            tokenB,
-            amountA,
-            amountB,
-            type,
-          };
-
-          let selectedProvider: IStakingProvider;
-          let quote: StakingQuote;
-
-          onProgress?.({
-            progress: 10,
-            message: `Searching for the best ${type} rate for your tokens.`,
-          });
-
-          if (preferredProvider) {
-            try {
-              selectedProvider = this.registry.getProvider(preferredProvider);
-              // Validate provider supports the network
-              if (!selectedProvider.getSupportedNetworks().includes(network)) {
-                throw new Error(
-                  `Provider ${preferredProvider} does not support network ${network}`,
-                );
-              }
-              quote = await selectedProvider.getQuote(stakingParams, userAddress);
-            } catch (error) {
-              console.warn(
-                `Failed to get quote from preferred provider ${preferredProvider}:`,
-                error,
-              );
-              console.log('🔄 Falling back to checking all providers for best quote...');
-              const bestQuote = await this.findBestQuote(
-                {
-                  ...stakingParams,
-                  network,
-                },
-                userAddress,
-              );
-              selectedProvider = bestQuote.provider;
-              quote = bestQuote.quote;
-            }
-          } else {
-            const bestQuote = await this.findBestQuote(
-              {
-                ...stakingParams,
-                network,
-              },
-              userAddress,
-            );
-            selectedProvider = bestQuote.provider;
-            quote = bestQuote.quote;
-          }
-
-          console.log('🤖 The selected provider is:', selectedProvider.getName());
-
-          onProgress?.({
-            progress: 20,
-            message: `Verifying you have sufficient ${quote.tokenA.symbol || 'tokens'} for this ${type} operation.`,
-          });
-
-          // Check user's balance before proceeding
-          const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
-
-          if (!balanceCheck.isValid) {
-            throw new Error(balanceCheck.message || 'Insufficient balance for staking');
-          }
 
           onProgress?.({
             progress: 30,

@@ -5,10 +5,16 @@ import { IWallet } from '../wallet/types';
 import { NetworksConfig } from '../network/types';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { DatabaseAdapter } from '../storage';
-import { CallbackManager, IToolExecutionCallback } from './callbacks';
+import {
+  CallbackManager,
+  HumanReviewData,
+  IHumanReviewCallback,
+  IToolExecutionCallback,
+} from './callbacks';
 
 export abstract class BaseAgent implements IAgent {
   protected tools: DynamicStructuredTool[] = [];
+  protected registeredTools: ITool[] = [];
   protected plugins: Map<string, IPlugin> = new Map();
   protected callbackManager: CallbackManager = new CallbackManager();
 
@@ -18,6 +24,7 @@ export abstract class BaseAgent implements IAgent {
     const wrappedTool = this.addTool2CallbackManager(tool);
 
     this.tools.push(wrappedTool);
+    this.registeredTools.push(tool);
 
     await this.onToolsUpdated();
   }
@@ -45,6 +52,10 @@ export abstract class BaseAgent implements IAgent {
     return this.plugins.get(name);
   }
 
+  getRegisteredTools(): ITool[] {
+    return this.registeredTools;
+  }
+
   protected async unregisterPlugin(name: string): Promise<void> {
     const plugin = this.plugins.get(name);
     if (plugin) {
@@ -69,12 +80,20 @@ export abstract class BaseAgent implements IAgent {
   // Hook for subclasses to handle tool updates
   protected abstract onToolsUpdated(): Promise<void>;
 
+  public notifyHumanReview(data: HumanReviewData): void {
+    this.callbackManager.notifyHumanReview(data);
+  }
+
   /**
    * Register a callback for tool execution events
    * @param callback The callback to register
    */
   registerToolExecutionCallback(callback: IToolExecutionCallback): void {
     this.callbackManager.registerToolExecutionCallback(callback);
+  }
+
+  registerHumanReviewCallback(callback: IHumanReviewCallback): void {
+    this.callbackManager.registerHumanReviewCallback(callback);
   }
 
   /**
