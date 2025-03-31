@@ -25,3 +25,5 @@ pnpm-debug.log*
 
 # System
 .DS_Store
+
+.langgraph_api
