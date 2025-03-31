@@ -5,7 +5,7 @@ import {
   HumanMessage,
   ToolMessage,
 } from '@langchain/core/messages';
-import { Annotation, END, interrupt, START, StateGraph } from '@langchain/langgraph';
+import { Annotation, Command, END, interrupt, START, StateGraph } from '@langchain/langgraph';
 import { BaseLanguageModel } from '@langchain/core/language_models/base';
 import { MessagesPlaceholder } from '@langchain/core/prompts';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -79,6 +79,15 @@ export class ExecutorGraph {
 
     if (lastMessage?.tool_calls?.length && lastMessage?.tool_calls[0]?.name === 'ask_user') {
       return 'ask_user';
+    }
+
+    if (lastMessage?.tool_calls?.length && this.agent.config.isHumanReview) {
+      for (const toolCall of lastMessage?.tool_calls) {
+        const tool = this.agent.getRegisteredTools().find(t => t.getName() === toolCall?.name);
+        if ((tool as any)?.simulateQuoteTool) {
+          return 'review_transaction';
+        }
+      }
     }
     // Otherwise if there are tool calls, we continue to execute them
     return 'executor_tools';
@@ -237,19 +246,106 @@ export class ExecutorGraph {
     };
   }
 
+  async reviewTransactionNode(state: typeof StateAnnotation.State) {
+    const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+
+    if (!lastMessage?.tool_calls) {
+      return {
+        messages: [new AIMessage({ content: 'No need to review transaction' })],
+      };
+    }
+
+    const toolCalls = lastMessage?.tool_calls;
+
+    for (const toolCall of toolCalls) {
+      const tool = this.agent.getRegisteredTools().find(t => t.getName() === toolCall?.name);
+      if ((tool as any)?.simulateQuoteTool) {
+        let quote;
+
+        try {
+          quote = await (tool as any).simulateQuoteTool(toolCall.args);
+        } catch (e: any) {
+          const toolMessage = new ToolMessage({
+            name: toolCall.name,
+            content: 'Error: ' + e.message,
+            tool_call_id: toolCall.id ?? createToolCallId(),
+          });
+          return new Command({ goto: 'executor_agent', update: { messages: [toolMessage] } });
+        }
+
+        this.agent.setAskUser(true);
+
+        this.agent.notifyHumanReview({
+          toolName: toolCall.name,
+          data: quote,
+          timestamp: Date.now(),
+        });
+
+        const humanReview = interrupt<
+          {
+            question: string;
+            quote: any;
+          },
+          {
+            action?: string;
+            input?: string;
+          }
+        >({
+          question: 'I need you to review the transaction and approve it or reject it',
+          quote: quote,
+        });
+
+        this.agent.setAskUser(false);
+
+        if (humanReview.input) {
+          //TODO: use model to detect if the human review is approve or reject
+          if (!this.model.withStructuredOutput) {
+            throw new Error('Model does not support structured output');
+          }
+          const modelWithStructure = this.model.withStructuredOutput(
+            z.object({
+              action: z.enum(['approve', 'reject']),
+            }),
+          );
+
+          const response = await modelWithStructure.invoke(humanReview.input);
+
+          humanReview.action = response.action;
+        }
+
+        if (humanReview.action === 'approve') {
+          return new Command({ goto: 'executor_tools' });
+        } else if (humanReview.action === 'reject') {
+          const toolMessage = new ToolMessage({
+            name: toolCall.name,
+            content: 'Transaction rejected by human review. Exit process.',
+            tool_call_id: toolCall.id ?? createToolCallId(),
+          });
+          return new Command({ goto: 'executor_agent', update: { messages: [toolMessage] } });
+        }
+      }
+    }
+
+    return new Command({ goto: 'executor_tools' });
+  }
+
   create() {
     const executorGraph = new StateGraph(StateAnnotation)
       .addNode('executor_agent', this.executorAgentNode.bind(this))
       .addNode('executor_tools', new ToolNode(this.tools))
       .addNode('executor_terminate', this.executorTerminateNode.bind(this))
       .addNode('ask_user', this.askNode.bind(this))
+      .addNode('review_transaction', this.reviewTransactionNode.bind(this), {
+        ends: ['executor_tools', 'executor_agent'],
+      })
       .addNode('end', () => {
         return {};
       })
       .addEdge(START, 'executor_agent')
-      .addConditionalEdges('executor_agent', this.routeAfterAgent, {
+      .addConditionalEdges('executor_agent', this.routeAfterAgent.bind(this), {
         end: 'end',
         ask_user: 'ask_user',
+        review_transaction: 'review_transaction',
         executor_tools: 'executor_tools',
         executor_terminate: 'executor_terminate',
       })

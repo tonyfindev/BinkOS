@@ -11,6 +11,8 @@ import {
   ToolExecutionData,
   ToolExecutionState,
   PlanningAgent,
+  IHumanReviewCallback,
+  HumanReviewData,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
@@ -57,6 +59,12 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
     if (data.state === ToolExecutionState.FAILED && data.error) {
       console.log(`   Error: ${data.error.message || String(data.error)}`);
     }
+  }
+}
+
+class ExampleHumanReviewCallback implements IHumanReviewCallback {
+  onHumanReview(data: HumanReviewData): void {
+    console.log(`Human review: ${data.toolName}`, data.data);
   }
 }
 
@@ -145,6 +153,7 @@ async function main() {
   console.log('🤖 Initializing AI agent...');
   const agent = new PlanningAgent(
     {
+      isHumanReview: true,
       model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
@@ -160,6 +169,7 @@ async function main() {
   // Register the tool execution callback
   console.log('🔔 Registering tool execution callback...');
   agent.registerToolExecutionCallback(new ExampleToolExecutionCallback());
+  agent.registerHumanReviewCallback(new ExampleHumanReviewCallback());
   console.log('✓ Callback registered\n');
 
   // Create and configure the swap plugin
