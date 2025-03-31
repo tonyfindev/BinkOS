@@ -82,6 +82,7 @@ export class CreateImageTool extends BaseTool {
             progress: 50,
             message: `Processing image generation...`,
           });
+
           const response = await provider.createImage({ prompt, image_url });
           onProgress?.({
             progress: 100,
