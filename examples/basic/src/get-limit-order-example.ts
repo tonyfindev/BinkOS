@@ -10,15 +10,17 @@ import {
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { ThenaProvider } from '@binkai/thena-provider';
+import { JupiterProvider } from '@binkai/jupiter-provider';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { WalletPlugin } from '@binkai/wallet-plugin';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BnbProvider } from '@binkai/rpc-provider';
+import { Connection } from '@solana/web3.js';
 
 // Hardcoded RPC URLs for demonstration
-const BNB_RPC = 'https://bsc-dataseed1.binance.org';
+const BNB_RPC = 'https://binance.llamarpc.com';
 const ETH_RPC = 'https://eth.llamarpc.com';
-
+const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 async function main() {
   console.log('🚀 Starting BinkOS limit order example...\n');
 
@@ -56,6 +58,18 @@ async function main() {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18,
+        },
+      },
+    },
+    [NetworkName.SOLANA]: {
+      type: 'solana' as NetworkType,
+      config: {
+        rpcUrl: SOL_RPC,
+        name: 'Solana',
+        nativeCurrency: {
+          name: 'Solana',
+          symbol: 'SOL',
+          decimals: 9,
         },
       },
     },
@@ -121,7 +135,7 @@ async function main() {
   });
   // Create providers with proper chain IDs
   const thena = new ThenaProvider(provider, 56);
-
+  const jupiter = new JupiterProvider(new Connection(SOL_RPC));
   // Initialize plugin with provider
   await walletPlugin.initialize({
     defaultChain: 'bnb',
@@ -140,8 +154,8 @@ async function main() {
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [thena],
-    supportedChains: ['bnb', 'ethereum'],
+    providers: [thena, jupiter],
+    supportedChains: ['bnb', 'ethereum', 'solana'],
   });
   console.log('✓ Swap plugin initialized\n');
 
@@ -157,31 +171,14 @@ async function main() {
   console.log('🔌 Registering swap plugin with agent...');
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
-  //   console.log(`Example 1: cancel limit orders [
-  //   987654, 987655,
-  //   987656, 987657,
-  //   987658, 987659,
-  //   987660, 987661
-  // ] via thena on bnb`);
-  //   const result1 = await agent.execute({
-  //     input: `
-  //      cancel limit orders [
-  //   987654, 987655,
-  //   987656, 987657,
-  //   987658, 987659,
-  //   987660, 987661
-  // ] via thena on bnb
-  //     `,
-  //   });
-  //   console.log('✓ cancel limit orders result:', result1, '\n');
 
-  console.log(`Example 2: cancel limit order 123456 via thena on bnb`);
-  const result2 = await agent.execute({
+  console.log('Example 1:get all limit orders via thena on bnb');
+  const result1 = await agent.execute({
     input: `
-       cancel all limit order via thena on bnb
-      `,
+     get all limit orders via jupiter on solana
+    `,
   });
-  console.log('✓ cancel limit order result:', result2, '\n');
+  console.log('✓ limit order result:', result1, '\n');
   // Get plugin information
   const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
 

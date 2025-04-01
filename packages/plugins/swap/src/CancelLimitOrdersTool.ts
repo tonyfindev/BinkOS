@@ -124,6 +124,9 @@ export class CancelLimitOrdersTool extends BaseTool {
           console.log('🔄 Canceling limit orders...');
           console.log('🤖 Args:', args);
 
+          let wallet;
+          let userAddress;
+
           onProgress?.({
             progress: 5,
             message: 'Initializing order cancellation process...',
@@ -155,8 +158,8 @@ export class CancelLimitOrdersTool extends BaseTool {
           });
 
           // Get wallet address for each network
-          let wallet = this.agent.getWallet();
-          let userAddress = await wallet.getAddress(network);
+          wallet = this.agent.getWallet();
+          userAddress = await wallet.getAddress(network);
 
           onProgress?.({
             progress: 25,
@@ -203,18 +206,21 @@ export class CancelLimitOrdersTool extends BaseTool {
                 message: 'No pending orders found to cancel.',
                 network: network,
               });
-            }
-
-            // check valid order id
-            const validOrders: number[] = [];
-            for (let i = 0; i < allOrders.length; i++) {
-              const orderId = allOrders[i];
-              const isValid = await selectedProvider.checkValidOrderId(orderId);
-              if (isValid) {
-                validOrders.push(orderId);
+            } else {
+              // Cancel each specified order
+              if (selectedProvider.getName() !== 'jupiter') {
+                // check valid order id
+                const validOrders: number[] = [];
+                for (let i = 0; i < allOrders.length; i++) {
+                  const orderId = allOrders[i];
+                  const isValid = await selectedProvider.checkValidOrderId(orderId);
+                  if (isValid) {
+                    validOrders.push(orderId);
+                  }
+                }
+                orderIdsToCancel = validOrders.map(id => id.toString());
               }
             }
-            orderIdsToCancel = validOrders.map(id => id.toString());
           } else {
             // Handle both single order ID and array of order IDs
             orderIdsToCancel = Array.isArray(orderId) ? orderId : [orderId];
@@ -225,27 +231,26 @@ export class CancelLimitOrdersTool extends BaseTool {
             message: `Preparing to cancel ${orderIdsToCancel.length} order(s)...`,
           });
 
+          if (!orderIdsToCancel || orderIdsToCancel.length === 0) {
+            // Return result as JSON string
+            throw new Error('No orders to cancel.');
+          }
+
           // Cancel each specified order
           const cancelResults: any[] = [];
-          for (let i = 0; i < orderIdsToCancel.length; i++) {
-            const id = orderIdsToCancel[i];
 
-            onProgress?.({
-              progress: 40 + Math.floor((i / orderIdsToCancel.length) * 40),
-              message: `Canceling order ${id} (${i + 1}/${orderIdsToCancel.length})...`,
-            });
-
-            //convert id to number
-            const cancelResult: any = await selectedProvider.cancelOrder(Number(id));
+          if (selectedProvider.getName() === 'jupiter') {
+            const cancelResult: any = await selectedProvider.cancelOrder(
+              orderIdsToCancel,
+              userAddress,
+            );
             if (!cancelResult?.tx) {
-              throw new Error(`Failed to cancel order ${id}`);
+              throw new Error(`Failed to cancel order ${orderIdsToCancel}`);
             }
 
-            const statusOrderId: any = await selectedProvider.getStatusOrderId(Number(id));
-
             onProgress?.({
-              progress: 80 + Math.floor((i / orderIdsToCancel.length) * 10),
-              message: `Signing transaction for order ${id}...`,
+              progress: 80,
+              message: `Signing transaction for order ${orderIdsToCancel}...`,
             });
 
             const { tx, to } = cancelResult;
@@ -253,46 +258,91 @@ export class CancelLimitOrdersTool extends BaseTool {
               to: to,
               data: tx as any,
               value: 0n,
+              lastValidBlockHeight: cancelResult.lastValidBlockHeight,
             });
 
             onProgress?.({
-              progress: 90 + Math.floor((i / orderIdsToCancel.length) * 5),
-              message: `Confirming transaction for order ${id}...`,
+              progress: 90,
+              message: `Confirming transaction for order ${orderIdsToCancel}...`,
             });
 
-            await cancelReceipt.wait();
-
-            onProgress?.({
-              progress: 95,
-              message: `Unwrapping WBNB to BNB...`,
-            });
-
-            //unwrap token if needed
-            userAddress = await wallet.getAddress(network);
-            const amount = statusOrderId[6][4];
-            const unwrapTx = await selectedProvider.unwrapToken(amount.toString(), userAddress);
-
-            const unwrapReceipt = await wallet.signAndSendTransaction(network, {
-              to: WrapToken.WBNB,
-              data: unwrapTx.data,
-              value: BigInt(0),
-              gasLimit: unwrapTx?.gasLimit || '85000',
-            });
-
-            // Wait for approval to be mined
-            const unwraptxh = await unwrapReceipt.wait();
-            if (unwraptxh?.hash) {
-              onProgress?.({
-                progress: 97,
-                message: `Successfully unwrapped WBNB to BNB`,
-              });
+            const txh = await cancelReceipt.wait();
+            if (!txh?.hash) {
+              throw new Error(`Failed to cancel order ${orderIdsToCancel}`);
             }
-
             cancelResults.push({
-              orderId: id,
+              orderId: orderIdsToCancel,
               success: true,
               message: 'Order canceled successfully',
             });
+          } else {
+            for (let i = 0; i < orderIdsToCancel.length; i++) {
+              const id = orderIdsToCancel[i];
+
+              onProgress?.({
+                progress: 40 + Math.floor((i / orderIdsToCancel.length) * 40),
+                message: `Canceling order ${id} (${i + 1}/${orderIdsToCancel.length})...`,
+              });
+
+              //convert id to number
+              const cancelResult: any = await selectedProvider.cancelOrder(Number(id));
+              if (!cancelResult?.tx) {
+                throw new Error(`Failed to cancel order ${id}`);
+              }
+
+              const statusOrderId: any = await selectedProvider.getStatusOrderId(Number(id));
+
+              onProgress?.({
+                progress: 80 + Math.floor((i / orderIdsToCancel.length) * 10),
+                message: `Signing transaction for order ${id}...`,
+              });
+
+              const { tx, to } = cancelResult;
+              const cancelReceipt = await wallet.signAndSendTransaction(network, {
+                to: to,
+                data: tx as any,
+                value: 0n,
+              });
+
+              onProgress?.({
+                progress: 90 + Math.floor((i / orderIdsToCancel.length) * 5),
+                message: `Confirming transaction for order ${id}...`,
+              });
+
+              await cancelReceipt.wait();
+
+              onProgress?.({
+                progress: 95,
+                message: `Unwrapping WBNB to BNB...`,
+              });
+
+              //unwrap token if needed
+              userAddress = await wallet.getAddress(network);
+              const amount = statusOrderId[6][4];
+              const unwrapTx = await selectedProvider.unwrapToken(amount.toString(), userAddress);
+
+              const unwrapReceipt = await wallet.signAndSendTransaction(network, {
+                to: WrapToken.WBNB,
+                data: unwrapTx.data,
+                value: BigInt(0),
+                gasLimit: unwrapTx?.gasLimit || '85000',
+              });
+
+              // Wait for approval to be mined
+              const unwraptxh = await unwrapReceipt.wait();
+              if (unwraptxh?.hash) {
+                onProgress?.({
+                  progress: 97,
+                  message: `Successfully unwrapped WBNB to BNB`,
+                });
+              }
+
+              cancelResults.push({
+                orderId: id,
+                success: true,
+                message: 'Order canceled successfully',
+              });
+            }
           }
 
           const result = {

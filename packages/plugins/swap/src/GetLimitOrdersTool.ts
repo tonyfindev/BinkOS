@@ -194,26 +194,30 @@ export class GetLimitOrdersTool extends BaseTool {
             progress: 70,
             message: `Found ${allOrders.length} orders. Validating each order...`,
           });
-
-          // Validate each order
           let validatedCount = 0;
-          const validOrders = [];
+          let validOrders = [];
 
-          for (let i = 0; i < allOrders.length; i++) {
-            const orderId = allOrders[i];
-            onProgress?.({
-              progress: 70 + Math.floor((i / allOrders.length) * 25),
-              message: `Validating order ${i + 1}/${allOrders.length}...`,
-            });
+          if (selectedProvider.getName() === 'jupiter') {
+            // Validate each order
+            validatedCount = allOrders.length;
+            validOrders = allOrders;
+          } else {
+            for (let i = 0; i < allOrders.length; i++) {
+              const orderId = allOrders[i];
+              onProgress?.({
+                progress: 70 + Math.floor((i / allOrders.length) * 25),
+                message: `Validating order ${i + 1}/${allOrders.length}...`,
+              });
 
-            try {
-              const isValid = await selectedProvider.checkValidOrderId(orderId);
-              if (isValid) {
-                validatedCount++;
-                validOrders.push(orderId);
+              try {
+                const isValid = await selectedProvider.checkValidOrderId(orderId);
+                if (isValid) {
+                  validatedCount++;
+                  validOrders.push(orderId);
+                }
+              } catch (error) {
+                console.error(`Error validating order ${orderId}:`, error);
               }
-            } catch (error) {
-              console.error(`Error validating order ${orderId}:`, error);
             }
           }
 
