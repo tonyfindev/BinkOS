@@ -26,6 +26,8 @@ import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
 import { JupiterProvider } from '@binkai/jupiter-provider';
 import { Connection } from '@solana/web3.js';
+import { AlchemyProvider } from '@binkai/alchemy-provider';
+import { ThenaProvider } from '@binkai/thena-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -187,6 +189,11 @@ async function main() {
     apiKey: settings.get('BIRDEYE_API_KEY'),
   });
 
+  const thena = new ThenaProvider(provider, 56);
+  const alchemy = new AlchemyProvider({
+    apiKey: settings.get('ALCHEMY_API_KEY'),
+  });
+
   // Create and configure the wallet plugin
   console.log('🔄 Initializing wallet plugin...');
   const walletPlugin = new WalletPlugin();
@@ -197,14 +204,12 @@ async function main() {
 
   // Initialize plugin with provider
   await walletPlugin.initialize({
-    defaultChain: 'bnb',
-    providers: [bnbProvider, birdeye],
-    supportedChains: ['bnb'],
+    providers: [bnbProvider, birdeye, alchemy],
+    supportedChains: ['bnb', 'solana'],
   });
   // Configure the plugin with supported chains
   await tokenPlugin.initialize({
-    defaultChain: 'bnb',
-    providers: [birdeye],
+    providers: [birdeye, alchemy],
     supportedChains: ['solana', 'bnb'],
   });
   console.log('✓ Token plugin initialized\n');
@@ -220,9 +225,7 @@ async function main() {
 
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
-    defaultSlippage: 0.5,
-    defaultChain: 'bnb',
-    providers: [pancakeswap, jupiter],
+    providers: [pancakeswap, jupiter, thena],
     supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
