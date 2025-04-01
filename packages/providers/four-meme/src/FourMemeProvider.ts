@@ -446,6 +446,7 @@ export class FourMemeProvider extends BaseSwapProvider {
   }
 
   private async uploadImageUrl(imgUrl: string, accessToken: string): Promise<string> {
+    console.log('🚀 ~ FourMemeProvider ~ uploadImageUrl ~ imgUrl:', imgUrl);
     if (imgUrl && !imgUrl.startsWith('https://static.four.meme')) {
       try {
         const url = `${CONSTANTS.FOUR_MEME_API_BASE}/private/token/upload`;
@@ -467,8 +468,6 @@ export class FourMemeProvider extends BaseSwapProvider {
             'meme-web-access': accessToken,
             origin: 'https://four.meme',
             referer: 'https://four.meme/create-token',
-            'user-agent':
-              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           },
           body: formData,
         });
