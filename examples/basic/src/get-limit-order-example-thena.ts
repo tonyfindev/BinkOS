@@ -16,7 +16,7 @@ import { TokenPlugin } from '@binkai/token-plugin';
 import { BnbProvider } from '@binkai/rpc-provider';
 
 // Hardcoded RPC URLs for demonstration
-const BNB_RPC = 'https://bsc-dataseed1.binance.org';
+const BNB_RPC = 'https://binance.llamarpc.com';
 const ETH_RPC = 'https://eth.llamarpc.com';
 
 async function main() {
