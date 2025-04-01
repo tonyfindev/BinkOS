@@ -103,8 +103,14 @@ export class deBridgeProvider extends BaseBridgeProvider {
   ): Promise<BridgeQuote> {
     try {
       const [tokenIn, tokenOut] = await Promise.all([
-        this.getToken(params.fromToken, params.fromNetwork),
-        this.getToken(params.toToken, params.toNetwork),
+        this.getToken(
+          params.type === 'input' ? params.fromToken : params.toToken,
+          params.fromNetwork,
+        ),
+        this.getToken(
+          params.type === 'input' ? params.toToken : params.fromToken,
+          params.toNetwork,
+        ),
       ]);
       let adjustedAmount = params.amount;
 
@@ -199,16 +205,6 @@ export class deBridgeProvider extends BaseBridgeProvider {
       const dstChainOrderAuthorityAddress = toWalletAddress;
       const srcChainRefundAddress = senderAddress;
       const allowedTaker = MAPPING_TOKEN_TAKER[params.fromNetwork as SupportedTokenTaker];
-
-      console.log(
-        '🚀 ~ deBridgeProvider ~ after data: from: ',
-        srcChainId,
-        srcChainTokenInAmount,
-        'to: ',
-        dstChainId,
-        senderAddress,
-        allowedTaker,
-      );
 
       const url = `https://deswap.debridge.finance/v1.0/dln/order/create-tx?srcChainId=${srcChainId}&srcChainTokenIn=${srcChainTokenIn}&srcChainTokenInAmount=${srcChainTokenInAmount}&dstChainId=${dstChainId}&dstChainTokenOut=${dstChainTokenOut}&dstChainTokenOutRecipient=${dstChainTokenOutRecipient}&senderAddress=${senderAddress}&srcChainOrderAuthorityAddress=${srcChainOrderAuthorityAddress}&srcChainRefundAddress=${srcChainRefundAddress}&dstChainOrderAuthorityAddress=${dstChainOrderAuthorityAddress}&enableEstimate=false&prependOperatingExpenses=true&additionalTakerRewardBps=0&allowedTaker=${allowedTaker}&deBridgeApp=DESWAP&ptp=false&tab=1739871311714`;
 
