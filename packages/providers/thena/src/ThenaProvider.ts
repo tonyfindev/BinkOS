@@ -1,4 +1,10 @@
-import { SwapQuote, SwapParams, BaseSwapProvider, NetworkProvider } from '@binkai/swap-plugin';
+import {
+  SwapQuote,
+  SwapParams,
+  BaseSwapProvider,
+  NetworkProvider,
+  parseTokenAmount,
+} from '@binkai/swap-plugin';
 import { Contract, ethers, Provider } from 'ethers';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 import { OrbsABI } from './abis/Orbs';
@@ -129,9 +135,22 @@ export class ThenaProvider extends BaseSwapProvider {
           amountIn.toString(),
           params?.limitPrice,
         );
+        // need verify amount out
+        if (!params?.limitPrice || params?.limitPrice < 0) {
+          throw new Error('No amount out from Thena');
+        }
+
+        const amountOut = parseTokenAmount(
+          params?.limitPrice.toString(),
+          destinationToken?.decimals,
+        ).toString();
 
         // build limit order transaction
-        swapTransactionData = await this.buildLimitOrderRouteTransaction(optimalRoute, userAddress);
+        swapTransactionData = await this.buildLimitOrderRouteTransaction(
+          optimalRoute,
+          userAddress,
+          amountOut,
+        );
 
         if (!swapTransactionData) {
           throw new Error('No limit  order routes available from Thena');
@@ -239,15 +258,19 @@ export class ThenaProvider extends BaseSwapProvider {
     return await transactionResponse.json();
   }
 
-  private async buildLimitOrderRouteTransaction(routeData: any, userAddress: string) {
+  private async buildLimitOrderRouteTransaction(
+    routeData: any,
+    userAddress: string,
+    amountOut: string,
+  ) {
     const ask = {
       exchange: CONSTANTS.EXCHANGE_ADDRESS,
       srcToken: routeData.inTokens[0],
       dstToken: routeData.outTokens[0],
       srcAmount: routeData.inAmounts[0],
       srcBidAmount: routeData.inAmounts[0],
-      dstMinAmount: routeData.outAmounts[0],
-      deadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour will expire
+      dstMinAmount: amountOut,
+      deadline: Math.floor(Date.now() / 1000) + 24 * 3600, // 1 day will expire
       bidDelay: CONSTANTS.TIME_DELAY,
       fillDelay: '0',
       data: '0x',

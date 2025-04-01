@@ -179,14 +179,14 @@ async function main() {
   // Example 1: sell 3 BINK to USDC at price 0.0015 on thena
   console.log('🔌 Executing limit order...');
 
-  console.log('Example 1:sell 0.02 BNB to USDC at price 700 via thena ');
+  console.log('Example 1:sell 0.02 WBNB to USDC at price 700 via thena ');
   const result1 = await agent.execute({
-    // input: `
-    //  swap 0.02 BNB to USDC at price 700 via thena
-    // `,
     input: `
-     swap 0.04 SOL to USDC at limit price 6 via jupiter
+     swap 0.09 WBNB to USDT at limit price 100 via thena on BNB
     `,
+    // input: `
+    //  swap 0.04 SOL to USDC at limit price 6 via jupiter
+    // `,
   });
   console.log('✓ limit order result:', result1, '\n');
   // const result2 = await agent.invokeTool('swap', {
