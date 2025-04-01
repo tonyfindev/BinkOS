@@ -228,7 +228,7 @@ export class JupiterProvider extends BaseSwapProvider {
       const page = 1;
       const orderStatus = 'active';
       const includeFailedTx = false;
-      const url = `https://api.jup.ag/trigger/v1/getTriggerOrders?user=${userAddress}&page=${page}&orderStatus=${orderStatus}&includeFailedTx=${includeFailedTx}`;
+      const url = `${JupiterProvider.BASE_URL_JUPITER}/trigger/v1/getTriggerOrders?user=${userAddress}&page=${page}&orderStatus=${orderStatus}&includeFailedTx=${includeFailedTx}`;
 
       const headers = {
         accept: 'application/json',
