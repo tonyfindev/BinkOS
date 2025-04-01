@@ -80,8 +80,8 @@ export class ThenaProvider extends BaseSwapProvider {
     try {
       // Fetch input and output token information
       const [sourceToken, destinationToken] = await Promise.all([
-        this.getToken(params.fromToken, params.network),
-        this.getToken(params.toToken, params.network),
+        this.getToken(params.type === 'input' ? params.fromToken : params.toToken, params.network),
+        this.getToken(params.type === 'input' ? params.toToken : params.fromToken, params.network),
       ]);
       const tokenInAddress =
         sourceToken.address === CONSTANTS.BNB_ADDRESS
