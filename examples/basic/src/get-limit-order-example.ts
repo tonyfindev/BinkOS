@@ -18,7 +18,7 @@ import { BnbProvider } from '@binkai/rpc-provider';
 import { Connection } from '@solana/web3.js';
 
 // Hardcoded RPC URLs for demonstration
-const BNB_RPC = 'https://bsc-dataseed1.binance.org';
+const BNB_RPC = 'https://binance.llamarpc.com';
 const ETH_RPC = 'https://eth.llamarpc.com';
 const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 async function main() {

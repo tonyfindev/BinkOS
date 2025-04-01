@@ -189,32 +189,36 @@ export class GetLimitOrdersTool extends BaseTool {
 
           // Retrieve orders from each network and provider
           const allOrders = await selectedProvider.getAllOrderIds(userAddress);
-          console.log('🤖 All orders:', allOrders);
 
           onProgress?.({
             progress: 70,
             message: `Found ${allOrders.length} orders. Validating each order...`,
           });
           let validatedCount = 0;
-          let validOrders;
-          console.log('🤖 Selected provider:', selectedProvider.getName());
+          let validOrders = [];
+
           if (selectedProvider.getName() === 'jupiter') {
             // Validate each order
             validatedCount = allOrders.length;
             validOrders = allOrders;
           } else {
-            validOrders = await Promise.all(
-              allOrders.map(async (orderId, index) => {
-                onProgress?.({
-                  progress: 70 + Math.floor((index / allOrders.length) * 25),
-                  message: `Validating order ${index + 1}/${allOrders.length}...`,
-                });
+            for (let i = 0; i < allOrders.length; i++) {
+              const orderId = allOrders[i];
+              onProgress?.({
+                progress: 70 + Math.floor((i / allOrders.length) * 25),
+                message: `Validating order ${i + 1}/${allOrders.length}...`,
+              });
 
+              try {
                 const isValid = await selectedProvider.checkValidOrderId(orderId);
-                validatedCount += isValid ? 1 : 0;
-                return isValid ? orderId : null;
-              }),
-            ).then(orders => orders.filter(Boolean));
+                if (isValid) {
+                  validatedCount++;
+                  validOrders.push(orderId);
+                }
+              } catch (error) {
+                console.error(`Error validating order ${orderId}:`, error);
+              }
+            }
           }
 
           onProgress?.({

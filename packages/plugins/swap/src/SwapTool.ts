@@ -271,12 +271,44 @@ export class SwapTool extends BaseTool {
           };
           let selectedProvider: ISwapProvider;
           let quote: SwapQuote;
-          let isWrapToken = false;
 
           onProgress?.({
             progress: 0,
             message: 'Searching for the best exchange rate for your swap.',
           });
+
+          // STEP 5: Handle wrapped token BNB
+          // validate is valid limit order
+          if (swapParams?.limitPrice && swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS) {
+            onProgress?.({
+              progress: 5,
+              message: `Wrapping BNB to WBNB`,
+            });
+
+            selectedProvider = this.registry.getProvider(preferredProvider);
+            const wrapTx = await selectedProvider.wrapToken(amount.toString(), WrapToken.WBNB);
+
+            const wallet = this.agent.getWallet();
+            const wrapReceipt = await wallet.signAndSendTransaction(network, {
+              to: wrapTx.to,
+              data: wrapTx.data,
+              value: BigInt(wrapTx.value),
+            });
+
+            // Wait for approval to be mined
+            const wrapResult = await wrapReceipt.wait();
+
+            if (!wrapResult?.hash) {
+              throw new Error(`Failed to wrap BNB to WBNB`);
+            }
+            // set wrap token address
+            swapParams.fromToken = WrapToken.WBNB;
+
+            onProgress?.({
+              progress: 8,
+              message: `Successfully wrapped BNB to WBNB`,
+            });
+          }
 
           // STEP 4: Get provider and quote
           try {
@@ -294,39 +326,6 @@ export class SwapTool extends BaseTool {
                     providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
                   },
                 );
-              }
-
-              // STEP 5: Handle wrapped token BNB
-              // validate is valid limit order
-              if (swapParams?.limitPrice && swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS) {
-                onProgress?.({
-                  progress: 5,
-                  message: `Wrapping BNB to WBNB`,
-                });
-
-                const wrapTx = await selectedProvider.wrapToken(amount.toString(), WrapToken.WBNB);
-
-                const wallet = this.agent.getWallet();
-                const wrapReceipt = await wallet.signAndSendTransaction(network, {
-                  to: wrapTx.to,
-                  data: wrapTx.data,
-                  value: BigInt(wrapTx.value),
-                });
-
-                // Wait for approval to be mined
-                const wrapResult = await wrapReceipt.wait();
-
-                if (!wrapResult?.hash) {
-                  throw new Error(`Failed to wrap BNB to WBNB`);
-                }
-                // set wrap token address
-                swapParams.fromToken = WrapToken.WBNB;
-                isWrapToken = true;
-
-                onProgress?.({
-                  progress: 8,
-                  message: `Successfully wrapped BNB to WBNB`,
-                });
               }
 
               try {

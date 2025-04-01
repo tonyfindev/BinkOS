@@ -7,22 +7,24 @@ import {
 
 import { IImageProvider, CreateImageParams, CreateImageResponse } from '@binkai/image-plugin';
 
-import { settings } from '@binkai/core';
 export interface BinkProviderConfig {
   apiKey: string;
   baseUrl: string;
+  imageApiUrl: string;
 }
 
 export class BinkProvider implements IKnowledgeProvider, IImageProvider {
   private readonly baseUrl: string;
   private readonly apiKey: string;
+  private readonly imageApiUrl: string;
 
   constructor(config: BinkProviderConfig) {
     if (!config.baseUrl) {
-      throw new Error('BINK_API_URL are required');
+      throw new Error('BINK_API_URL is required');
     }
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl;
+    this.imageApiUrl = config.imageApiUrl || '';
   }
 
   getName(): string {
@@ -49,9 +51,8 @@ export class BinkProvider implements IKnowledgeProvider, IImageProvider {
 
   async createImage(params: CreateImageParams): Promise<CreateImageResponse> {
     const requestId = `req-${Math.random().toString(36).substring(2, 15)}`;
-    const API_BASE_URL = settings.get('IMAGE_API_URL') || '';
     try {
-      await axios.post(`${API_BASE_URL}/image/generate`, {
+      await axios.post(`${this.imageApiUrl}/image/generate`, {
         prompt: params.prompt,
         url: params.image_url || '',
         requestId,
@@ -63,7 +64,7 @@ export class BinkProvider implements IKnowledgeProvider, IImageProvider {
       const pollingInterval = 2000;
 
       while (attempts < maxAttempts) {
-        const response = await axios.get(`${API_BASE_URL}/image/status/${requestId}`);
+        const response = await axios.get(`${this.imageApiUrl}/image/status/${requestId}`);
         const status = response.data;
 
         if (status.data.status === 'success') {
