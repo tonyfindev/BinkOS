@@ -15,7 +15,7 @@ export class CreateImageTool extends BaseTool {
 
   getDescription(): string {
     const providers = Array.from(this.providers.keys()).join(', ');
-    return `Create image from prompt of user or based on image url , description using various providers (${providers}).`;
+    return `Create image from user request and based on image url , description using various providers (${providers}).`;
   }
 
   registerProvider(provider: IImageProvider): void {
@@ -29,7 +29,7 @@ export class CreateImageTool extends BaseTool {
     }
 
     return z.object({
-      prompt: z.string().describe('The prompt of user for generate image'),
+      prompt: z.string().describe('User request for generate image'),
       image_url: z
         .string()
         .optional()
