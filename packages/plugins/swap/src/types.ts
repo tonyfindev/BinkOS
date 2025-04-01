@@ -164,7 +164,10 @@ export interface ILimitOrderProvider extends ISwapProvider {
    * @param orderId The ID of the order to cancel
    * @returns Promise with tx and to
    */
-  cancelOrder(orderId: number): Promise<{
+  cancelOrder(
+    orderId: number | string | string[],
+    userAddress?: string,
+  ): Promise<{
     tx: string;
     to: string;
   }>;
