@@ -4,6 +4,7 @@ import {
   BaseMessage,
   HumanMessage,
   ToolMessage,
+  SystemMessage,
 } from '@langchain/core/messages';
 import { Annotation, Command, END, interrupt, START, StateGraph } from '@langchain/langgraph';
 import { BaseLanguageModel } from '@langchain/core/language_models/base';
@@ -17,6 +18,7 @@ import { z } from 'zod';
 import { AskTool } from '../tools/AskTool';
 import { BaseAgent } from '../../BaseAgent';
 import { PlanningAgent } from '../PlanningAgent';
+import { update } from 'lodash';
 
 const createToolCallId = () => {
   // random 5 characters
@@ -291,7 +293,8 @@ export class ExecutorGraph {
             input?: string;
           }
         >({
-          question: 'I need you to review the transaction and approve it or reject it',
+          question: `I need you to review the transaction and approve it or reject it or 
+          if you want to retry or update the transaction, please update request`,
           quote: quote,
         });
 
@@ -302,26 +305,101 @@ export class ExecutorGraph {
           if (!this.model.withStructuredOutput) {
             throw new Error('Model does not support structured output');
           }
+          
+          // Define a prompt description to help the model understand the task
+          const promptDescription = `
+            You are analyzing a human review response for a transaction approval system.
+            Your task is to determine if the human wants to:
+            1. APPROVE the transaction (proceed with execution)
+            2. REJECT the transaction (cancel execution)
+            3. UPDATE the transaction (update current transaction with user's modified parameters)
+
+            Based solely on the human's response, classify their intent into one of these three categories.
+            Next is the human's response:
+          `;
+
+          // Create a message with the system prompt
+          const systemMessage = new SystemMessage(promptDescription);
+          
+          // Then use withStructuredOutput without the problematic description parameter
           const modelWithStructure = this.model.withStructuredOutput(
             z.object({
-              action: z.enum(['approve', 'reject']),
-            }),
+              action: z.enum(['approve', 'reject', 'update']),
+            })
           );
 
-          const response = await modelWithStructure.invoke(humanReview.input);
-
-          humanReview.action = response.action;
+          try {
+            // Include the system message in the invoke call
+            const response = await modelWithStructure.invoke([
+              systemMessage, 
+              new HumanMessage(humanReview.input)
+            ]);
+            humanReview.action = response.action;
+          } catch (e: any) {
+            const toolMessage = new ToolMessage({
+              name: toolCall.name,
+              content: 'Error when classify human review: ' + e.message,
+              tool_call_id: toolCall.id ?? createToolCallId(),
+            });
+            return new Command({ goto: 'executor_agent', update: { messages: [toolMessage] } });
+          }
+        } else if (!humanReview.action) {
+          // If no input and action is not set, default to reject
+          humanReview.action = 'reject';
         }
 
         if (humanReview.action === 'approve') {
+          console.log('🚫 Transaction approved by human review. Proceed with execution.');
           return new Command({ goto: 'executor_tools' });
+
         } else if (humanReview.action === 'reject') {
+          console.log('🚫 Transaction rejected by human review. Exit process.');
           const toolMessage = new ToolMessage({
             name: toolCall.name,
             content: 'Transaction rejected by human review. Exit process.',
             tool_call_id: toolCall.id ?? createToolCallId(),
           });
           return new Command({ goto: 'executor_agent', update: { messages: [toolMessage] } });
+
+        } else if (humanReview.action === 'update') {
+          console.log('🚫 Update transaction with user\'s request and modified parameters.');
+          
+          if (!this.model.withStructuredOutput) {
+            throw new Error('Model does not support structured output');
+          }
+          
+          const updateSchema = this.model.withStructuredOutput(
+            z.object({
+              path: z.string()
+              .describe('The path of the parameter to update'),
+              value: z.string()
+              .describe('The value of the parameter to update'),
+            })
+          );
+          
+          const response = await updateSchema.invoke([
+            new HumanMessage(
+              `${humanReview.input}
+              and current quote: ${JSON.stringify(quote, null, 2)}
+              Please update the quote with the new value. Only update the value, do not change the structure of the quote.
+              `)
+          ]);
+
+          const updatedQuote = { ...quote }; // Create a copy to avoid mutating the original
+          update(updatedQuote, response.path, function() { 
+            return response.value; 
+          });
+
+          console.log('🚫 Updated quote:', updatedQuote);
+          
+          const updateMessage = new ToolMessage({
+            name: toolCall.name,
+            content:  `Current quote: ${JSON.stringify(quote, null, 2)}
+            Updated parameter: ${response.path} = ${response.value}`,
+            tool_call_id: toolCall.id ?? createToolCallId(),
+          });
+          
+          return new Command({ goto: 'executor_agent', update: { messages: [updateMessage] } });
         }
       }
     }
