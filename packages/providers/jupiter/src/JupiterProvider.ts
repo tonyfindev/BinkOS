@@ -153,7 +153,6 @@ export class JupiterProvider extends BaseSwapProvider {
   }
 
   private async cancelOrder(orderId: string | string[], userAddress?: string) {
-    console.log('🚀 ~ JupiterProvider ~ cancelOrder ~ orderId:', orderId);
     const url = `${JupiterProvider.BASE_URL_JUPITER}/trigger/v1/cancelOrders`;
 
     const headers = {
@@ -178,7 +177,7 @@ export class JupiterProvider extends BaseSwapProvider {
       }
 
       const data = await response.json();
-      console.log('🚀 ~ JupiterProvider ~ cancelOrder ~ data:', data);
+
       const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
       return {
         tx: data.transactions[0],
@@ -245,7 +244,7 @@ export class JupiterProvider extends BaseSwapProvider {
       }
 
       const data = await response.json();
-      console.log('🚀 ~ JupiterProvider ~ getAllOrderIds ~ data:', data?.orders);
+
       return data?.orders;
     } catch (error) {
       return this.handleError(error);
@@ -328,7 +327,7 @@ export class JupiterProvider extends BaseSwapProvider {
           },
           userAddress,
         );
-        console.log('🤖 Jupiter swap data', swapData);
+
         const limitPrice = parseTokenAmount(
           params?.limitPrice.toString(),
           destinationToken.decimals,
