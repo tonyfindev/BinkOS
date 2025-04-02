@@ -352,7 +352,7 @@ export class SwapTool extends BaseTool {
     try {
       const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
       if (!balanceCheck.isValid) {
-        throw 'Not valid checking balance';
+        throw 'Insufficient balance for this swap';
       }
     } catch (error: any) {
       throw error; // Re-throw structured errors
