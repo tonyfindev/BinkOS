@@ -24,6 +24,7 @@ export interface JupiterQuoteParams {
   autoSlippage?: boolean;
   maxAutoSlippageBps?: number;
   autoSlippageCollisionUsdValue?: number;
+  limitPrice?: number;
 }
 
 export interface SwapInfo {

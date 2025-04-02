@@ -493,34 +493,6 @@ export class SwapTool extends BaseTool {
             throw error;
           }
 
-          // STEP 9: unwrap token if needed
-          // if (swapParams?.limitPrice && swapParams.fromToken === WrapToken.WBNB && isWrapToken) {
-          //   const wallet = this.agent.getWallet();
-          //   userAddress = await wallet.getAddress(network);
-          //   onProgress?.({
-          //     progress: 90,
-          //     message: `Unwrapping WBNB to BNB`,
-          //   });
-
-          //   const unwrapTx = await selectedProvider.unwrapToken(amount.toString(), userAddress);
-
-          //   const unwrapReceipt = await wallet.signAndSendTransaction(network, {
-          //     to: WrapToken.WBNB,
-          //     data: unwrapTx.data,
-          //     value: BigInt(0),
-          //     gasLimit: unwrapTx?.gasLimit || '85000',
-          //   });
-
-          //   // Wait for approval to be mined
-          //   const unwraptxh = await unwrapReceipt.wait();
-          //   if (unwraptxh?.hash) {
-          //     onProgress?.({
-          //       progress: 95,
-          //       message: `Successfully unwrapped WBNB to BNB. Transaction hash: ${unwraptxh?.hash}`,
-          //     });
-          //   }
-          // }
-
           try {
             // Clear token balance caches after successful swap
             selectedProvider.invalidateBalanceCache(quote.fromToken.address, userAddress, network);

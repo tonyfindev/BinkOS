@@ -612,8 +612,6 @@ export abstract class BaseSwapProvider implements ISwapProvider {
             this.quotes.delete(key);
           }
         }
-
-        console.log(`🧹 Cleaned up expired cache entries for ${this.getName()}`);
       } catch (error) {
         console.error('Error cleaning up caches:', error);
       }
