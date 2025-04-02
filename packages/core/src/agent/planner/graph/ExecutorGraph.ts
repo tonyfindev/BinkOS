@@ -227,6 +227,10 @@ export class ExecutorGraph {
   async askNode(state: typeof StateAnnotation.State) {
     const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
     this.agent.setAskUser(true);
+    this.agent.notifyAskUser({
+      question: lastMessage.tool_calls?.[0]?.args?.question ?? '',
+      timestamp: Date.now(),
+    });
     const userMessage = interrupt({
       question: lastMessage.tool_calls?.[0]?.args?.question ?? '',
     });
@@ -279,6 +283,7 @@ export class ExecutorGraph {
 
         this.agent.notifyHumanReview({
           toolName: toolCall.name,
+          input: toolCall.args,
           data: quote,
           timestamp: Date.now(),
         });
@@ -305,7 +310,7 @@ export class ExecutorGraph {
           if (!this.model.withStructuredOutput) {
             throw new Error('Model does not support structured output');
           }
-          
+
           // Define a prompt description to help the model understand the task
           const promptDescription = `
             You are analyzing a human review response for a transaction approval system.
@@ -320,19 +325,19 @@ export class ExecutorGraph {
 
           // Create a message with the system prompt
           const systemMessage = new SystemMessage(promptDescription);
-          
+
           // Then use withStructuredOutput without the problematic description parameter
           const modelWithStructure = this.model.withStructuredOutput(
             z.object({
               action: z.enum(['approve', 'reject', 'update']),
-            })
+            }),
           );
 
           try {
             // Include the system message in the invoke call
             const response = await modelWithStructure.invoke([
-              systemMessage, 
-              new HumanMessage(humanReview.input)
+              systemMessage,
+              new HumanMessage(humanReview.input),
             ]);
             humanReview.action = response.action;
           } catch (e: any) {
@@ -351,7 +356,6 @@ export class ExecutorGraph {
         if (humanReview.action === 'approve') {
           console.log('🚫 Transaction approved by human review. Proceed with execution.');
           return new Command({ goto: 'executor_tools' });
-
         } else if (humanReview.action === 'reject') {
           console.log('🚫 Transaction rejected by human review. Exit process.');
           const toolMessage = new ToolMessage({
@@ -360,45 +364,43 @@ export class ExecutorGraph {
             tool_call_id: toolCall.id ?? createToolCallId(),
           });
           return new Command({ goto: 'executor_agent', update: { messages: [toolMessage] } });
-
         } else if (humanReview.action === 'update') {
-          console.log('🚫 Update transaction with user\'s request and modified parameters.');
-          
+          console.log("🚫 Update transaction with user's request and modified parameters.");
+
           if (!this.model.withStructuredOutput) {
             throw new Error('Model does not support structured output');
           }
-          
+
           const updateSchema = this.model.withStructuredOutput(
             z.object({
-              path: z.string()
-              .describe('The path of the parameter to update'),
-              value: z.string()
-              .describe('The value of the parameter to update'),
-            })
+              path: z.string().describe('The path of the parameter to update'),
+              value: z.string().describe('The value of the parameter to update'),
+            }),
           );
-          
+
           const response = await updateSchema.invoke([
             new HumanMessage(
               `${humanReview.input}
               and current quote: ${JSON.stringify(quote, null, 2)}
               Please update the quote with the new value. Only update the value, do not change the structure of the quote.
-              `)
+              `,
+            ),
           ]);
 
           const updatedQuote = { ...quote }; // Create a copy to avoid mutating the original
-          update(updatedQuote, response.path, function() { 
-            return response.value; 
+          update(updatedQuote, response.path, function () {
+            return response.value;
           });
 
           console.log('🚫 Updated quote:', updatedQuote);
-          
+
           const updateMessage = new ToolMessage({
             name: toolCall.name,
-            content:  `Current quote: ${JSON.stringify(quote, null, 2)}
+            content: `Current quote: ${JSON.stringify(quote, null, 2)}
             Updated parameter: ${response.path} = ${response.value}`,
             tool_call_id: toolCall.id ?? createToolCallId(),
           });
-          
+
           return new Command({ goto: 'executor_agent', update: { messages: [updateMessage] } });
         }
       }

@@ -6,8 +6,10 @@ import { NetworksConfig } from '../network/types';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { DatabaseAdapter } from '../storage';
 import {
+  AskUserData,
   CallbackManager,
   HumanReviewData,
+  IAskUserCallback,
   IHumanReviewCallback,
   IToolExecutionCallback,
 } from './callbacks';
@@ -84,6 +86,10 @@ export abstract class BaseAgent implements IAgent {
     this.callbackManager.notifyHumanReview(data);
   }
 
+  public notifyAskUser(data: AskUserData): void {
+    this.callbackManager.notifyAskUser(data);
+  }
+
   /**
    * Register a callback for tool execution events
    * @param callback The callback to register
@@ -94,6 +100,18 @@ export abstract class BaseAgent implements IAgent {
 
   registerHumanReviewCallback(callback: IHumanReviewCallback): void {
     this.callbackManager.registerHumanReviewCallback(callback);
+  }
+
+  registerAskUserCallback(callback: IAskUserCallback): void {
+    this.callbackManager.registerAskUserCallback(callback);
+  }
+
+  unregisterAskUserCallback(callback: IAskUserCallback): void {
+    this.callbackManager.unregisterAskUserCallback(callback);
+  }
+
+  unregisterHumanReviewCallback(callback: IHumanReviewCallback): void {
+    this.callbackManager.unregisterHumanReviewCallback(callback);
   }
 
   /**

@@ -27,7 +27,13 @@ export interface ToolExecutionData {
 
 export interface HumanReviewData {
   toolName: string;
+  input: any;
   data: any;
+  timestamp: number;
+}
+
+export interface AskUserData {
+  question: string;
   timestamp: number;
 }
 
@@ -44,6 +50,10 @@ export interface IToolExecutionCallback {
 
 export interface IHumanReviewCallback {
   onHumanReview(data: HumanReviewData): void | Promise<void>;
+}
+
+export interface IAskUserCallback {
+  onAskUser(data: AskUserData): void | Promise<void>;
 }
 
 /**

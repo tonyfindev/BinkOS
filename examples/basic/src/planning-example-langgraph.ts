@@ -13,6 +13,8 @@ import {
   PlanningAgent,
   IHumanReviewCallback,
   HumanReviewData,
+  AskUserData,
+  IAskUserCallback,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
@@ -67,6 +69,12 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
 class ExampleHumanReviewCallback implements IHumanReviewCallback {
   onHumanReview(data: HumanReviewData): void {
     console.log(`Human review: ${data.toolName}`, data.data);
+  }
+}
+
+class ExampleAskUserCallback implements IAskUserCallback {
+  onAskUser(data: AskUserData): void {
+    console.log(`Ask user: ${data.question}`);
   }
 }
 
@@ -172,6 +180,7 @@ async function main() {
   console.log('🔔 Registering tool execution callback...');
   agent.registerToolExecutionCallback(new ExampleToolExecutionCallback());
   agent.registerHumanReviewCallback(new ExampleHumanReviewCallback());
+  agent.registerAskUserCallback(new ExampleAskUserCallback());
   console.log('✓ Callback registered\n');
 
   // Create and configure the swap plugin
