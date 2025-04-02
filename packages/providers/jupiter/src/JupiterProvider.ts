@@ -25,6 +25,11 @@ import {
 import { Provider, ethers, Contract, Interface } from 'ethers';
 const DEFAULT_SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
 
+const STABLE_TOKENS = [
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'.toLowerCase(), // USDC
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'.toLowerCase(), // USDT
+];
+
 export class JupiterProvider extends BaseSwapProvider {
   private api: AxiosInstance;
   private static readonly DEFAULT_BASE_URL = 'https://quote-proxy.jup.ag';
@@ -319,7 +324,7 @@ export class JupiterProvider extends BaseSwapProvider {
       return data?.data;
     } catch (error) {
       console.error('Error fetching token prices:', error);
-      throw error;
+      throw new Error('Jupiter not support this token');
     }
   }
 
@@ -352,6 +357,12 @@ export class JupiterProvider extends BaseSwapProvider {
       if (params?.limitPrice) {
         if (Number(params?.limitPrice.toString()) < 0) {
           throw new Error('Invalid limit price');
+        }
+        if (
+          !STABLE_TOKENS.includes(sourceToken.address.toLowerCase()) &&
+          !STABLE_TOKENS.includes(destinationToken.address.toLowerCase())
+        ) {
+          throw new Error('Jupiter only support limit order with USDC, USDT as input token');
         }
 
         swapData = await this.getQuoteJupiter(

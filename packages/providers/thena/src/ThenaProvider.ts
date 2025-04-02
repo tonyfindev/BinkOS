@@ -22,6 +22,9 @@ export const CONSTANTS = {
   EXCHANGE_ADDRESS: '0xc2aBC02acd77Bb2407efA22348dA9afC8B375290', // OpenOceanExchange
   ORBS_ADDRESS: '0x25a0A78f5ad07b2474D3D42F1c1432178465936d',
   WRAP_BNB_ADDRESS: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
+  USDC_ADDRESS: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+  USDT_ADDRESS: '0x55d398326f99059ff775485246999027b3197955',
+  BUSD_ADDRESS: '0xe9e7cea3dedca5984780bafc599bd69add087d56',
 } as const;
 
 enum ChainId {
@@ -125,6 +128,17 @@ export class ThenaProvider extends BaseSwapProvider {
       let optimalRoute;
       let amountOut;
       if (params?.limitPrice) {
+        const stableTokens = [
+          CONSTANTS.USDC_ADDRESS,
+          CONSTANTS.USDT_ADDRESS,
+          CONSTANTS.BUSD_ADDRESS,
+        ];
+        if (
+          !stableTokens.includes(tokenInAddress.toLowerCase() as (typeof stableTokens)[number]) &&
+          !stableTokens.includes(tokenOutAddress.toLowerCase() as (typeof stableTokens)[number])
+        ) {
+          throw new Error('Thena only support limit order with USDC, USDT, BUSD as input token');
+        }
         // get info token
         const infoTokenIn = await this.getInfoToken(tokenInAddress);
         const infoTokenOut = await this.getInfoToken(tokenOutAddress);
@@ -327,7 +341,7 @@ export class ThenaProvider extends BaseSwapProvider {
       return tokenInfo;
     } catch (error) {
       console.error('Error fetching token info:', error);
-      throw error;
+      throw new Error('Thena not support this token');
     }
   }
 
