@@ -24,6 +24,8 @@ export enum ErrorStep {
   DATABASE = 'database',
   TOOL_EXECUTION = 'tool_execution',
   UNKNOWN = 'unknown',
+  API_RESPONSE = 'api_response',
+  API_REQUEST = 'api_request',
 }
 
 /**

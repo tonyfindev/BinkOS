@@ -18,6 +18,7 @@ export interface AgentConfig {
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
+  isHumanReview?: boolean;
 }
 
 export interface AgentContext {

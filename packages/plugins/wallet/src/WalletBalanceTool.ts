@@ -101,6 +101,7 @@ export class GetWalletBalanceTool extends BaseTool {
         .describe('The wallet address to query (optional - use agent wallet if not provided)'),
       network: z
         .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon'])
+        .optional()
         .describe('The blockchain to query the wallet on.'),
     });
   }
@@ -146,14 +147,7 @@ export class GetWalletBalanceTool extends BaseTool {
             }
           } catch (error) {
             console.error(`❌ Failed to get wallet address for network ${network}`);
-            throw this.createError(
-              ErrorStep.WALLET_ACCESS,
-              `Failed to get wallet address for network ${network}.`,
-              {
-                network: network,
-                error: error instanceof Error ? error.message : String(error),
-              },
-            );
+            throw error;
           }
 
           onProgress?.({
@@ -204,15 +198,7 @@ export class GetWalletBalanceTool extends BaseTool {
           // If no successful results, throw error
           if (Object.keys(results).length === 0) {
             console.error(`❌ All providers failed for ${address}`);
-            throw this.createError(
-              ErrorStep.DATA_RETRIEVAL,
-              `Failed to get wallet information for ${address} `,
-              {
-                address: address,
-                network: network,
-                errors: errors,
-              },
-            );
+            throw `All providers failed for ${address}`;
           }
 
           console.log(`💰 Wallet info retrieved successfully for ${address}`);

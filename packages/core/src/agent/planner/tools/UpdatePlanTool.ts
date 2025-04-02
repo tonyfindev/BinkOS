@@ -28,19 +28,26 @@ const updatePlan = (
   plan.tasks = plan.tasks.map((task: any, index: number) => {
     const taskToUpdate = tasks.find((task: any) => task.index === index);
     if (taskToUpdate) {
-      const responseTool = responseTools.find(
+      const responseTool = responseTools?.find(
         (tool: ToolMessage) => tool.tool_call_id === taskToUpdate.response_tool_id,
       );
       let responseData = null;
       if (responseTool) {
+        let responseToolData = null;
         try {
-          responseData = JSON.parse(responseTool.content as string);
+          responseToolData = JSON.parse(responseTool.content as string);
         } catch (e) {
-          responseData = responseTool.content;
+          responseToolData = responseTool.content;
         }
 
         const responseDataPaths = taskToUpdate.response_data_paths;
-        responseData = pick(responseData, responseDataPaths);
+        responseData = pick(responseToolData, responseDataPaths);
+        if (Object.keys(responseData).length === 0) {
+          responseData = responseToolData;
+        }
+      } else {
+        const responseDataPaths = taskToUpdate.response_data_paths;
+        responseData = responseDataPaths;
       }
 
       return {

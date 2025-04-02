@@ -25,6 +25,12 @@ export interface ToolExecutionData {
   executionTime?: number; // in milliseconds, only available for COMPLETED and FAILED states
 }
 
+export interface HumanReviewData {
+  toolName: string;
+  data: any;
+  timestamp: number;
+}
+
 /**
  * Callback interface for tool execution events
  */
@@ -34,6 +40,10 @@ export interface IToolExecutionCallback {
    * @param data Information about the tool execution
    */
   onToolExecution(data: ToolExecutionData): void | Promise<void>;
+}
+
+export interface IHumanReviewCallback {
+  onHumanReview(data: HumanReviewData): void | Promise<void>;
 }
 
 /**

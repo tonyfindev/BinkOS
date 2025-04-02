@@ -4,6 +4,10 @@ import { Connection } from '@solana/web3.js';
 
 export type NetworkProvider = Provider | Connection;
 
+export const WrapToken = {
+  WBNB: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
+} as const;
+
 export interface SwapQuote {
   network: NetworkName;
   quoteId: string;
@@ -15,6 +19,7 @@ export interface SwapQuote {
   route: string[];
   estimatedGas: string;
   type: 'input' | 'output'; // Whether this is an exact input or exact output swap
+  limitPrice?: number;
   tx?: Transaction;
   slippage: number;
 }
@@ -26,6 +31,8 @@ export interface SwapParams {
   amount: string;
   type: 'input' | 'output'; // Whether amount is input or output
   slippage: number;
+  limitPrice?: number;
+  orderId?: number[];
 }
 
 export interface Transaction {
@@ -130,4 +137,44 @@ export interface ISwapProvider {
     owner: string,
     spender: string,
   ): Promise<bigint>;
+
+  /**
+   * Wrap a token
+   * @param amount The amount to wrap
+   */
+  wrapToken(amount: string, tokenAddress: string): Promise<any>;
+
+  /**
+   * Unwrap a token
+   * @param amount The amount to unwrap
+   */
+  unwrapToken(amount: string, walletAddress: string): Promise<any>;
+}
+
+export interface ILimitOrderProvider extends ISwapProvider {
+  /**
+   * Get all order IDs for a wallet address
+   * @param walletAddress The address of the wallet to get orders for
+   * @returns Promise<number[]> Array of order IDs
+   */
+  getAllOrderIds(walletAddress: string): Promise<number[]>;
+
+  /**
+   * Cancel a specific limit order
+   * @param orderId The ID of the order to cancel
+   * @returns Promise with tx and to
+   */
+  cancelOrder(orderId: number): Promise<{
+    tx: string;
+    to: string;
+  }>;
+
+  /**
+   * Check if an order ID is valid and exists
+   * @param orderId The ID of the order to check
+   * @returns Promise<boolean> Whether the order ID is valid
+   */
+  checkValidOrderId(orderId: number): Promise<boolean>;
+
+  getStatusOrderId(orderId: number): Promise<any>;
 }

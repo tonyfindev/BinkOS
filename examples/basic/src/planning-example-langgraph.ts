@@ -11,6 +11,8 @@ import {
   ToolExecutionData,
   ToolExecutionState,
   PlanningAgent,
+  IHumanReviewCallback,
+  HumanReviewData,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
@@ -22,6 +24,10 @@ import { BnbProvider } from '@binkai/rpc-provider';
 // import { FourMemeProvider } from '@binkai/four-meme-provider';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
+import { JupiterProvider } from '@binkai/jupiter-provider';
+import { Connection } from '@solana/web3.js';
+import { AlchemyProvider } from '@binkai/alchemy-provider';
+import { ThenaProvider } from '@binkai/thena-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -55,6 +61,12 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
     if (data.state === ToolExecutionState.FAILED && data.error) {
       console.log(`   Error: ${data.error.message || String(data.error)}`);
     }
+  }
+}
+
+class ExampleHumanReviewCallback implements IHumanReviewCallback {
+  onHumanReview(data: HumanReviewData): void {
+    console.log(`Human review: ${data.toolName}`, data.data);
   }
 }
 
@@ -138,10 +150,12 @@ async function main() {
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
   console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
+  console.log('🤖 Wallet SOL:', await wallet.getAddress(NetworkName.SOLANA));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new PlanningAgent(
     {
+      isHumanReview: true,
       model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
@@ -152,9 +166,12 @@ async function main() {
   );
   console.log('✓ Agent initialized\n');
 
+  const solanaProvider = new Connection(SOL_RPC);
+
   // Register the tool execution callback
   console.log('🔔 Registering tool execution callback...');
   agent.registerToolExecutionCallback(new ExampleToolExecutionCallback());
+  agent.registerHumanReviewCallback(new ExampleHumanReviewCallback());
   console.log('✓ Callback registered\n');
 
   // Create and configure the swap plugin
@@ -172,6 +189,11 @@ async function main() {
     apiKey: settings.get('BIRDEYE_API_KEY'),
   });
 
+  const thena = new ThenaProvider(provider, 56);
+  const alchemy = new AlchemyProvider({
+    apiKey: settings.get('ALCHEMY_API_KEY'),
+  });
+
   // Create and configure the wallet plugin
   console.log('🔄 Initializing wallet plugin...');
   const walletPlugin = new WalletPlugin();
@@ -182,20 +204,20 @@ async function main() {
 
   // Initialize plugin with provider
   await walletPlugin.initialize({
-    defaultChain: 'bnb',
-    providers: [bnbProvider, birdeye],
-    supportedChains: ['bnb'],
+    providers: [bnbProvider, birdeye, alchemy],
+    supportedChains: ['bnb', 'solana'],
   });
   // Configure the plugin with supported chains
   await tokenPlugin.initialize({
-    defaultChain: 'bnb',
-    providers: [birdeye],
+    providers: [birdeye, alchemy],
     supportedChains: ['solana', 'bnb'],
   });
   console.log('✓ Token plugin initialized\n');
 
   // Create providers with proper chain IDs
   const pancakeswap = new PancakeSwapProvider(provider, 56);
+  // Create providers with proper chain IDs
+  const jupiter = new JupiterProvider(solanaProvider);
 
   // const okx = new OkxProvider(provider, 56);
 
@@ -203,10 +225,8 @@ async function main() {
 
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
-    defaultSlippage: 0.5,
-    defaultChain: 'bnb',
-    providers: [pancakeswap],
-    supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
+    providers: [pancakeswap, jupiter, thena],
+    supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
 

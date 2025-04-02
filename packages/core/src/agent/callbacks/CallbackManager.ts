@@ -2,7 +2,13 @@ import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
 import { RunnableConfig } from '@langchain/core/runnables';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { v4 as uuidv4 } from 'uuid';
-import { IToolExecutionCallback, ToolExecutionData, ToolExecutionState } from './types';
+import {
+  HumanReviewData,
+  IHumanReviewCallback,
+  IToolExecutionCallback,
+  ToolExecutionData,
+  ToolExecutionState,
+} from './types';
 import { CustomDynamicStructuredTool, ToolProgress } from '../tools/types';
 
 /**
@@ -10,6 +16,19 @@ import { CustomDynamicStructuredTool, ToolProgress } from '../tools/types';
  */
 export class CallbackManager {
   private toolExecutionCallbacks: IToolExecutionCallback[] = [];
+  private humanReviewCallbacks: IHumanReviewCallback[] = [];
+
+  registerHumanReviewCallback(callback: IHumanReviewCallback): void {
+    this.humanReviewCallbacks.push(callback);
+  }
+
+  unregisterHumanReviewCallback(callback: IHumanReviewCallback): void {
+    this.humanReviewCallbacks = this.humanReviewCallbacks.filter(cb => cb !== callback);
+  }
+
+  public notifyHumanReview(data: HumanReviewData): void {
+    this.humanReviewCallbacks.forEach(callback => callback.onHumanReview(data));
+  }
 
   /**
    * Register a tool execution callback
