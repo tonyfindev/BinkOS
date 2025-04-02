@@ -74,6 +74,26 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/usdc.png',
       verified: true,
     },
+    // THE
+    '0xF4C8E32EaDEC4BFe97E0F595AdD0f4450a863a11': {
+      address: '0xF4C8E32EaDEC4BFe97E0F595AdD0f4450a863a11',
+      symbol: 'THE',
+      name: 'Thena',
+      decimals: 18,
+      network: NetworkName.BNB,
+      // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/the.png',
+      verified: true,
+    },
+    // FTM
+    '0xad29abb318791d579433d831ed122afeaf29dcfe': {
+      address: '0xad29abb318791d579433d831ed122afeaf29dcfe',
+      symbol: 'FTM',
+      name: 'Fantom',
+      decimals: 18,
+      network: NetworkName.BNB,
+      // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/ftm.png',
+      verified: true,
+    },
   },
 
   // Ethereum tokens

@@ -123,7 +123,11 @@ export class ThenaProvider extends BaseSwapProvider {
       let swapTransactionData;
 
       let optimalRoute;
+      let amountOut;
       if (params?.limitPrice) {
+        // get info token
+        const infoTokenIn = await this.getInfoToken(tokenInAddress);
+        const infoTokenOut = await this.getInfoToken(tokenOutAddress);
         swapTransactionData = null;
 
         // Fetch optimal limit order route
@@ -136,20 +140,21 @@ export class ThenaProvider extends BaseSwapProvider {
           params?.limitPrice,
         );
         // need verify amount out
-        if (!params?.limitPrice || params?.limitPrice < 0) {
+        if (!params?.limitPrice || Number(params?.limitPrice) < 0) {
           throw new Error('No amount out from Thena');
         }
 
-        const amountOut = parseTokenAmount(
-          params?.limitPrice.toString(),
-          destinationToken?.decimals,
-        ).toString();
+        if (infoTokenIn.price > infoTokenOut.price && Number(params?.limitPrice) > 1) {
+          amountOut = Number(amountIn) * Number(params?.limitPrice);
+        } else {
+          amountOut = Number(amountIn) / Number(params?.limitPrice);
+        }
 
         // build limit order transaction
         swapTransactionData = await this.buildLimitOrderRouteTransaction(
           optimalRoute,
           userAddress,
-          amountOut,
+          amountOut.toString(),
         );
 
         if (!swapTransactionData) {
@@ -181,6 +186,7 @@ export class ThenaProvider extends BaseSwapProvider {
         swapTransactionData,
         optimalRoute,
         userAddress,
+        amountOut?.toString(),
       );
       this.storeQuoteWithExpiry(swapQuote);
       return swapQuote;
@@ -310,6 +316,21 @@ export class ThenaProvider extends BaseSwapProvider {
     return order;
   }
 
+  private async getInfoToken(address: string) {
+    try {
+      const response = await fetch(`https://api.thena.fi/api/v1/topTokens/${ChainId.BSC}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch token info: ${response.statusText}`);
+      }
+      const data = await response.json();
+      const tokenInfo = data.data.find((token: any) => token.address === address);
+      return tokenInfo;
+    } catch (error) {
+      console.error('Error fetching token info:', error);
+      throw error;
+    }
+  }
+
   private createSwapQuote(
     params: SwapParams,
     sourceToken: Token,
@@ -317,6 +338,7 @@ export class ThenaProvider extends BaseSwapProvider {
     swapTransactionData: any,
     routeData: any,
     walletAddress: string,
+    amountOutLimitOrder?: string,
   ): SwapQuote {
     const quoteId = ethers.hexlify(ethers.randomBytes(32));
     return {
@@ -325,7 +347,10 @@ export class ThenaProvider extends BaseSwapProvider {
       fromToken: sourceToken,
       toToken: destinationToken,
       fromAmount: ethers.formatUnits(routeData.inAmounts[0], sourceToken.decimals),
-      toAmount: ethers.formatUnits(routeData.outAmounts[0], destinationToken.decimals),
+      toAmount:
+        params?.limitPrice && amountOutLimitOrder
+          ? ethers.formatUnits(amountOutLimitOrder, destinationToken.decimals)
+          : ethers.formatUnits(routeData.outAmounts[0], destinationToken.decimals),
       slippage: 100, // 10% default slippage
       type: params.type,
       priceImpact: routeData.priceImpact || 0,
