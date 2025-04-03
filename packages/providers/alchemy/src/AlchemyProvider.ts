@@ -15,7 +15,7 @@ import {
 } from './types';
 import { NetworkName } from '@binkai/core';
 import { IWalletProvider, WalletInfo } from '@binkai/wallet-plugin';
-
+import { ethers } from 'ethers';
 export class AlchemyProvider implements ITokenProvider, IWalletProvider {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
@@ -149,7 +149,9 @@ export class AlchemyProvider implements ITokenProvider, IWalletProvider {
               name: token.tokenMetadata.name,
               decimals: token.tokenMetadata.decimals,
               usdValue: token.tokenPrices[0].value,
-              balance: BigInt(token.tokenBalance).toString(),
+              balance: this.formatBalance(
+                ethers.formatUnits(token.tokenBalance, token.tokenMetadata.decimals),
+              ),
             };
           });
       }
@@ -165,5 +167,15 @@ export class AlchemyProvider implements ITokenProvider, IWalletProvider {
       }
       throw error;
     }
+  }
+
+  formatBalance(balance: string): string {
+    const formattedBalance =
+      Number(balance) > 0.001
+        ? Number(balance)
+            .toFixed(3)
+            .replace(/\.?0+$/, '')
+        : Number(balance).toFixed(0);
+    return formattedBalance;
   }
 }
