@@ -176,8 +176,9 @@ export class SwapTool extends BaseTool {
       } else {
         // For output amount, find lowest input amount
         const bestAmount = BigInt(
-          Number(best.quote.fromAmount) * 10 ** best.quote.fromToken.decimals,
+          Math.floor(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals),
         );
+
         const currentAmount = BigInt(
           Number(current.quote.fromAmount) * 10 ** current.quote.fromToken.decimals,
         );
