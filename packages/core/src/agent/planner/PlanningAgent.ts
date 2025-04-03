@@ -162,13 +162,24 @@ NOTE:
 
     const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps. 
       NOTE:
-      - Never call a tool more than once` + defaultPlanPrompt;
+      - Never call a tool more than once`;
 
-    
+    // Example for swap: Swap 0.01 SOL to TRUMP
+    // - Step 1: Get balance of SOL in solana wallet
+    // - Step 2 : Get token info Sol and TRUMP token
+    // - Step 3 : Execute swap with 0.01 amount of SOL
 
-    const createPlanPrompt =
-      `You are blockchain planner. Your goal is create plans to execute the user's request. \n` +
-      defaultPlanPrompt;
+    const createPlanPrompt = `You are blockchain planner. Your goal is create plan to execute the user's request.
+      NOTE: 
+      - Create task ask user to provide missing information
+      - Retrieve blockchain information in user's request and maintain it each task
+      - You can create multiple tasks to execute the user's request.
+      - If a task is failed many times, you update a new task to execute the plan
+      Following tips trading:
+          + Sell/Swap X A to B (amount = X, amountType = input).
+          + Buy X A from B (amount = X, amountType = output).
+          + Sell/Swap X A from B (amount = X, amountType = ouput).
+      `;
 
     const updatePlanPrompt =
       `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. \n. When a task is failed, you need to update task title\n` +
@@ -182,7 +193,7 @@ NOTE:
       if (toolJson.function.parameters) {
         toolJson.function.parameters = cleanToolParameters(toolJson.function.parameters);
       }
-      toolsStr += `${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n`;
+      toolsStr += `- ${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n\n`;
     }
 
     const executorGraph = new ExecutorGraph({
