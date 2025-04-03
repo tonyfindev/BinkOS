@@ -152,7 +152,7 @@ async function main() {
   const bscAddressResult = await agent.execute({
     // input:
     //   'Get wallet balance "0x01245D2204f92587E13d2bC784A28c5458ca3ac7" on BNB chain via Alchemy',
-    input: `My balance on BNB via Alchemy`,
+    input: `My wallet info on BNB via Alchemy`,
   });
   console.log('✓ Token info (BSC address):', bscAddressResult, '\n');
   //usdc: 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d
