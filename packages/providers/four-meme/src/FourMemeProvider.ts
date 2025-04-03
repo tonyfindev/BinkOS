@@ -65,7 +65,6 @@ interface TokenInfoResponse {
     descr: string;
     tokenPrice: {
       price: number;
-      marketCap: number;
     };
     // ... other fields
   };
@@ -120,9 +119,14 @@ export class FourMemeProvider extends BaseSwapProvider {
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      // check is valid limit order
+      if (params?.limitPrice) {
+        throw new Error('FourMeme does not support limit order for native token swaps');
+      }
+
       const [tokenIn, tokenOut] = await Promise.all([
-        this.getToken(params.fromToken, params.network),
-        this.getToken(params.toToken, params.network),
+        this.getToken(params.type === 'input' ? params.fromToken : params.toToken, params.network),
+        this.getToken(params.type === 'input' ? params.toToken : params.fromToken, params.network),
       ]);
       let adjustedAmount = params.amount;
       if (params.type === 'input') {
@@ -309,7 +313,7 @@ export class FourMemeProvider extends BaseSwapProvider {
       }
 
       // Step 2: Get imgUrl from params or upload image to FourMeme
-      const imgUrl = params?.img || this.uploadImageUrl();
+      const imgUrl = await this.uploadImageUrl(params?.img || '', accessToken);
       console.log('🤖 Upload image:', imgUrl);
 
       // Step 3: Call create token API to get createArg
@@ -395,8 +399,6 @@ export class FourMemeProvider extends BaseSwapProvider {
         Accept: 'application/json',
         origin: 'https://four.meme',
         referer: 'https://four.meme/create-token',
-        'user-agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
       body: JSON.stringify({
         accountAddress,
@@ -424,8 +426,6 @@ export class FourMemeProvider extends BaseSwapProvider {
         Accept: 'application/json',
         origin: 'https://four.meme',
         referer: 'https://four.meme/create-token',
-        'user-agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
       body: JSON.stringify({
         verifyInfo: {
@@ -445,8 +445,45 @@ export class FourMemeProvider extends BaseSwapProvider {
     return accessTokenResponse.data;
   }
 
-  private uploadImageUrl(): string {
-    return 'https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg';
+  private async uploadImageUrl(imgUrl: string, accessToken: string): Promise<string> {
+    console.log('🚀 ~ FourMemeProvider ~ uploadImageUrl ~ imgUrl:', imgUrl);
+    if (imgUrl && !imgUrl.startsWith('https://static.four.meme')) {
+      try {
+        const url = `${CONSTANTS.FOUR_MEME_API_BASE}/private/token/upload`;
+
+        // Fetch the image
+        const imageResponse = await fetch(imgUrl);
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
+
+        // Create FormData
+        const formData = new FormData();
+        formData.append('file', blob, 'image.jpg');
+        formData.append('networkCode', 'BSC');
+
+        // Upload the image
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'meme-web-access': accessToken,
+            origin: 'https://four.meme',
+            referer: 'https://four.meme/create-token',
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Upload image failed with status ${response.status}`);
+        }
+        const responseData = await response.json();
+        return responseData.data;
+      } catch (error) {
+        console.error('Error uploadFile', error instanceof Error ? error.message : String(error));
+        return 'https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg';
+      }
+    } else {
+      return imgUrl;
+    }
   }
   /**
    * Calls the Four Meme API to create a token and get the createArg
@@ -478,14 +515,14 @@ export class FourMemeProvider extends BaseSwapProvider {
       reserveRate: 0,
       imgUrl: params.imgUrl,
       raisedToken: {
-        symbol: 'BNB',
-        nativeSymbol: 'BNB',
+        // symbol: 'BNB',
+        // nativeSymbol: 'BNB',
         symbolAddress: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',
-        deployCost: '0',
+        // deployCost: '0',
         buyFee: '0.01',
         sellFee: '0.01',
-        minTradeFee: '0',
-        b0Amount: '8',
+        // minTradeFee: '0',
+        // b0Amount: '8',
         totalBAmount: '24',
         totalAmount: '1000000000',
         logoUrl:
@@ -532,7 +569,7 @@ export class FourMemeProvider extends BaseSwapProvider {
   async getTokenInfoById(
     tokenId: number,
     accessToken: string,
-  ): Promise<{ address: string; name: string; symbol: string; price: number; marketCap: number }> {
+  ): Promise<{ address: string; name: string; symbol: string }> {
     try {
       const response = await fetch(
         `${CONSTANTS.FOUR_MEME_API_BASE}/private/token/getById?id=${tokenId}`,
@@ -543,8 +580,6 @@ export class FourMemeProvider extends BaseSwapProvider {
             Accept: 'application/json',
             'meme-web-access': accessToken,
             Referer: 'https://four.meme/create-token',
-            'User-Agent':
-              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
           },
         },
       );
@@ -563,14 +598,34 @@ export class FourMemeProvider extends BaseSwapProvider {
         address: tokenInfoResponse.data.address,
         name: tokenInfoResponse.data.name,
         symbol: tokenInfoResponse.data.shortName,
-        price: tokenInfoResponse.data.tokenPrice?.price,
-        marketCap: tokenInfoResponse.data.tokenPrice?.marketCap,
       };
     } catch (error: unknown) {
       console.error('Error getting token info:', error);
       throw new Error(
         `Failed to get token info: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
+    }
+  }
+
+  async parseTransactionCreateToken(tx: string): Promise<any> {
+    try {
+      // Wait for transaction confirmation
+      const provider = new ethers.JsonRpcProvider('https://bsc-dataseed1.binance.org');
+
+      // hash code OwnershipTransferred
+      const topic = '0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0';
+
+      const receipt = await provider.getTransactionReceipt(tx);
+
+      const tokenCreatedEvent = receipt?.logs.find(log => {
+        return log.topics[0] === topic;
+      });
+      if (tokenCreatedEvent) return tokenCreatedEvent?.address;
+
+      return null;
+    } catch (error) {
+      console.error('Error parsing token creation transaction:', error);
+      throw new Error(`Failed to parse transaction: ${error}`);
     }
   }
 }

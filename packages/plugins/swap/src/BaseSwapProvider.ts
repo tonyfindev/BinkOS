@@ -13,6 +13,7 @@ import {
   isWithinTolerance,
   DEFAULT_TOLERANCE_PERCENTAGE,
   parseTokenAmount,
+  EVM_DECIMALS,
 } from './utils/tokenUtils';
 import {
   isSolanaNetwork,
@@ -501,6 +502,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
         gasLimit: storedData.quote.tx?.gasLimit,
         network: storedData.quote.network,
         spender: storedData.quote.tx?.to || '',
+        lastValidBlockHeight: storedData.quote.tx?.lastValidBlockHeight,
       };
     } catch (error) {
       console.error('Error building swap transaction:', error);
@@ -610,11 +612,41 @@ export abstract class BaseSwapProvider implements ISwapProvider {
             this.quotes.delete(key);
           }
         }
-
-        console.log(`🧹 Cleaned up expired cache entries for ${this.getName()}`);
       } catch (error) {
         console.error('Error cleaning up caches:', error);
       }
     }, CLEANUP_INTERVAL);
+  }
+
+  async wrapToken(amount: string, tokenAddress: string): Promise<any> {
+    // Create interface for wrapped token contract
+    const wrapInterface = new Interface(['function deposit() payable returns ()']);
+
+    // Encode the deposit function call
+    const data = wrapInterface.encodeFunctionData('deposit');
+
+    // Return transaction object
+    return {
+      to: tokenAddress,
+      data,
+      value: parseTokenAmount(amount, EVM_DECIMALS),
+      network: NetworkName.BNB,
+    };
+  }
+
+  async unwrapToken(amount: string, walletAddress: string): Promise<any> {
+    // Create interface for wrapped token contract
+    const wrapInterface = new Interface(['function withdraw(uint256 wad) returns ()']);
+
+    // Encode the withdraw function call with the amount parameter
+    const data = wrapInterface.encodeFunctionData('withdraw', [amount]);
+
+    // Return transaction object
+    return {
+      to: walletAddress,
+      data,
+      value: 0, // No ETH value needed for unwrap
+      network: NetworkName.BNB,
+    };
   }
 }
