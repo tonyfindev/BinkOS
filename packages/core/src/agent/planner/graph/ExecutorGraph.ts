@@ -25,8 +25,6 @@ const createToolCallId = () => {
   return Math.random().toString(36).substring(2, 8);
 };
 
-
-
 const StateAnnotation = Annotation.Root({
   executor_response_tools: Annotation<ToolMessage[]>,
   executor_input: Annotation<string>,
@@ -53,18 +51,18 @@ export class ExecutorGraph {
   private agent: PlanningAgent;
 
   private logToolExecution(
-    toolName: string, 
+    toolName: string,
     state: 'started' | 'in_progress' | 'completed' | 'failed',
-    data?: any
+    data?: any,
   ) {
     const timestamp = new Date().toISOString();
     const emoji = {
       started: '🚀',
       in_progress: '⏳',
       completed: '✅',
-      failed: '❌'
+      failed: '❌',
     }[state];
-    
+
     console.log(`[${timestamp}] ${emoji} Tool ${toolName} execution ${state}`);
     console.log(`Result:`, JSON.stringify(data, null, 2));
   }
@@ -247,24 +245,24 @@ export class ExecutorGraph {
     const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
     const toolCallId = lastMessage.tool_calls?.[0].id ?? createToolCallId();
     const question = lastMessage.tool_calls?.[0]?.args?.question ?? '';
-    
+
     // Log start with useful data
     this.logToolExecution('ask_user', 'started', {
       question,
-      toolCallId
+      toolCallId,
     });
-    
+
     // Set ask user state and use interrupt
     this.agent.setAskUser(true);
     const userMessage = interrupt({ question });
     this.agent.setAskUser(false);
-    
+
     // Log completion with the response data
     this.logToolExecution('ask_user', 'completed', {
       question,
-      response: userMessage.input
+      response: userMessage.input,
     });
-    
+
     return {
       messages: [
         new ToolMessage({
@@ -278,13 +276,11 @@ export class ExecutorGraph {
 
   async reviewTransactionNode(state: typeof StateAnnotation.State) {
     const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
-    
-    
 
     if (!lastMessage?.tool_calls) {
       this.logToolExecution('review_transaction', 'completed', {
         status: 'skipped',
-        reason: 'No need to review transaction'
+        reason: 'No need to review transaction',
       });
       return { messages: [new AIMessage({ content: 'No need to review transaction' })] };
     }
@@ -293,18 +289,18 @@ export class ExecutorGraph {
 
     for (const toolCall of toolCalls) {
       const tool = this.agent.getRegisteredTools().find(t => t.getName() === toolCall?.name);
-      
+
       if ((tool as any)?.simulateQuoteTool) {
-        
         let quote;
         try {
           quote = await (tool as any).simulateQuoteTool(toolCall.args);
-          
+
           // Convert any BigInt values to strings in the quote object
-          quote = JSON.parse(JSON.stringify(quote, (key, value) => 
-            typeof value === 'bigint' ? value.toString() : value
-          ));
-          
+          quote = JSON.parse(
+            JSON.stringify(quote, (key, value) =>
+              typeof value === 'bigint' ? value.toString() : value,
+            ),
+          );
         } catch (e: any) {
           const toolMessage = new ToolMessage({
             name: toolCall.name,
@@ -318,33 +314,34 @@ export class ExecutorGraph {
         this.logToolExecution('human_review', 'started', {
           question: `I need you to review the transaction and approve it or reject it or 
           if you want to update the transaction, please update the parameters and quote`,
-          quote: !!quote
+          quote: !!quote,
         });
-        
+
         this.agent.setAskUser(true);
         this.agent.notifyHumanReview({
           toolName: toolCall.name,
+          input: toolCall.args,
           data: quote,
           timestamp: Date.now(),
         });
 
         const humanReview = interrupt<
-          { question: string; quote: any; },
-          { action?: string; input?: string; }
+          { question: string; quote: any },
+          { action?: string; input?: string }
         >({
           question: `I need you to review the transaction and approve it or reject it or 
           if you want to update the transaction, please update the parameters and quote`,
           quote: quote,
         });
-        
+
         this.agent.setAskUser(false);
-        
+
         if (humanReview.input) {
           //TODO: use model to detect if the human review is approve or reject
           if (!this.model.withStructuredOutput) {
             throw new Error('Model does not support structured output');
           }
-          
+
           // Define a prompt description to help the model understand the task
           const promptDescription = `
             You are analyzing a human review response for a transaction approval system.
@@ -359,19 +356,19 @@ export class ExecutorGraph {
 
           // Create a message with the system prompt
           const systemMessage = new SystemMessage(promptDescription);
-          
+
           // Then use withStructuredOutput without the problematic description parameter
           const modelWithStructure = this.model.withStructuredOutput(
             z.object({
               action: z.enum(['approve', 'reject', 'update']),
-            })
+            }),
           );
 
           try {
             // Include the system message in the invoke call
             const response = await modelWithStructure.invoke([
-              systemMessage, 
-              new HumanMessage(humanReview.input)
+              systemMessage,
+              new HumanMessage(humanReview.input),
             ]);
             humanReview.action = response.action;
           } catch (e: any) {
@@ -389,10 +386,9 @@ export class ExecutorGraph {
 
         if (humanReview.action === 'approve') {
           this.logToolExecution('review_transaction', 'completed', {
-            status: 'approved'
+            status: 'approved',
           });
           return new Command({ goto: 'executor_tools' });
-
         } else if (humanReview.action === 'reject') {
           const toolMessage = new ToolMessage({
             name: toolCall.name,
@@ -400,27 +396,27 @@ export class ExecutorGraph {
             tool_call_id: toolCall.id ?? createToolCallId(),
           });
           this.logToolExecution('review_transaction', 'completed', {
-            status: 'rejected'
-          })
+            status: 'rejected',
+          });
           return new Command({ goto: 'executor_agent', update: { messages: [toolMessage] } });
-
-
         } else if (humanReview.action === 'update') {
           if (!this.model.withStructuredOutput) {
             throw new Error('Model does not support structured output');
           }
-          
+
           const updateSchema = this.model.withStructuredOutput(
             z.object({
-              updates: z.array(
-                z.object({
-                  path: z.string()
-                    .describe('The path of the parameter to update in the quote object'),
-                  value: z.string()
-                    .describe('The new value to set at this path')
-                })
-              ).describe('List of updates to apply to the quote')
-            })
+              updates: z
+                .array(
+                  z.object({
+                    path: z
+                      .string()
+                      .describe('The path of the parameter to update in the quote object'),
+                    value: z.string().describe('The new value to set at this path'),
+                  }),
+                )
+                .describe('List of updates to apply to the quote'),
+            }),
           );
 
           // Create a system message with clear instructions
@@ -445,40 +441,38 @@ export class ExecutorGraph {
               Current quote: ${JSON.stringify(quote, null, 2)}
               
               Extract all the specific parameters I want to change and their new values.
-              DO NOT change the structure of the quote, only update the value of the parameters.`
-            )
+              DO NOT change the structure of the quote, only update the value of the parameters.`,
+            ),
           ]);
 
           const updatedQuote = { ...quote }; // Create a copy to avoid mutating the original
-          
+
           // Apply each update in the response array
-          response.updates.forEach((updateItem) => {
-            update(updatedQuote, updateItem.path, function() { 
-              return updateItem.value; 
+          response.updates.forEach(updateItem => {
+            update(updatedQuote, updateItem.path, function () {
+              return updateItem.value;
             });
           });
 
           const updateMessage = new ToolMessage({
             name: toolCall.name,
-            content:  `updated quote: ${JSON.stringify(updatedQuote, null, 2)}
+            content: `updated quote: ${JSON.stringify(updatedQuote, null, 2)}
             Updated parameters: 
             ${response.updates.map(updateItem => `- ${updateItem.path} = ${updateItem.value}`).join('\n            ')}`,
             tool_call_id: toolCall.id ?? createToolCallId(),
           });
           this.logToolExecution('review_transaction', 'completed', {
-            status: 'updated'
-          })
+            status: 'updated',
+          });
           return new Command({ goto: 'executor_agent', update: { messages: [updateMessage] } });
         }
       }
       this.logToolExecution('review_transaction', 'completed', {
-        status: 'No simulateQuoteTool found'
+        status: 'No simulateQuoteTool found',
       });
-      return new Command({ goto: 'executor_tools'});
+      return new Command({ goto: 'executor_tools' });
     }
   }
-
-  
 
   create() {
     const executorGraph = new StateGraph(StateAnnotation)

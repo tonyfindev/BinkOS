@@ -31,12 +31,14 @@
     "cancel-limit-order": "ts-node src/cancel-limit-order-example.ts"
   },
   "dependencies": {
+    "@binkai/alchemy-provider": "workspace:*",
     "@binkai/bink-provider": "workspace:*",
     "@binkai/birdeye-provider": "workspace:*",
     "@binkai/bridge-plugin": "workspace:*",
     "@binkai/core": "workspace:*",
     "@binkai/debridge-provider": "workspace:*",
     "@binkai/four-meme-provider": "workspace:*",
+    "@binkai/image-plugin": "workspace:*",
     "@binkai/jupiter-provider": "workspace:*",
     "@binkai/knowledge-plugin": "workspace:*",
     "@binkai/kyber-provider": "workspace:*",
@@ -49,10 +51,8 @@
     "@binkai/swap-plugin": "workspace:*",
     "@binkai/thena-provider": "workspace:*",
     "@binkai/token-plugin": "workspace:*",
-    "@binkai/image-plugin": "workspace:*",
     "@binkai/venus-provider": "workspace:*",
     "@binkai/wallet-plugin": "workspace:*",
-    "@binkai/alchemy-provider": "workspace:*",
     "@coral-xyz/anchor": "^0.30.1",
     "@langchain/community": "^0.3.36",
     "@langchain/core": "^0.3.42",
@@ -62,7 +62,9 @@
     "@solana/web3.js": "^1.98.0",
     "axios": "^1.6.7",
     "bip39": "^3.1.0",
-    "ethers": "^6.11.1"
+    "ethers": "^6.11.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "ts-node": "^10.9.2",

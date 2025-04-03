@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ethers, Transaction, TransactionRequest } from 'ethers';
 import {
   Agent,
   Wallet,
@@ -10,7 +10,7 @@ import {
   IToolExecutionCallback,
   ToolExecutionData,
   ToolExecutionState,
-  PlanningAgent,
+  ExtensionWallet,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
@@ -22,9 +22,18 @@ import { BnbProvider } from '@binkai/rpc-provider';
 // import { FourMemeProvider } from '@binkai/four-meme-provider';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
-import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { Server } from 'socket.io';
+import { io as ioClient } from 'socket.io-client';
 import { JupiterProvider } from '@binkai/jupiter-provider';
-import { Connection } from '@solana/web3.js';
+import {
+  Connection,
+  VersionedTransaction,
+  Transaction as SolanaTransaction,
+} from '@solana/web3.js';
+
+const io = new Server(3000, {
+  // options
+});
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -45,10 +54,6 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
 
     console.log(`${emoji} [${new Date(data.timestamp).toISOString()}] ${data.message}`);
 
-    if (data.state === ToolExecutionState.STARTED) {
-      console.log(`   Input: ${JSON.stringify(data.input)}`);
-    }
-
     if (data.state === ToolExecutionState.IN_PROCESS && data.data) {
       console.log(`   Progress: ${data.data.progress || 0}%`);
     }
@@ -63,6 +68,61 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
       console.log(`   Error: ${data.error.message || String(data.error)}`);
     }
   }
+}
+
+async function mockExtensionWalletClient(network: Network) {
+  //Fake wallet for testing
+  const wallet = new Wallet(
+    {
+      seedPhrase:
+        settings.get('WALLET_MNEMONIC') ||
+        'test test test test test test test test test test test junk',
+      index: 0,
+    },
+    network,
+  );
+  const socket = ioClient('http://localhost:3000');
+
+  socket.on('connect', () => {
+    console.log('connected to extension wallet client');
+  });
+
+  socket.on('disconnect', () => {
+    console.log('disconnected from extension wallet client');
+  });
+
+  socket.on('error', error => {
+    console.log('error from extension wallet client', error);
+  });
+
+  socket.on('get_address', async (data, callback) => {
+    console.log('get_address from extension wallet client', data);
+    callback({ address: await wallet.getAddress(data.network) });
+  });
+
+  socket.on('sign_message', async (data, callback) => {
+    console.log('sign_message from extension wallet client', data);
+    callback({ signature: await wallet.signMessage(data) });
+  });
+
+  socket.on('sign_transaction', async (data, callback) => {
+    console.log('sign_transaction from extension wallet client', data);
+    let tx: ethers.Transaction | VersionedTransaction | SolanaTransaction;
+
+    if (data.network == 'solana') {
+      try {
+        tx = VersionedTransaction.deserialize(Buffer.from(data.transaction, 'base64'));
+      } catch (e) {
+        tx = SolanaTransaction.from(Buffer.from(data.transaction, 'base64'));
+      }
+    } else {
+      tx = Transaction.from(data.transaction);
+    }
+
+    const signedTx = await wallet.signTransaction({ network: data.network, transaction: tx });
+    console.log('signedTx', signedTx);
+    callback({ signedTransaction: signedTx });
+  });
 }
 
 async function main() {
@@ -132,22 +192,25 @@ async function main() {
 
   // Initialize a new wallet
   console.log('👛 Creating wallet...');
-  const wallet = new Wallet(
-    {
-      seedPhrase:
-        settings.get('WALLET_MNEMONIC') ||
-        'test test test test test test test test test test test junk',
-      index: 0,
-    },
-    network,
-  );
+  const wallet = new ExtensionWallet(network);
   console.log('✓ Wallet created\n');
 
+  //Listen for connection from extension wallet
+  io.on('connection', socket => {
+    console.log('a user connected');
+    wallet.connect(socket);
+  });
+
+  await mockExtensionWalletClient(network);
+
+  //sleep for 2 seconds
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
-  console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
+  console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.SOLANA));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
-  const agent = new PlanningAgent(
+  const agent = new Agent(
     {
       model: 'gpt-4o',
       temperature: 0,
@@ -158,8 +221,6 @@ async function main() {
     networks,
   );
   console.log('✓ Agent initialized\n');
-
-  const solanaProvider = new Connection(SOL_RPC);
 
   // Register the tool execution callback
   console.log('🔔 Registering tool execution callback...');
@@ -205,8 +266,7 @@ async function main() {
 
   // Create providers with proper chain IDs
   const pancakeswap = new PancakeSwapProvider(provider, 56);
-  // Create providers with proper chain IDs
-  const jupiter = new JupiterProvider(solanaProvider);
+  const jupiter = new JupiterProvider(new Connection(SOL_RPC));
 
   // const okx = new OkxProvider(provider, 56);
 
@@ -249,25 +309,6 @@ async function main() {
   await agent.registerPlugin(bridgePlugin);
   console.log('✓ Plugin registered\n');
 
-  // const result = await agent.execute("My balance on BNB chain");
-
-  const chatHistory = [
-    new HumanMessage('Buy BINK'),
-    new AIMessage('Please provide the amount of BNB you want to spend'),
-  ];
-  const result = await agent.execute(
-    {
-      // input: '0.0001 BNB with 0.5% slippage on bnb chain.',
-      input: 'What is bitcoin?',
-      // history: chatHistory,
-      threadId: '1d81e0fe-11b2-4073-b2c2-cc9e3615360a',
-    },
-    data => {
-      console.log(data, '|');
-    },
-  );
-  console.log('✓ Result:', result, '\n');
-
   // Example 1: Buy with exact input amount on BNB Chain
   // console.log('💱 Example 1: Buy BINK from exactly 0.0001 BNB with 0.5% slippage on bnb chain.');
   // const result1 = await agent.execute({
@@ -279,31 +320,30 @@ async function main() {
   // console.log('✓ Swap result:', result1, '\n');
 
   // Example 2: Sell with exact output amount on BNB Chain
-  // console.log('💱 Example 2: buy BINK from 10 USDC on solana');
-  // const result2 = await agent.execute(`
-  //    buy CAKE on BNB from 10 USDC on solana and stake it on ethereum chain
-  //   `,
-  // );
+  console.log('💱 Example 2: buy BINK from 10 USDC on solana');
+  const result2 = await agent.execute({
+    input: `
+   BUY TRUMP from 0.001 SOL
+    `,
+  });
 
-  // console.log('✓ Swap result:', result2, '\n');
+  console.log('✓ Swap result:', result2, '\n');
 
-  // // Get plugin information
-  // // const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
-  // const registeredPlugin = agent.getPlugin('bridge') as BridgePlugin;
+  // Get plugin information
+  // const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
+  const registeredPlugin = agent.getPlugin('bridge') as BridgePlugin;
 
-  // // // Check available providers for each chain
-  // console.log('📊 Available providers by chain:');
-  // const chains = registeredPlugin.getSupportedNetworks();
-  // for (const chain of chains) {
-  //   const providers = registeredPlugin.getProvidersForNetwork(chain);
-  //   console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
-  // }
+  // // Check available providers for each chain
+  console.log('📊 Available providers by chain:');
+  const chains = registeredPlugin.getSupportedNetworks();
+  for (const chain of chains) {
+    const providers = registeredPlugin.getProvidersForNetwork(chain);
+    console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
+  }
   // console.log();
 }
 
-// main().catch(error => {
-//   console.error('❌ Error:', error.message);
-//   process.exit(1);
-// });
-
-export const graph = main();
+main().catch(error => {
+  console.error('❌ Error:', error.message);
+  process.exit(1);
+});
