@@ -292,9 +292,29 @@ export class BridgeTool extends BaseTool {
   }
 
   async simulateQuoteTool(args: any): Promise<BridgeQuote> {
+    if (this.agent.isMockResponseTool()) {
+      const mockResponse = await this.mockResponseTool(args);
+      return JSON.parse(mockResponse);
+    }
     return (await this.getQuote(args)).quote;
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        provider: args.provider,
+        fromToken: args.fromToken,
+        toToken: args.toToken,
+        fromAmount: args.amount,
+        toAmount: args.amount,
+        transactionHash: args.transactionHash,
+        priceImpact: args.priceImpact,
+        type: args.type,
+        fromNetwork: args.fromNetwork,
+        toNetwork: args.toNetwork,
+      }),
+    );
+  }
   createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
     return {
@@ -319,6 +339,9 @@ export class BridgeTool extends BaseTool {
           } = args;
 
           console.log('🤖 Bridge Args:', args);
+          if (this.agent.isMockResponseTool()) {
+            return this.mockResponseTool(args);
+          }
 
           const { selectedProvider, quote, fromWalletAddress, toWalletAddress } =
             await this.getQuote(args, onProgress);

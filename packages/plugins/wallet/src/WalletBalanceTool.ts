@@ -88,6 +88,13 @@ export class GetWalletBalanceTool extends BaseTool {
     return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
+  }
   getSchema(): z.ZodObject<any> {
     const supportedNetworks = this.getsupportedNetworks();
     if (supportedNetworks.length === 0) {

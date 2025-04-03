@@ -81,6 +81,13 @@ export class CreateTokenTool extends BaseTool {
     return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
+  }
   getSchema(): z.ZodObject<any> {
     const providers = this.registry.getProviderNames();
     if (providers.length === 0) {

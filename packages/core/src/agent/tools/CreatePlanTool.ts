@@ -73,6 +73,15 @@ export class CreatePlanTool extends BaseTool {
       };
     });
   }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
+  }
+
   createTool(): DynamicStructuredTool {
     return new DynamicStructuredTool({
       name: this.getName(),

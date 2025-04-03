@@ -299,6 +299,9 @@ export class JupiterProvider extends BaseSwapProvider {
         this.getToken(params.type === 'input' ? params.toToken : params.fromToken, params.network),
       ]);
 
+      console.log('🤖 Jupiter quote sourceToken:', sourceToken);
+      console.log('🤖 Jupiter quote destinationToken:', destinationToken);
+
       let adjustedAmount = params.amount;
       if (params.type === 'input') {
         adjustedAmount = await this.adjustAmount(

@@ -40,4 +40,11 @@ export class AskTool implements ITool {
   setAgent(agent: IAgent): void {
     throw new Error('Method not implemented.');
   }
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
+  }
 }
