@@ -150,7 +150,8 @@ NOTE:
   }
 
   protected async createExecutor(): Promise<CompiledStateGraph<any, any, any, any, any, any>> {
-    const executorTools = this.getTools();
+    const ignoreExecutorTools = ['knowledge'];
+    const executorTools = this.getTools().filter(t => !ignoreExecutorTools.includes(t.name));
 
     const defaultPlanPrompt = `NOTE: 
       - Create task ask user to provide more information
@@ -269,12 +270,11 @@ NOTE:
         threadId: uuidv4(),
       };
     }
-
     if (this.isAskUser && typeof commandOrParams !== 'string') {
       let result = '';
       if (onStream) {
         const eventStream = await this.graph.streamEvents(
-          { resume: { input: commandOrParams.input } },
+          new Command({ resume: { input: commandOrParams.input } }),
           {
             version: 'v2',
             configurable: {
@@ -296,14 +296,11 @@ NOTE:
         }
       } else {
         result = (
-          await this.graph.invoke(
-            { resume: { input: commandOrParams.input } },
-            {
-              configurable: {
-                thread_id: commandOrParams.threadId,
-              },
+          await this.graph.invoke(new Command({ resume: { input: commandOrParams.input } }), {
+            configurable: {
+              thread_id: commandOrParams.threadId,
             },
-          )
+          })
         ).answer;
       }
       try {
@@ -407,6 +404,11 @@ NOTE:
       console.error('Error persisting message:', dbError);
     }
 
+    //TODO: check this code. we will remove this code after testing
+    //RESET DATA
+    if (!this.isAskUser && response.length > 0) {
+      await this.createExecutor();
+    }
     return response;
   }
 }

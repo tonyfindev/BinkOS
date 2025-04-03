@@ -32,7 +32,7 @@ export class JupiterProvider extends BaseSwapProvider {
   private provider: Connection;
   constructor(provider: Connection) {
     const providerMap = new Map<NetworkName, NetworkProvider>();
-    providerMap.set(NetworkName.SOLANA, new Connection(DEFAULT_SOLANA_RPC_URL));
+    providerMap.set(NetworkName.SOLANA, provider);
     super(providerMap);
     this.api = axios.create({
       baseURL: JupiterProvider.DEFAULT_BASE_URL,
@@ -40,7 +40,7 @@ export class JupiterProvider extends BaseSwapProvider {
         Accept: 'application/json',
       },
     });
-    this.provider = new Connection(DEFAULT_SOLANA_RPC_URL);
+    this.provider = provider;
   }
 
   getName(): string {
