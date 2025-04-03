@@ -360,7 +360,6 @@ NOTE:
             // Empty content in the context of OpenAI or Anthropic usually means
             // that the model is asking for a tool to be invoked.
             // So we only print non-empty content
-            console.log(data.chunk.content, '|');
             response += data.chunk.content;
             onStream(data.chunk.content);
           }

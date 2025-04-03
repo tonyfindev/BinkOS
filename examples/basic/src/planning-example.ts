@@ -257,7 +257,7 @@ async function main() {
   const result = await agent.execute(
     {
       // input: '0.0001 BNB with 0.5% slippage on bnb chain.',
-      input: 'What is bitcoin?',
+      input: 'get my balance on solana',
       // history: chatHistory,
       threadId: '1d81e0fe-11b2-4073-b2c2-cc9e3615360a',
     },
