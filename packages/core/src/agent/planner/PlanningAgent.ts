@@ -160,14 +160,21 @@ NOTE:
       - You can create multiple plans to execute the user's request.
       - If a task is failed many times, you update a new task to execute the plan`;
 
-    const executorPrompt =
-      `You are blockchain executor. Your goal is to execute the following steps. 
+    const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps. 
       NOTE:
-      - Never call a tool more than once` + defaultPlanPrompt;
+      - Never call a tool more than once`;
 
-    const createPlanPrompt =
-      `You are blockchain planner. Your goal is create plans to execute the user's request. \n` +
-      defaultPlanPrompt;
+    const createPlanPrompt = `You are blockchain planner. Your goal is create plan to execute the user's request.
+      NOTE: 
+      - Create task ask user to provide miss information
+      - Retrieve information in user's request and maintain it each task
+      - You can create multiple tasks to execute the user's request.
+      - If a task is failed many times, you update a new task to execute the plan
+      Following tips trading:
+          + Sell/Swap X/X% A to B (amount = X, amountType = input).
+          + Buy X A from B (amount = X, amountType = output).
+          + Sell/Swap X/X% A from B (amount = X, amountType = ouput).
+      `;
 
     const updatePlanPrompt =
       `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. \n. When a task is failed, you need to update task title\n` +
@@ -181,7 +188,7 @@ NOTE:
       if (toolJson.function.parameters) {
         toolJson.function.parameters = cleanToolParameters(toolJson.function.parameters);
       }
-      toolsStr += `${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n`;
+      toolsStr += `- ${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n\n`;
     }
 
     const executorGraph = new ExecutorGraph({
