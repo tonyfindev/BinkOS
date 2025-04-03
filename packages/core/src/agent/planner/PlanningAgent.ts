@@ -162,13 +162,76 @@ NOTE:
 
     const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps. 
       NOTE:
-      - Never call a tool more than once` + defaultPlanPrompt;
+      - Never call a tool more than once`;
 
-    
+      // Example for swap: Swap 0.01 SOL to TRUMP
+      // - Step 1: Get balance of SOL in solana wallet
+      // - Step 2 : Get token info Sol and TRUMP token
+      // - Step 3 : Execute swap with 0.01 amount of SOL
 
-    const createPlanPrompt =
-      `You are blockchain planner. Your goal is create plans to execute the user's request. \n` +
-      defaultPlanPrompt;
+      const createPlanPrompt =
+      `You are blockchain planner. Your goal is create plan to execute the user's request.
+      NOTE: 
+      - Create task ask user to provide miss information
+      - Retrieve information in user's request and maintain it each task
+      - You can create multiple tasks to execute the user's request.
+      - If a task is failed many times, you update a new task to execute the plan
+      Following tips trading:
+          + Sell/Swap X/X% A to B (amount = X, amountType = input).
+          + Buy X A from B (amount = X, amountType = output).
+          + Sell/Swap X/X% A from B (amount = X, amountType = ouput).
+      `
+      // ### Following tips set a limit buy/sell/swap order:
+      //   + Set a limit buy order for "[symbol]" at C (inputTokenAmount is all money in balance/wallet,  , outputTokenSymbol = tokenConditionSymbol = "[symbol]", inputTokenSymbol = USDC, At Price = C). 
+      //   + Buy X "[symbol]" at price C (limitOrder).
+      //   + Buy X "[symbol]" at B price C (inputTokenAmount= null, outputTokenAmount = X, inputTokenSymbol = USDC, outputTokenSymbol = "[symbol]", tokenConditionSymbol = B, At Price = C).
+      //   + Buy X "[symbol]" from/with A at price C (inputTokenAmount= null, outputTokenAmount = X, inputTokenSymbol = A, outputTokenSymbol = tokenConditionSymbol = "[symbol]", At Price = C).
+      //   + Buy X "[symbol]" from/with A at B price C (inputTokenAmount= null, outputTokenAmount = X, inputTokenSymbol = A, outputTokenSymbol = "[symbol]", tokenConditionSymbol = B, At Price = C).
+      //   + Sell/Swap X/X% "[symbol]" from/with A at price C (inputTokenAmount= X/X%,  , inputTokenSymbol = A, outputTokenSymbol = tokenConditionSymbol = "[symbol]", At Price = C).
+      //   + Sell/Swap X/X% "[symbol]" from/with A at B price C (inputTokenAmount= X/X%,  , inputTokenSymbol = A, outputTokenSymbol = "[symbol]", tokenConditionSymbol = B, At Price = C).`
+      
+      // `You are blockchain planner. Your goal is create plan to execute the user's request.
+      // NOTE: 
+      // - Create task ask user to provide miss information
+      // - Retrieve information in user's request and maintain it each task
+      // - You can create multiple tasks to execute the user's request.
+      // - If a task is failed many times, you update a new task to execute the plan
+
+      // Example for swap: 
+      //   Swap [request amount (this can be receive amount or send amount)] [send token] to [receive token]
+      //   Understand request amount in user's request is receive amount or send amount
+      //   - Step 1: [send amount] = [request amount] => swap in
+      //   - Step 2: [receive amount] = [request amount] => swap out
+      //   - Step 3: Get balance of [send token] in [wallet]
+      //   - Step 4: Get token info [send token] and [receive token] token
+      //   - Step 5: Execute swap [send amount] of [send token] to [receive token]`
+
+
+      // `You are blockchain planner. Your goal is create plan to execute the user's request.
+      // NOTE: 
+      // - Create task ask user to provide miss information
+      // - Retrieve information in user's request and maintain it each task
+      // - You must get balance to get any token (must include token symbol and token address) in wallet
+      // - You need token address when execute on-chain transaction
+      // - You can create multiple tasks to execute the user's request.
+      // - If a task is failed many times, you update a new task to execute the plan
+      // - You can use native token for input or output token
+      // - When user request amount for input or output token, you must keep amount in task
+
+      // Below is the reasoning system you can use to build a plan consisting of tasks. 
+      // Note that the system below is a framework for reasoning, not specific tasks. 
+      // You must create tasks in such a way that they achieve results that meet the reasoning system outlined below.
+      // - Step 1: Understand which one is send token, which one is receive token, the amount user want to send or receive
+      // - Step 2: Get info of send token and receive token 
+      // - Step 3: Check if the amount user want to send is enough to pay for the transaction fee
+      // - Step 4: Execute request
+      // `;
+      
+
+      //   Swap 0.11 TRUMP (receive) from SOL (send)
+      //   - Step 1: Get balance of SOL (send) in solana wallet
+      //   - Step 2: Get token info SOL (send) and TRUMP (receive) token
+      //   - Step 3: Execute swap 0.11 amount of TRUMP (receive) from SOL (send)
 
     const updatePlanPrompt =
       `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. \n. When a task is failed, you need to update task title\n` +
@@ -182,7 +245,7 @@ NOTE:
       if (toolJson.function.parameters) {
         toolJson.function.parameters = cleanToolParameters(toolJson.function.parameters);
       }
-      toolsStr += `${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n`;
+      toolsStr += `- ${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n\n`;
     }
 
     const executorGraph = new ExecutorGraph({
