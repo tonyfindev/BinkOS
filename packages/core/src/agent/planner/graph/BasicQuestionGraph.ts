@@ -82,7 +82,11 @@ export class BasicQuestionGraph {
       modelWithTools = this.model;
     }
 
-    const agent = prompt.pipe(modelWithTools);
+    const agent = prompt.pipe(
+      modelWithTools.withConfig({
+        tags: ['final_node'],
+      }),
+    );
 
     const responseMessage = await agent.invoke({
       input: state.input,

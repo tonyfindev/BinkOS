@@ -70,6 +70,11 @@ export class OkuProvider extends BaseSwapProvider {
   }
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      // check is valid limit order
+      if (params?.limitPrice) {
+        throw new Error('OKU does not support limit order for native token swaps');
+      }
+
       if (params.type === 'output') {
         throw new Error('OKU does not support output swaps');
       }

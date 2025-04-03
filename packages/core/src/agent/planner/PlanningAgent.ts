@@ -162,13 +162,19 @@ NOTE:
 
     const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps. 
       NOTE:
-      - Never call a tool more than once` + defaultPlanPrompt;
+      - Never call a tool more than once`;
 
-    
-
-    const createPlanPrompt =
-      `You are blockchain planner. Your goal is create plans to execute the user's request. \n` +
-      defaultPlanPrompt;
+    const createPlanPrompt = `You are blockchain planner. Your goal is create plan to execute the user's request.
+      NOTE: 
+      - Create task ask user to provide miss information
+      - Retrieve information in user's request and maintain it each task
+      - You can create multiple tasks to execute the user's request.
+      - If a task is failed many times, you update a new task to execute the plan
+      Following tips trading:
+          + Sell/Swap X/X% A to B (amount = X, amountType = input).
+          + Buy X A from B (amount = X, amountType = output).
+          + Sell/Swap X/X% A from B (amount = X, amountType = ouput).
+      `;
 
     const updatePlanPrompt =
       `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. \n. When a task is failed, you need to update task title\n` +
@@ -182,7 +188,7 @@ NOTE:
       if (toolJson.function.parameters) {
         toolJson.function.parameters = cleanToolParameters(toolJson.function.parameters);
       }
-      toolsStr += `${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n`;
+      toolsStr += `- ${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n\n`;
     }
 
     const executorGraph = new ExecutorGraph({
@@ -253,7 +259,10 @@ NOTE:
   }
 
   // Implementing the message persistence and history logic in the execute method
-  async execute(commandOrParams: string | AgentExecuteParams): Promise<any> {
+  async execute(
+    commandOrParams: string | AgentExecuteParams,
+    onStream?: (data: string) => void,
+  ): Promise<any> {
     if (typeof commandOrParams === 'string') {
       commandOrParams = {
         input: commandOrParams,
@@ -262,16 +271,53 @@ NOTE:
     }
 
     if (this.isAskUser && typeof commandOrParams !== 'string') {
-      return (
-        await this.graph.invoke(
+      let result = '';
+      if (onStream) {
+        const eventStream = await this.graph.streamEvents(
           { resume: { input: commandOrParams.input } },
           {
+            version: 'v2',
             configurable: {
               thread_id: commandOrParams.threadId,
             },
           },
-        )
-      ).answer;
+        );
+
+        for await (const { event, tags, data } of eventStream) {
+          if (event === 'on_chat_model_stream' && tags?.includes('final_node')) {
+            if (data.chunk.content) {
+              // Empty content in the context of OpenAI or Anthropic usually means
+              // that the model is asking for a tool to be invoked.
+              // So we only print non-empty content
+              result += data.chunk.content;
+              onStream(data.chunk.content);
+            }
+          }
+        }
+      } else {
+        result = (
+          await this.graph.invoke(
+            { resume: { input: commandOrParams.input } },
+            {
+              configurable: {
+                thread_id: commandOrParams.threadId,
+              },
+            },
+          )
+        ).answer;
+      }
+      try {
+        const threadId =
+          typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
+        await this.db?.createMessage(
+          { content: result, user_id: this.context?.user?.id, message_type: 'ai' },
+          threadId,
+        );
+      } catch (e) {
+        console.error('Error persisting message:', e);
+      }
+
+      return result;
     }
     let _history: MessageEntity[] = [];
 
@@ -303,14 +349,41 @@ NOTE:
     const input = typeof commandOrParams === 'string' ? commandOrParams : commandOrParams.input;
     const chat_history = history;
 
-    const response = await this.graph.invoke(
-      { input, chat_history },
-      {
-        configurable: {
-          thread_id: commandOrParams.threadId,
+    let response = '';
+    if (onStream) {
+      const eventStream = await this.graph.streamEvents(
+        { input, chat_history },
+        {
+          version: 'v2',
+          configurable: {
+            thread_id: commandOrParams.threadId,
+          },
         },
-      },
-    );
+      );
+
+      for await (const { event, tags, data } of eventStream) {
+        if (event === 'on_chat_model_stream' && tags?.includes('final_node')) {
+          if (data.chunk.content) {
+            // Empty content in the context of OpenAI or Anthropic usually means
+            // that the model is asking for a tool to be invoked.
+            // So we only print non-empty content
+            response += data.chunk.content;
+            onStream(data.chunk.content);
+          }
+        }
+      }
+    } else {
+      response = (
+        await this.graph.invoke(
+          { input, chat_history },
+          {
+            configurable: {
+              thread_id: commandOrParams.threadId,
+            },
+          },
+        )
+      ).answer;
+    }
 
     try {
       const threadId = typeof commandOrParams === 'string' ? undefined : commandOrParams?.threadId;
@@ -322,9 +395,9 @@ NOTE:
       );
 
       // Persist AI message
-      if (response.answer) {
+      if (response) {
         await this.db?.createMessage(
-          { content: response.answer, user_id: this.context?.user?.id, message_type: 'ai' },
+          { content: response, user_id: this.context?.user?.id, message_type: 'ai' },
           threadId,
         );
       }
@@ -334,7 +407,7 @@ NOTE:
       console.error('Error persisting message:', dbError);
     }
 
-    return response.answer;
+    return response;
   }
 }
 function uuidv4(): `${string}-${string}-${string}-${string}-${string}` | undefined {
