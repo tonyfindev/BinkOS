@@ -25,6 +25,7 @@ import { deBridgeProvider } from '@binkai/debridge-provider';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { JupiterProvider } from '@binkai/jupiter-provider';
 import { Connection } from '@solana/web3.js';
+import { ThenaProvider } from '@binkai/thena-provider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -208,15 +209,15 @@ async function main() {
   // Create providers with proper chain IDs
   const jupiter = new JupiterProvider(solanaProvider);
 
+  const thena = new ThenaProvider(provider, 56);
+
   // const okx = new OkxProvider(provider, 56);
 
   // const fourMeme = new FourMemeProvider(provider, 56);
 
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
-    defaultSlippage: 0.5,
-    defaultChain: 'bnb',
-    providers: [pancakeswap, jupiter],
+    providers: [pancakeswap, jupiter, thena],
     supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
@@ -229,8 +230,6 @@ async function main() {
     providers: [debridge],
     supportedChains: ['bnb', 'solana'], // These will be intersected with agent's networks
   });
-
-  console.log('✓ Bridge plugin initialized\n');
 
   // Register the plugin with the agent
   console.log('🔌 Registering swap plugin with agent...');
