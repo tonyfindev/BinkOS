@@ -92,13 +92,18 @@ export class OkxProvider extends BaseSwapProvider {
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
+      // check is valid limit order
+      if (params?.limitPrice) {
+        throw new Error('OKX does not support limit order for native token swaps');
+      }
+
       if (params.type === 'output') {
         throw new Error('OKX does not support output swaps');
       }
 
       const [tokenIn, tokenOut] = await Promise.all([
-        this.getToken(params.fromToken, params.network),
-        this.getToken(params.toToken, params.network),
+        this.getToken(params.type === 'input' ? params.fromToken : params.toToken, params.network),
+        this.getToken(params.type === 'input' ? params.toToken : params.fromToken, params.network),
       ]);
       let adjustedAmount = params.amount;
       if (params.type === 'input') {

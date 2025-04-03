@@ -103,8 +103,14 @@ export class deBridgeProvider extends BaseBridgeProvider {
   ): Promise<BridgeQuote> {
     try {
       const [tokenIn, tokenOut] = await Promise.all([
-        this.getToken(params.fromToken, params.fromNetwork),
-        this.getToken(params.toToken, params.toNetwork),
+        this.getToken(
+          params.type === 'input' ? params.fromToken : params.toToken,
+          params.fromNetwork,
+        ),
+        this.getToken(
+          params.type === 'input' ? params.toToken : params.fromToken,
+          params.toNetwork,
+        ),
       ]);
       let adjustedAmount = params.amount;
 

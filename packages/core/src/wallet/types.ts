@@ -27,6 +27,11 @@ export interface TransactionRequest {
   lastValidBlockHeight?: number;
 }
 
+export interface SignedTransactionRequest {
+  transaction: string;
+  lastValidBlockHeight?: number;
+}
+
 export interface TransactionReceipt {
   hash: string;
   wait(): Promise<TransactionReceipt>;
@@ -36,8 +41,8 @@ export interface IWallet {
   getAddress(network: NetworkName): Promise<string>;
   signMessage(params: SignMessageParams): Promise<string>;
   signTransaction(params: SignTransactionParams): Promise<string>;
-  getPublicKey(network: NetworkName): string;
-  getPrivateKey(network: NetworkName): string;
+  getPublicKey(network: NetworkName): Promise<string>;
+  getPrivateKey(network: NetworkName): Promise<string>;
 
   /**
    * Send a transaction to the network
@@ -46,7 +51,7 @@ export interface IWallet {
    */
   sendTransaction(
     network: NetworkName,
-    transaction: TransactionRequest,
+    signedTransaction: SignedTransactionRequest,
   ): Promise<TransactionReceipt>;
 
   /**
