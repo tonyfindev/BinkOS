@@ -88,7 +88,7 @@ async function main() {
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
     {
-      model: 'gpt-4',
+      model: 'gpt-4o',
       temperature: 0,
     },
     wallet,
@@ -123,7 +123,7 @@ async function main() {
   console.log('💎 Example 1: Create a token on BSC');
   const result = await agent.execute({
     input:
-      'Create a new token on BNB chain with name: "Fixed", symbol: "FIX", description: "This is a Fixed Test token". image is https://static.four.meme/market/6fbb933c-7dde-4d0a-960b-008fd727707f4551736094573656710.jpg.',
+      'Create a new token on BNB chain with name: "CAT", symbol: "FIX", description: "This is a Fixed Test token". image is https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-8fb0-51f7-bd70-82753d167b85/raw?se=2025-03-28T09%3A59%3A39Z&sp=r&sv=2024-08-04&sr=b&scid=6acf5a0b-cc54-5cb1-a9ea-3bcffb8489c1&skoid=7c382de0-129f-486b-9922-6e4a89c6eb7d&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-03-28T05%3A21%3A51Z&ske=2025-03-29T05%3A21%3A51Z&sks=b&skv=2024-08-04&sig=baETd8NYgKGzciNXMJD5imQsmeHP3Psa4C78f3nf5xo%3D',
   });
   console.log('✓ Token created:', result, '\n');
   // Get plugin information

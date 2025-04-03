@@ -28,7 +28,8 @@ const DEFAULT_SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
 export class JupiterProvider extends BaseSwapProvider {
   private api: AxiosInstance;
   private static readonly DEFAULT_BASE_URL = 'https://quote-proxy.jup.ag';
-
+  private static readonly BASE_URL_JUPITER = 'https://api.jup.ag';
+  private provider: Connection;
   constructor(provider: Connection) {
     const providerMap = new Map<NetworkName, NetworkProvider>();
     providerMap.set(NetworkName.SOLANA, new Connection(DEFAULT_SOLANA_RPC_URL));
@@ -39,6 +40,7 @@ export class JupiterProvider extends BaseSwapProvider {
         Accept: 'application/json',
       },
     });
+    this.provider = new Connection(DEFAULT_SOLANA_RPC_URL);
   }
 
   getName(): string {
@@ -116,7 +118,10 @@ export class JupiterProvider extends BaseSwapProvider {
         userPublicKey: userPublicKey,
         wrapAndUnwrapSol: true,
       });
-      return response?.data;
+      const data = response?.data;
+      const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
+      data.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+      return data;
     } catch (error) {
       throw new Error('Failed to get swap buy aggregator');
     }
@@ -142,6 +147,105 @@ export class JupiterProvider extends BaseSwapProvider {
       });
 
       return response.data;
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  private async cancelOrder(orderId: string | string[], userAddress?: string) {
+    const url = `${JupiterProvider.BASE_URL_JUPITER}/trigger/v1/cancelOrders`;
+
+    const headers = {
+      accept: 'application/json',
+      'content-type': 'application/json', // Important for POST requests with a body
+      // Include other headers if necessary (see previous response for guidance)
+    };
+    const request = {
+      maker: userAddress,
+      orderIds: [orderId],
+    };
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST', // Note the method is now POST
+        headers: headers,
+        body: JSON.stringify(request), // Convert the request object to JSON
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
+      return {
+        tx: data.transactions[0],
+        to: userAddress,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      };
+    } catch (error) {
+      console.error('Error canceling trigger orders:', error);
+      throw error;
+    }
+  }
+
+  async getCreateLimitOrder(params: JupiterQuoteResponse, userAddress: string, limitPrice: string) {
+    try {
+      const createOrderResponse = await (
+        await fetch(`${JupiterProvider.BASE_URL_JUPITER}/trigger/v1/createOrder`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            computeUnitPrice: 'auto',
+            inputMint: params.inputMint.toString(),
+            outputMint: params.outputMint.toString(),
+            maker: userAddress,
+            payer: userAddress,
+            params: {
+              makingAmount: params.inAmount,
+              takingAmount: limitPrice,
+            },
+          }),
+        })
+      ).json();
+      if (createOrderResponse.error) {
+        throw new Error(createOrderResponse.error);
+      }
+      const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
+      createOrderResponse.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+
+      return createOrderResponse;
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  public async getAllOrderIds(userAddress: string) {
+    try {
+      const page = 1;
+      const orderStatus = 'active';
+      const includeFailedTx = false;
+      const url = `${JupiterProvider.BASE_URL_JUPITER}/trigger/v1/getTriggerOrders?user=${userAddress}&page=${page}&orderStatus=${orderStatus}&includeFailedTx=${includeFailedTx}`;
+
+      const headers = {
+        accept: 'application/json',
+      };
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      return data?.orders;
     } catch (error) {
       return this.handleError(error);
     }
@@ -191,8 +295,8 @@ export class JupiterProvider extends BaseSwapProvider {
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       const [sourceToken, destinationToken] = await Promise.all([
-        this.getToken(params.fromToken, params.network),
-        this.getToken(params.toToken, params.network),
+        this.getToken(params.type === 'input' ? params.fromToken : params.toToken, params.network),
+        this.getToken(params.type === 'input' ? params.toToken : params.fromToken, params.network),
       ]);
 
       let adjustedAmount = params.amount;
@@ -210,17 +314,48 @@ export class JupiterProvider extends BaseSwapProvider {
           );
         }
       }
-      const swapData = await this.getQuoteJupiter(
-        {
-          inputMint: new PublicKey(sourceToken.address),
-          outputMint: new PublicKey(destinationToken.address),
-          amount: Number(parseTokenAmount(adjustedAmount, sourceToken.decimals)),
-        },
-        userAddress,
-      );
 
-      // build transaction
-      const getSwapBuyAggregator = await this.getSwapBuyAggregator(swapData, userAddress);
+      let swapData;
+      let getSwapBuyAggregator;
+
+      if (params?.limitPrice) {
+        swapData = await this.getQuoteJupiter(
+          {
+            inputMint: new PublicKey(sourceToken.address),
+            outputMint: new PublicKey(destinationToken.address),
+            amount: Number(parseTokenAmount(adjustedAmount, sourceToken.decimals)),
+          },
+          userAddress,
+        );
+
+        const limitPrice = parseTokenAmount(
+          params?.limitPrice.toString(),
+          destinationToken.decimals,
+        ).toString();
+
+        getSwapBuyAggregator = await this.getCreateLimitOrder(swapData, userAddress, limitPrice);
+      } else {
+        swapData = await this.getQuoteJupiter(
+          {
+            inputMint: new PublicKey(sourceToken.address),
+            outputMint: new PublicKey(destinationToken.address),
+            amount: Number(parseTokenAmount(adjustedAmount, sourceToken.decimals)),
+          },
+          userAddress,
+        );
+
+        // build transaction
+        getSwapBuyAggregator = await this.getSwapBuyAggregator(swapData, userAddress);
+      }
+
+      if (!getSwapBuyAggregator) {
+        throw new Error('Failed to get swap buy aggregator');
+      }
+
+      // if (!getSwapBuyAggregator?.lastValidBlockHeight) {
+      //   const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
+      //   getSwapBuyAggregator.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+      // }
 
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
       const quote: SwapQuote = {
@@ -238,7 +373,9 @@ export class JupiterProvider extends BaseSwapProvider {
         tx: {
           to: userAddress,
           spender: userAddress,
-          data: getSwapBuyAggregator?.swapTransaction || '',
+          data: params?.limitPrice
+            ? getSwapBuyAggregator?.transaction
+            : getSwapBuyAggregator?.swapTransaction,
           lastValidBlockHeight: getSwapBuyAggregator?.lastValidBlockHeight,
           value: parseTokenAmount(adjustedAmount, sourceToken.decimals).toString(),
           network: params.network,

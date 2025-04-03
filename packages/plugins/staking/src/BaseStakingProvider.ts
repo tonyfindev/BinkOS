@@ -536,8 +536,6 @@ export abstract class BaseStakingProvider implements IStakingProvider {
             this.quotes.delete(key);
           }
         }
-
-        console.log(`🧹 Cleaned up expired cache entries for ${this.getName()}`);
       } catch (error) {
         console.error('Error cleaning up caches:', error);
       }

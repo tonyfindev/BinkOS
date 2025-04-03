@@ -300,6 +300,11 @@ export class ExecutorGraph {
         try {
           quote = await (tool as any).simulateQuoteTool(toolCall.args);
           
+          // Convert any BigInt values to strings in the quote object
+          quote = JSON.parse(JSON.stringify(quote, (key, value) => 
+            typeof value === 'bigint' ? value.toString() : value
+          ));
+          
         } catch (e: any) {
           const toolMessage = new ToolMessage({
             name: toolCall.name,
