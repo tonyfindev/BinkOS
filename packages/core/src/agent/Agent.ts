@@ -41,6 +41,10 @@ export class Agent extends BaseAgent {
     return this.context;
   }
 
+  public isMockResponseTool(): boolean {
+    return this.config.isMockResponseTool ?? false;
+  }
+
   async initialize() {
     await this.initializeContext();
     await this.initializeExecutor();

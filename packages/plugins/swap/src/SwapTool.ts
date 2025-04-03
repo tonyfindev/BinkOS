@@ -370,6 +370,16 @@ export class SwapTool extends BaseTool {
     return (await this.getQuote(args)).quote;
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        fromAmount: args.amount,
+        toAmount: args.amount,
+        txHash: '0x123',
+      }),
+    );
+  }
+
   createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
     return {
@@ -393,6 +403,10 @@ export class SwapTool extends BaseTool {
             slippage = this.defaultSlippage,
             limitPrice,
           } = args;
+
+          if (this.agent.isMockResponseTool()) {
+            return this.mockResponseTool(args);
+          }
 
           console.log('🔄 Doing swap operation...');
           console.log('🤖 Swap Args:', args);
