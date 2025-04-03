@@ -128,20 +128,18 @@ export class ThenaProvider extends BaseSwapProvider {
       let optimalRoute;
       let amountOut;
       if (params?.limitPrice) {
-        const stableTokens = [
-          CONSTANTS.USDC_ADDRESS,
-          CONSTANTS.USDT_ADDRESS,
-          CONSTANTS.BUSD_ADDRESS,
-        ];
-        if (
-          !stableTokens.includes(tokenInAddress.toLowerCase() as (typeof stableTokens)[number]) &&
-          !stableTokens.includes(tokenOutAddress.toLowerCase() as (typeof stableTokens)[number])
-        ) {
+        // check token in is stable token
+        const tokenInStable = this.checkIsStableToken(tokenInAddress);
+        const tokenOutStable = this.checkIsStableToken(tokenOutAddress);
+
+        if (!tokenInStable && !tokenOutStable) {
           throw new Error('Thena only support limit order with USDC, USDT, BUSD as input token');
         }
-        // get info token
-        const infoTokenIn = await this.getInfoToken(tokenInAddress);
-        const infoTokenOut = await this.getInfoToken(tokenOutAddress);
+        // need verify amount out
+        if (!params?.limitPrice || Number(params?.limitPrice) < 0) {
+          throw new Error('No amount out from Thena');
+        }
+
         swapTransactionData = null;
 
         // Fetch optimal limit order route
@@ -153,16 +151,12 @@ export class ThenaProvider extends BaseSwapProvider {
           amountIn.toString(),
           params?.limitPrice,
         );
-        // need verify amount out
-        if (!params?.limitPrice || Number(params?.limitPrice) < 0) {
-          throw new Error('No amount out from Thena');
-        }
+        // check token in is stable token
+        const multiplier =
+          params?.limitPrice > 1 ? Number(params?.limitPrice) : 1 / Number(params?.limitPrice);
+        amountOut = Number(amountIn) * (tokenInStable ? 1 / multiplier : multiplier);
 
-        if (infoTokenIn.price > infoTokenOut.price && Number(params?.limitPrice) > 1) {
-          amountOut = Number(amountIn) * Number(params?.limitPrice);
-        } else {
-          amountOut = Number(amountIn) / Number(params?.limitPrice);
-        }
+        amountOut = amountOut.toFixed(0);
 
         // build limit order transaction
         swapTransactionData = await this.buildLimitOrderRouteTransaction(
@@ -209,6 +203,18 @@ export class ThenaProvider extends BaseSwapProvider {
       throw new Error(
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
+    }
+  }
+
+  private checkIsStableToken(tokenAddress: string) {
+    if (
+      tokenAddress.toLowerCase() === CONSTANTS.USDC_ADDRESS.toLowerCase() ||
+      tokenAddress.toLowerCase() === CONSTANTS.USDT_ADDRESS.toLowerCase() ||
+      tokenAddress.toLowerCase() === CONSTANTS.BUSD_ADDRESS.toLowerCase()
+    ) {
+      return true;
+    } else {
+      return false;
     }
   }
 
