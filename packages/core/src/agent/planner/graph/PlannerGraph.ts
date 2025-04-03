@@ -264,11 +264,17 @@ export class PlannerGraph {
       ['system', 'You need to response user after execute the plan'],
     ]);
 
-    const response = await prompt.pipe(this.model).invoke({
-      input: state.input,
-      plans: JSON.stringify(state.plans),
-      chat_history: state.chat_history || [],
-    });
+    const response = await prompt
+      .pipe(
+        this.model.withConfig({
+          tags: ['final_node'],
+        }),
+      )
+      .invoke({
+        input: state.input,
+        plans: JSON.stringify(state.plans),
+        chat_history: state.chat_history || [],
+      });
 
     return { chat_history: [response], answer: response.content, next_node: END };
   }

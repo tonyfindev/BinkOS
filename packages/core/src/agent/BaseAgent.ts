@@ -132,7 +132,7 @@ export abstract class BaseAgent implements IAgent {
 
   // Core agent functionality that must be implemented
   abstract execute(command: string): Promise<any>;
-  abstract execute(params: AgentExecuteParams): Promise<string>;
+  abstract execute(params: AgentExecuteParams, onStream?: (data: string) => void): Promise<string>;
   abstract getWallet(): IWallet;
   abstract getNetworks(): NetworksConfig['networks'];
   abstract registerDatabase(db: DatabaseAdapter): Promise<void>;
