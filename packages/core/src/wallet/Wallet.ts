@@ -22,6 +22,7 @@ import {
   IWallet,
   TransactionRequest,
   TransactionReceipt,
+  SignedTransactionRequest,
 } from './types';
 
 export class Wallet implements IWallet {
@@ -83,7 +84,7 @@ export class Wallet implements IWallet {
     }
   }
 
-  public getPublicKey(network: NetworkName): string {
+  public async getPublicKey(network: NetworkName): Promise<string> {
     const networkType = this.#network.getNetworkType(network);
 
     if (networkType === 'evm') {
@@ -94,7 +95,7 @@ export class Wallet implements IWallet {
   }
 
   // TODO: THIS METHOD WILL BE REMOVED IN THE FUTURE
-  public getPrivateKey(network: NetworkName): string {
+  public async getPrivateKey(network: NetworkName): Promise<string> {
     const networkType = this.#network.getNetworkType(network);
 
     if (networkType === 'evm') {
@@ -191,21 +192,15 @@ export class Wallet implements IWallet {
 
   public async sendTransaction(
     network: NetworkName,
-    transaction: TransactionRequest,
+    signedTransaction: SignedTransactionRequest,
   ): Promise<TransactionReceipt> {
     const networkType = this.#network.getNetworkType(network);
     const networkConfig = this.#network.getConfig(network);
 
     if (networkType === 'evm') {
       const provider = new ethers.JsonRpcProvider(networkConfig.config.rpcUrl);
-      const signer = this.#evmWallet.connect(provider);
 
-      const tx = await signer.sendTransaction({
-        to: transaction.to,
-        data: transaction.data,
-        value: transaction.value,
-        gasLimit: transaction.gasLimit,
-      });
+      const tx = await provider.broadcastTransaction(signedTransaction.transaction);
 
       const receipt = await tx.wait();
       if (!receipt) throw new Error('Transaction failed');
@@ -231,10 +226,12 @@ export class Wallet implements IWallet {
 
       // Try to parse as VersionedTransaction first
       try {
-        const tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
+        const tx = VersionedTransaction.deserialize(
+          Buffer.from(signedTransaction.transaction, 'base64'),
+        );
 
         const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-        let lastValidBlockHeight = transaction.lastValidBlockHeight;
+        let lastValidBlockHeight = signedTransaction.lastValidBlockHeight;
         if (!tx.message.recentBlockhash) {
           tx.message.recentBlockhash = latestBlockhash.blockhash;
           lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
@@ -243,8 +240,12 @@ export class Wallet implements IWallet {
         if (!lastValidBlockHeight) {
           throw new Error('Last valid block height is required');
         }
-        // Sign the transaction
-        tx.sign([this.#solanaKeypair]);
+
+        const simulation = await connection.simulateTransaction(tx, { sigVerify: true });
+
+        if (simulation.value?.err) {
+          throw new Error(`Transaction failed: ${JSON.stringify(simulation.value?.err)}`);
+        }
 
         // Send and confirm transaction
         const signature = await connection.sendTransaction(tx);
@@ -271,7 +272,7 @@ export class Wallet implements IWallet {
         };
       } catch (e) {
         // If not a VersionedTransaction, try as regular Transaction
-        const tx = SolanaTransaction.from(Buffer.from(transaction.data, 'base64'));
+        const tx = SolanaTransaction.from(Buffer.from(signedTransaction.transaction, 'base64'));
 
         if (!tx.recentBlockhash) {
           const latestBlockhash = await connection.getLatestBlockhash('confirmed');
@@ -279,11 +280,14 @@ export class Wallet implements IWallet {
           tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
         }
 
-        // Sign the transaction
-        tx.partialSign(this.#solanaKeypair);
+        const simulation = await connection.simulateTransaction(tx);
+
+        if (simulation.value?.err) {
+          throw new Error(`Transaction failed: ${JSON.stringify(simulation.value?.err)}`);
+        }
 
         // Send and confirm transaction
-        const signature = await connection.sendTransaction(tx, [this.#solanaKeypair]);
+        const signature = await connection.sendRawTransaction(tx.serialize());
 
         return {
           hash: signature,
