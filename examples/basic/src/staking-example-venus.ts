@@ -14,7 +14,6 @@ import {
 import { StakingPlugin } from '@binkai/staking-plugin';
 import { VenusProvider } from '@binkai/venus-provider';
 import { WalletPlugin } from '@binkai/wallet-plugin';
-import { BnbProvider } from '@binkai/bnb-provider';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -121,10 +120,7 @@ async function main() {
   // Create and configure the wallet plugin
   console.log('🔄 Initializing wallet plugin...');
   const walletPlugin = new WalletPlugin();
-  // Create provider with API key
-  const bnbProvider = new BnbProvider({
-    rpcUrl: BNB_RPC,
-  });
+
   // Create Birdeye provider with API key
   const birdeyeProvider = new BirdeyeProvider({
     apiKey: settings.get('BIRDEYE_API_KEY'),
@@ -133,7 +129,7 @@ async function main() {
   // Initialize plugin with provider
   await walletPlugin.initialize({
     defaultChain: 'bnb',
-    providers: [bnbProvider, birdeyeProvider],
+    providers: [birdeyeProvider],
     supportedChains: ['bnb'],
   });
   // Create an agent with OpenAI
