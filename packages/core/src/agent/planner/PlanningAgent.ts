@@ -172,8 +172,7 @@ NOTE:
       - If a task is failed many times, you update a new task to execute the plan
       Following tips trading:
           + Sell/Swap X/X% A to B (amount = X, amountType = input).
-          + Buy X A from B (amount = X, amountType = output).
-          + Sell/Swap X/X% A from B (amount = X, amountType = ouput).
+          + Swap/Buy X/X% A from B (amount = X, amountType = ouput).
       `;
 
     const updatePlanPrompt =
