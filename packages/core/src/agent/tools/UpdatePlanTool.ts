@@ -96,6 +96,20 @@ export class UpdatePlanTool extends BaseTool {
       };
     });
   }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        plan_id: args.plan_id,
+        title: args.title,
+        status: args.status,
+        tasks: args.tasks.map((task: any) => ({
+          title: task.title,
+          status: task.status,
+        })),
+      }),
+    );
+  }
   createTool(): DynamicStructuredTool {
     return new DynamicStructuredTool({
       name: this.getName(),

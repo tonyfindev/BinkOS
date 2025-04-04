@@ -249,9 +249,27 @@ export class StakingTool extends BaseTool {
   }
 
   async simulateQuoteTool(args: any): Promise<StakingQuote> {
+    if (this.agent.isMockResponseTool()) {
+      const mockResponse = await this.mockResponseTool(args);
+      return JSON.parse(mockResponse);
+    }
     return (await this.getQuote(args)).quote;
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        provider: args.provider,
+        tokenA: args.tokenA,
+        tokenB: args.tokenB,
+        amountA: args.amountA,
+        amountB: args.amountB,
+        transactionHash: args.transactionHash,
+        type: args.type,
+        network: args.network,
+      }),
+    );
+  }
   createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
     return {
@@ -276,6 +294,10 @@ export class StakingTool extends BaseTool {
           } = args;
 
           console.log('🤖 Staking Args:', args);
+
+          if (this.agent.isMockResponseTool()) {
+            return this.mockResponseTool(args);
+          }
 
           const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
 

@@ -156,7 +156,19 @@ export class TransferTool extends BaseTool {
   }
 
   async simulateQuoteTool(args: any): Promise<TransferQuote> {
+    if (this.agent.isMockResponseTool()) {
+      const mockResponse = await this.mockResponseTool(args);
+      return JSON.parse(mockResponse);
+    }
     return (await this.getQuote(args)).quote;
+  }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
   }
 
   createTool(): CustomDynamicStructuredTool {

@@ -9,6 +9,7 @@ import {
   StructuredError,
   ErrorStep,
   EVM_NATIVE_TOKEN_ADDRESS,
+  NetworkName,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
@@ -18,6 +19,7 @@ import { isSolanaNetwork } from './utils/networkUtils';
 import type { TokenInfo } from '@binkai/token-plugin';
 import { defaultTokens } from '@binkai/token-plugin';
 import { WrapToken } from './types';
+import { Transaction } from '@solana/web3.js';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -367,7 +369,30 @@ export class SwapTool extends BaseTool {
   }
 
   async simulateQuoteTool(args: any): Promise<SwapQuote> {
+    console.log('🚀 ~ SwapTool ~ simulateQuoteTool ~ args:', args);
+    if (this.agent.isMockResponseTool()) {
+      const mockResponse = await this.mockResponseTool(args);
+      console.log('🤖 Mock response:', mockResponse);
+      return JSON.parse(mockResponse);
+    }
     return (await this.getQuote(args)).quote;
+  }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+        fromAmount: args.amount,
+        toAmount: args.amount,
+        provider: args.provider,
+        fromToken: args.fromToken,
+        toToken: args.toToken,
+        priceImpact: args.priceImpact,
+        type: args.type,
+        network: args.network,
+        transactionHash: args.transactionHash,
+      }),
+    );
   }
 
   createTool(): CustomDynamicStructuredTool {
@@ -393,6 +418,10 @@ export class SwapTool extends BaseTool {
             slippage = this.defaultSlippage,
             limitPrice,
           } = args;
+
+          if (this.agent.isMockResponseTool()) {
+            return this.mockResponseTool(args);
+          }
 
           console.log('🔄 Doing swap operation...');
           console.log('🤖 Swap Args:', args);
