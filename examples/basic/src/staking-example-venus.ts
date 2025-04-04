@@ -220,14 +220,14 @@ async function main() {
   // Example 5: Stake with token address
   console.log('💱 Example 5 [MEDIUM]: Stake with token address');
   const tokenAddressStakeResult = await agent.execute({
-    input: `Stake 0.5 of token at address 0x55d398326f99059ff775485246999027b3197955 on Venus`,
+    input: `Stake 0.5 of token  on Venus`,
   });
   console.log('✓ Token address stake result:', tokenAddressStakeResult, '\n');
 
   // Example 6: Unstake with vToken
   console.log('💱 Example 6 [MEDIUM]: Unstake with vToken');
   const vTokenUnstakeResult = await agent.execute({
-    input: `Redeem 0.5 vBNB tokens from Venus to get back my BNB`,
+    input: `Redeem all vBNB tokens from Venus to get back my BNB`,
   });
   console.log('✓ vToken unstake result:', vTokenUnstakeResult, '\n');
 

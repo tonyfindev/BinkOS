@@ -90,6 +90,68 @@ export class OkxProvider extends BaseSwapProvider {
     };
   }
 
+  /**
+   * Calls OKX API to get swap quote
+   * @param amount Amount to swap
+   * @param fromToken Token to swap from
+   * @param toToken Token to swap to
+   * @param userAddress User's wallet address
+   * @param slippage Slippage percentage
+   * @returns OKX API response
+   */
+  private async callOkxApi(
+    amount: string,
+    fromToken: Token,
+    toToken: Token,
+    userAddress: string,
+    slippage: number,
+  ) {
+    const now = new Date();
+    const isoString = now.toISOString();
+    const slippageOKX = Number(slippage) / 100 || 0.1;
+
+    const path = `/api/v5/dex/aggregator/swap?amount=${amount}&chainId=${this.chainId}&fromTokenAddress=${fromToken.address}&toTokenAddress=${toToken.address}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
+
+    console.log('🤖 OKX Path', path);
+
+    const headers = this.generateApiHeaders(path, isoString);
+
+    const response = await fetch(`https://www.okx.com${path}`, {
+      method: 'GET',
+      headers,
+    });
+
+    const data = await response.json();
+    console.log('🚀 ~ OkxProvider ~ data:', data);
+    if (!data.data || data.data.length === 0) {
+      throw new Error('No data returned from OKX');
+    }
+
+    return data.data[0];
+  }
+
+  /**
+   * Gets reverse quote from OKX API
+   * @param amount Amount to swap
+   * @param fromToken Token to swap from
+   * @param toToken Token to swap to
+   * @param userAddress User's wallet address
+   * @param slippage Slippage percentage
+   * @returns Adjusted amount in fromToken decimals
+   */
+  private async getReverseQuote(
+    amount: string,
+    fromToken: Token,
+    toToken: Token,
+    userAddress: string,
+    slippage: number,
+  ): Promise<string> {
+    // Swap fromToken and toToken to get reverse quote
+    const result = await this.callOkxApi(amount, toToken, fromToken, userAddress, slippage);
+    const outputAmount = result.routerResult.toTokenAmount;
+    return ethers.formatUnits(outputAmount, fromToken.decimals);
+  }
+
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       // check is valid limit order
@@ -102,12 +164,12 @@ export class OkxProvider extends BaseSwapProvider {
       }
 
       const [tokenIn, tokenOut] = await Promise.all([
-        this.getToken(params.type === 'input' ? params.fromToken : params.toToken, params.network),
-        this.getToken(params.type === 'input' ? params.toToken : params.fromToken, params.network),
+        this.getToken(params.fromToken, params.network),
+        this.getToken(params.toToken, params.network),
       ]);
+
       let adjustedAmount = params.amount;
       if (params.type === 'input') {
-        // Use the adjustAmount method for all tokens (both native and ERC20)
         adjustedAmount = await this.adjustAmount(
           params.fromToken,
           params.amount,
@@ -119,38 +181,42 @@ export class OkxProvider extends BaseSwapProvider {
           console.log(`🤖 Okx adjusted input amount from ${params.amount} to ${adjustedAmount}`);
         }
       }
-      const amountIn =
-        params.type === 'input'
-          ? ethers.parseUnits(adjustedAmount, tokenIn.decimals)
-          : ethers.parseUnits(adjustedAmount, tokenOut.decimals);
 
-      const now = new Date();
+      // Calculate amountIn based on swap type
+      let amountIn: string;
+      if (params.type === 'input') {
+        amountIn = ethers.parseUnits(adjustedAmount, tokenIn.decimals).toString();
+      } else {
+        // For output type, get reverse quote to calculate input amount
+        const amountReverse = ethers.parseUnits('1', tokenOut.decimals).toString();
 
-      const isoString = now.toISOString();
+        const reverseAdjustedAmount = await this.getReverseQuote(
+          amountReverse,
+          tokenIn,
+          tokenOut,
+          userAddress,
+          params.slippage,
+        );
 
-      const slippageOKX = Number(params.slippage) / 100 || 0.1;
+        const realAmount = Number(reverseAdjustedAmount) * Number(adjustedAmount);
 
-      const path = `/api/v5/dex/aggregator/swap?amount=${amountIn.toString()}&chainId=${this.chainId}&fromTokenAddress=${tokenIn.address}&toTokenAddress=${tokenOut.address}&slippage=${slippageOKX}&userWalletAddress=${userAddress}`;
-
-      console.log('🤖 OKX Path', path);
-
-      const headers = this.generateApiHeaders(path, isoString);
-
-      const response = await fetch(`https://www.okx.com${path}`, {
-        method: 'GET',
-        headers,
-      });
-
-      const data = await response.json();
-      if (!data.data || data.data.length === 0) {
-        throw new Error('No data returned from OKX');
+        amountIn = ethers.parseUnits(realAmount.toString(), tokenIn.decimals).toString();
       }
 
-      const inputAmount = data.data[0].routerResult.fromTokenAmount;
-      const outputAmount = data.data[0].routerResult.toTokenAmount;
-      const estimatedGas = data.data[0].routerResult.estimatedGas;
-      const priceImpact = Number(data.data[0].routerResult.priceImpactPercentage);
-      const tx = data.data[0].tx;
+      const result = await this.callOkxApi(
+        amountIn,
+        tokenIn,
+        tokenOut,
+        userAddress,
+        params.slippage,
+      );
+      console.log('🚀 ~ OkxProvider ~ getQuote ~ result:', result);
+
+      const inputAmount = result.routerResult.fromTokenAmount;
+      const outputAmount = result.routerResult.toTokenAmount;
+      const estimatedGas = result.routerResult.estimatedGas;
+      const priceImpact = Number(result.routerResult.priceImpactPercentage);
+      const tx = result.tx;
 
       // Generate a unique quote ID
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
