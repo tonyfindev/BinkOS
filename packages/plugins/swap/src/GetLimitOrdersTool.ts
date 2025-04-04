@@ -74,12 +74,26 @@ export class GetLimitOrdersTool extends BaseTool {
   getSchema(): z.ZodObject<any> {
     const providers = this.registry.getProviderNames();
     if (providers.length === 0) {
-      throw new Error('No swap providers registered');
+      return z.object({
+        message: z
+          .string()
+          .default('No providers available')
+          .describe(
+            'No providers are registered. This tool cannot be used until providers are registered.',
+          ),
+      });
     }
 
     const supportedNetworks = this.getSupportedNetworks();
     if (supportedNetworks.length === 0) {
-      throw new Error('No supported networks available');
+      return z.object({
+        message: z
+          .string()
+          .default('No supported networks available')
+          .describe(
+            'No supported networks are available. This tool cannot be used until networks are configured.',
+          ),
+      });
     }
 
     return z.object({
