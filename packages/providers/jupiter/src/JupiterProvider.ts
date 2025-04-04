@@ -318,7 +318,7 @@ export class JupiterProvider extends BaseSwapProvider {
       let swapData;
       let getSwapBuyAggregator;
 
-      if (params?.limitPrice) {
+      if (params?.limitPrice && Number(params?.limitPrice) !== 0) {
         swapData = await this.getQuoteJupiter(
           {
             inputMint: new PublicKey(sourceToken.address),

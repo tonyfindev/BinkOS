@@ -117,7 +117,7 @@ export class ThenaProvider extends BaseSwapProvider {
       let swapTransactionData;
 
       let optimalRoute;
-      if (params?.limitPrice) {
+      if (params?.limitPrice && Number(params?.limitPrice) !== 0) {
         swapTransactionData = null;
 
         // Fetch optimal limit order route
