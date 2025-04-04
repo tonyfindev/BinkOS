@@ -45,6 +45,12 @@ export interface Transaction {
   spender: string;
 }
 
+export interface StakingBalance {
+  tokenAddress: string;
+  symbol: string;
+  name: string;
+  balance: string;
+}
 export interface IStakingProvider {
   /**
    * Get the name of the DEX provider
@@ -137,4 +143,13 @@ export interface IStakingProvider {
     owner: string,
     spender: string,
   ): Promise<bigint>;
+
+  /**
+   * Get all staking balances for a user
+   * @param walletAddress The address of the user
+   */
+  getAllStakingBalances(walletAddress: string): Promise<{
+    address: string;
+    tokens: StakingBalance[];
+  }>;
 }

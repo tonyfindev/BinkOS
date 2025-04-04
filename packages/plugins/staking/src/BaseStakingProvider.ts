@@ -5,6 +5,7 @@ import {
   StakingParams,
   Transaction,
   NetworkProvider,
+  StakingBalance,
 } from './types';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { Connection } from '@solana/web3.js';
@@ -540,5 +541,14 @@ export abstract class BaseStakingProvider implements IStakingProvider {
         console.error('Error cleaning up caches:', error);
       }
     }, CLEANUP_INTERVAL);
+  }
+
+  async getAllStakingBalances(
+    walletAddress: string,
+  ): Promise<{ address: string; tokens: StakingBalance[] }> {
+    return {
+      address: walletAddress,
+      tokens: [],
+    };
   }
 }
