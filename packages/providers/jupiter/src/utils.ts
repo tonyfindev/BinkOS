@@ -1,6 +1,11 @@
 import { PublicKey } from '@solana/web3.js';
 
-export type SwapMode = 'ExactIn' | 'ExactOut';
+export enum SwapMode {
+  ExactIn = 'ExactIn',
+  ExactOut = 'ExactOut',
+}
+
+export type SwapModeType = SwapMode;
 
 export interface TokenAmount {
   amount: string;

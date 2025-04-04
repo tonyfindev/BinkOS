@@ -5,3 +5,4 @@ export * from './ProviderRegistry';
 export * from './BaseStakingProvider';
 export * from './utils/networkUtils';
 export * from './utils/tokenUtils';
+export * from './GetStakingBalanceTool';
