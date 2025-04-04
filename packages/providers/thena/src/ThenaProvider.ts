@@ -127,7 +127,7 @@ export class ThenaProvider extends BaseSwapProvider {
 
       let optimalRoute;
       let amountOut;
-      if (params?.limitPrice) {
+      if (params?.limitPrice && Number(params?.limitPrice) !== 0) {
         // check token in is stable token
         const tokenInStable = this.checkIsStableToken(tokenInAddress);
         const tokenOutStable = this.checkIsStableToken(tokenOutAddress);

@@ -359,7 +359,7 @@ export class JupiterProvider extends BaseSwapProvider {
       let swapData;
       let getSwapBuyAggregator;
       let amountOutLimitOrder;
-      if (params?.limitPrice) {
+      if (params?.limitPrice && Number(params?.limitPrice) !== 0) {
         const tokenInStable = this.checkIsStableToken(sourceToken.address);
         const tokenOutStable = this.checkIsStableToken(destinationToken.address);
 
