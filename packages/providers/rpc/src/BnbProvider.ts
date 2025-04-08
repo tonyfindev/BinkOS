@@ -79,11 +79,75 @@ export class BnbProvider implements IWalletProvider {
     };
   }
 
+  /**
+   * Adjusts the amount for native token transfers to account for gas costs
+   * @param tokenAddress The address of the token being transferred
+   * @param amount The original amount to transfer
+   * @param userAddress The address of the user making the transfer
+   * @param network The network on which the transfer is happening
+   * @returns The adjusted amount after accounting for gas costs
+   */
+  async adjustAmount(
+    tokenAddress: string,
+    amount: string,
+    userAddress: string,
+    network: NetworkName,
+  ): Promise<string> {
+    // Only adjust for native token transfers
+    if (!this.isNativeToken(tokenAddress)) {
+      return amount;
+    }
+
+    try {
+      // Get user's balance
+      const balance = await this.provider.getBalance(userAddress);
+      const amountBigInt = ethers.parseUnits(amount, 18);
+
+      // Estimate gas cost (using default gas price and limit for simplicity)
+      const gasPrice = await this.provider
+        .getFeeData()
+        .then(data => data.gasPrice || ethers.parseUnits('5', 'gwei'));
+      const gasLimit = ethers.parseUnits('21000', 'wei'); // Standard transfer gas
+      const gasCost = gasPrice * gasLimit;
+
+      // If balance is less than amount + gas, adjust the amount
+      if (balance < amountBigInt + gasCost) {
+        // If we don't have enough for even gas, return 0
+        if (balance <= gasCost) {
+          return '0';
+        }
+
+        // Otherwise, subtract gas cost from balance to get max sendable amount
+        const adjustedAmount = balance - gasCost;
+        return ethers.formatUnits(adjustedAmount, 18);
+      }
+
+      // If we have enough balance, no adjustment needed
+      return amount;
+    } catch (error) {
+      console.error('Error adjusting amount:', error);
+      // In case of error, return original amount
+      return amount;
+    }
+  }
+
   async getQuote(params: TransferParams, walletAddress: string): Promise<TransferQuote> {
     this.validateNetwork(params.network);
 
     // Get token information
     const token = await this.getToken(params.token);
+
+    // Adjust amount for native token transfers
+    let adjustedAmount = await this.adjustAmount(
+      params.token,
+      params.amount,
+      walletAddress,
+      params.network,
+    );
+
+    if (adjustedAmount !== params.amount) {
+      console.log(`🤖 BnbProvider adjusted amount from ${params.amount} to ${adjustedAmount}`);
+    }
 
     // Generate a unique quote ID
     const quoteId = ethers.hexlify(ethers.randomBytes(32));
@@ -102,7 +166,7 @@ export class BnbProvider implements IWalletProvider {
       token,
       fromAddress: walletAddress,
       toAddress: params.toAddress,
-      amount: params.amount,
+      amount: adjustedAmount,
       estimatedGas,
     };
 

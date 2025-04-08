@@ -1,5 +1,6 @@
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { BnbProvider } from '@binkai/rpc-provider';
+import { AlchemyProvider } from '@binkai/alchemy-provider';
 import {
   Agent,
   Network,
@@ -92,6 +93,9 @@ async function main() {
   const bnbProvider = new BnbProvider({
     rpcUrl: BNB_RPC,
   });
+  const alchemyProvider = new AlchemyProvider({
+    apiKey: settings.get('ALCHEMY_API_KEY'),
+  });
   // Create Birdeye provider with API key
   const birdeyeProvider = new BirdeyeProvider({
     apiKey: settings.get('BIRDEYE_API_KEY'),
@@ -100,7 +104,7 @@ async function main() {
   // Initialize plugin with provider
   await walletPlugin.initialize({
     defaultChain: 'bnb',
-    providers: [bnbProvider, birdeyeProvider],
+    providers: [alchemyProvider, bnbProvider],
     supportedChains: ['bnb'],
   });
 
@@ -121,7 +125,7 @@ async function main() {
 
   // Execute token transfer through natural language
   const result = await agent.execute({
-    input: 'transfer 10000 BINK to',
+    input: 'send all bnb to 0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
   });
   console.log('🤖 Result:', result);
 }
