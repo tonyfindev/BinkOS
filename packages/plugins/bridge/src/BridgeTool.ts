@@ -101,10 +101,10 @@ export class BridgeTool extends BaseTool {
         .describe(
           'The blockchain network to execute the bridge to or on symbor native token. Example: Solana similar SOL or on BNB',
         ),
-      fromToken: z.string().describe('The token address to bridge from. Example: from USDC'),
+      fromToken: z.string().describe('The address of send token'),
       toToken: z
         .string()
-        .describe(`The token address to bridge to or buy token with symbol. Example: buy BINK`),
+        .describe(`The address of receive token`),
       amount: z.string().describe('The amount of tokens to bridge'),
       amountType: z
         .enum(['input', 'output'])
