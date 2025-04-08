@@ -108,12 +108,8 @@ export class SwapTool extends BaseTool {
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
-      network: z.enum([
-        'bnb',
-        'solana',
-        'ethereum',
-        'null',
-      ]).describe(`Determine blockchain network from user input. 
+      network: z.enum(['bnb', 'solana', 'ethereum', 'null'])
+        .describe(`Determine blockchain network from user input. 
         Priority rules:
           1. Use explicitly mentioned network
           2. Infer from native tokens (ETH→Ethereum, SOL→Solana)
@@ -266,7 +262,11 @@ export class SwapTool extends BaseTool {
 
     // STEP 5: Handle wrapped token BNB
     // validate is valid limit order
-    if (swapParams?.limitPrice && swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS) {
+    if (
+      swapParams?.limitPrice &&
+      swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS &&
+      Number(swapParams?.limitPrice) !== 0
+    ) {
       onProgress?.({
         progress: 5,
         message: `Wrapping BNB to WBNB`,

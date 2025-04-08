@@ -129,7 +129,7 @@ async function main() {
   console.log('💱 Example 1: Buy USDC from SOL');
   const inputResult = await agent.execute({
     input: `
-       swap 0.001 sol to usdc 
+        buy 10 usdc from sol
     `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');
