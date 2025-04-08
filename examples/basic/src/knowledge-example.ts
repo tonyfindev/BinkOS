@@ -79,6 +79,7 @@ async function main() {
   const binkProvider = new BinkProvider({
     apiKey: settings.get('BINK_API_KEY') || '',
     baseUrl: settings.get('BINK_API_URL') || '',
+    imageApiUrl: settings.get('BINK_IMAGE_API_URL') || '',
   });
   // Initialize plugin with provider
   const knowledgePlugin = new KnowledgePlugin();

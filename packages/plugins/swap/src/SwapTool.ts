@@ -112,10 +112,6 @@ export class SwapTool extends BaseTool {
         'bnb',
         'solana',
         'ethereum',
-        'arbitrum',
-        'base',
-        'optimism',
-        'polygon',
         'null',
       ]).describe(`Determine blockchain network from user input. 
         Priority rules:
