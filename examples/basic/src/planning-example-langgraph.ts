@@ -31,6 +31,10 @@ import { Connection } from '@solana/web3.js';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
 import { ThenaProvider } from '@binkai/thena-provider';
 
+import { KnowledgePlugin } from '@binkai/knowledge-plugin';
+import { BinkProvider } from '@binkai/bink-provider';
+import { ImagePlugin } from '@binkai/image-plugin';
+
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
@@ -232,6 +236,17 @@ async function main() {
 
   // const fourMeme = new FourMemeProvider(provider, 56);
 
+  const binkProvider = new BinkProvider({
+    apiKey: settings.get('BINK_API_KEY') || '',
+    baseUrl: settings.get('BINK_API_URL') || '',
+    imageApiUrl: settings.get('BINK_IMAGE_API_URL') || '',
+  });
+  // Initialize plugin with provider
+  const knowledgePlugin = new KnowledgePlugin();
+  await knowledgePlugin.initialize({
+    providers: [binkProvider],
+  });
+
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
     providers: [pancakeswap, jupiter, thena],
@@ -241,12 +256,24 @@ async function main() {
 
   // Create providers with proper chain IDs
   const debridge = new deBridgeProvider(provider);
+
+  const imagePlugin = new ImagePlugin();
   // Configure the plugin with supported chains
   await bridgePlugin.initialize({
-    defaultChain: 'bnb',
     providers: [debridge],
     supportedChains: ['bnb', 'solana'], // These will be intersected with agent's networks
   });
+
+  await imagePlugin.initialize({
+    providers: [binkProvider],
+    supportedChains: ['bnb'],
+  });
+  console.log('✓ Token plugin initialized\n');
+
+  // Register the plugin with the agent
+  console.log('🔌 Registering token plugin with agent...');
+  await agent.registerPlugin(imagePlugin);
+  console.log('✓ Plugin registered\n');
 
   console.log('✓ Bridge plugin initialized\n');
 
@@ -265,6 +292,10 @@ async function main() {
 
   console.log('🔌 Registering bridge plugin with agent...');
   await agent.registerPlugin(bridgePlugin);
+  console.log('✓ Plugin registered\n');
+
+  console.log('🔌 Registering knowledge plugin with agent...');
+  await agent.registerPlugin(knowledgePlugin);
   console.log('✓ Plugin registered\n');
 
   return await agent.graph;

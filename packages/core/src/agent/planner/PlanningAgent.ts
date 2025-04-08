@@ -81,9 +81,9 @@ export class PlanningAgent extends Agent {
 
   async supervisorNode(state: typeof StateAnnotation.State) {
     const supervisorPrompt = `You are a supervisor. You need to decide if the user's request is a blockchain execution or other. 
-NOTE: 
-- Blockchain execution: Execute a transaction on blockchain like transfer, swap, bridge, lending, staking, cross-chain
-- Other: Other request like checking balance, checking transaction, etc.`;
+    NOTE: 
+    - Blockchain execution: Execute a transaction on blockchain like transfer, swap, bridge, lending, staking, cross-chain
+    - Other: Other request like checking balance, checking transaction, etc.`;
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', supervisorPrompt],
       ['human', `User's request: {input}`],
@@ -153,33 +153,37 @@ NOTE:
     const ignoreExecutorTools = ['knowledge'];
     const executorTools = this.getTools().filter(t => !ignoreExecutorTools.includes(t.name));
 
-    const defaultPlanPrompt = `NOTE: 
-      - Create task ask user to provide more information
-      - Retrieve information in user's request and maintain it each task
-      - You must get balance to get any token (must include token symbol and token address) in wallet
-      - You need token address when execute on-chain transaction
-      - You can create multiple plans to execute the user's request.
-      - If a task is failed many times, you update a new task to execute the plan`;
-
-    const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps. 
-      NOTE:
-      - Never call a tool more than once`;
+    const executorPrompt = `You are a blockchain executor. 
+      Execute each task by:
+      1. Check what the action you need to do in each task
+      2. Select the right tool
+      3. - For balance/token info tasks without a specified network: check bnb, solana
+         - Call the tool separately for each network (get wallet balance tool only accepts one network at a time)
+         - You only need token info on one network to continue next tasks
+         - If more than one token (with similar symbol) is provided on different networks, ask user provide network they want
+      4. Only create ask task if you need more information to execute one task
+    `;
 
     const createPlanPrompt = `You are blockchain planner. Your goal is create plan to execute the user's request.
       NOTE: 
-      - Create task ask user to provide miss information
       - Retrieve information in user's request and maintain it each task
-      - You can create multiple tasks to execute the user's request.
-      - If a task is failed many times, you update a new task to execute the plan
+      - You can create multiple tasks to execute the user's request and specific which tool will be used to execute the task.
+      
       Following tips trading:
-          + Sell/Swap X/X% A to B (amount = X, amountType = input).
-          + Buy X A from B (amount = X, amountType = output).
-          + Sell/Swap X/X% A from B (amount = X, amountType = ouput).
+
+        + Sell/Swap X/X% A to B (amount = X/calculate X% of current balance, amountType = input).
+        + Buy X A from B (amount = X/calculate X% of current balance, amountType = output).
+        + Sell/Swap X/X% A from B (amount = X/calculate X% of current balance, amountType = ouput).
       `;
 
-    const updatePlanPrompt =
-      `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. \n. When a task is failed, you need to update task title\n` +
-      defaultPlanPrompt;
+    const updatePlanPrompt = `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
+      When a task is failed, you need to update task title
+      - If one same tool is failed many times and not provided required info to complete the task, update a new task to execute the plan
+      - If one same tool is failed many times but provided required info to complete the task, take info of that tool id and continue next tasks
+      NOTE: 
+      - Create task ask user to provide more information if needed
+      - Retrieve information in user's request and maintain it each task
+      `;
 
     let toolsStr = '';
 
@@ -189,7 +193,8 @@ NOTE:
       if (toolJson.function.parameters) {
         toolJson.function.parameters = cleanToolParameters(toolJson.function.parameters);
       }
-      toolsStr += `- ${JSON.stringify({ name: toolJson.function.name, params: toolJson.function.parameters })}\n\n`;
+      // console.log(toolJson);
+      toolsStr += `- name:${toolJson.function.name}\n`;
     }
 
     const executorGraph = new ExecutorGraph({

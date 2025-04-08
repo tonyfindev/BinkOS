@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import {
-  AgentNodeTypes,
   BaseTool,
   CustomDynamicStructuredTool,
   IToolConfig,
@@ -9,94 +8,71 @@ import {
   StructuredError,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
-import { IWalletProvider, WalletInfo } from './types';
+import { IStakingProvider, StakingBalance } from './types';
 
-export interface WalletToolConfig extends IToolConfig {
+export interface StakingBalanceToolConfig extends IToolConfig {
   defaultNetwork?: string;
   supportedNetworks?: string[];
 }
 
-export function mergeObjects<T extends Record<string, any>>(obj1: T, obj2: T): T {
-  // Create a new object to avoid mutating the inputs
-  const result = { ...obj1 };
-
-  // Add or override properties from obj2
-  for (const key in obj2) {
-    if (Object.prototype.hasOwnProperty.call(obj2, key)) {
-      // If both objects have the same key and both values are objects, merge recursively
-      if (
-        key in result &&
-        typeof result[key] === 'object' &&
-        result[key] !== null &&
-        typeof obj2[key] === 'object' &&
-        obj2[key] !== null &&
-        !Array.isArray(result[key]) &&
-        !Array.isArray(obj2[key])
-      ) {
-        result[key] = mergeObjects(result[key], obj2[key]);
-      } else if (obj2[key] === null || obj2[key] === undefined) {
-        // Keep obj1's value if obj2's value is null or undefined
-        continue;
-      } else if (result[key] === null || result[key] === undefined) {
-        // Take obj2's value if obj1's value is null or undefined
-        result[key] = obj2[key];
-      } else {
-        // Otherwise just take the value from obj2
-        result[key] = obj2[key];
-      }
-    }
-  }
-
-  return result;
-}
-
-export class GetWalletBalanceTool extends BaseTool {
-  public readonly agentNodeSupports: AgentNodeTypes[] = [
-    AgentNodeTypes.PLANNER,
-    AgentNodeTypes.EXECUTOR,
-  ];
+export class GetStakingBalanceTool extends BaseTool {
   public registry: ProviderRegistry;
   private supportedNetworks: Set<string>;
 
-  constructor(config: WalletToolConfig) {
+  constructor(config: StakingBalanceToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
     this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
   }
 
-  registerProvider(provider: IWalletProvider): void {
+  registerProvider(provider: IStakingProvider): void {
     this.registry.registerProvider(provider);
-    console.log('🔌 Provider registered:', provider.constructor.name);
+    console.log('🔌 Provider registered:', provider.getName());
     provider.getSupportedNetworks().forEach(network => {
       this.supportedNetworks.add(network);
     });
   }
 
   getName(): string {
-    return 'get_wallet_balance';
+    return 'get_staking_balance';
   }
 
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    return `Get detailed information about tokens and native currencies in a wallet of all network (Solana, Etherum, BNB), including token balances, token addresses, symbols, and decimals. Supports networks: ${networks}. Available providers: ${providers}. Use this tool when you need to check what tokens or coins a wallet contains, their balances, and detailed token information.`;
+    return `Get detailed information about staked tokens in a wallet across all supported networks, including token balances, APY, and rewards. Supports networks: ${networks}. Available providers: ${providers}. Use this tool when you need to check what tokens a user has staked, their balances, and detailed staking information.`;
   }
 
-  private getsupportedNetworks(): string[] {
+  private getSupportedNetworks(): string[] {
     const agentNetworks = Object.keys(this.agent.getNetworks());
     const providerNetworks = Array.from(this.supportedNetworks);
     return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
   mockResponseTool(args: any): Promise<string> {
+    let allStakingBalances: { address: string; tokens: StakingBalance[] }[] = [];
+    const combinedTokens: StakingBalance[] = [];
+    allStakingBalances.forEach(balanceData => {
+      if (balanceData.tokens && balanceData.tokens.length > 0) {
+        combinedTokens.push(...balanceData.tokens);
+      }
+    });
+    
     return Promise.resolve(
       JSON.stringify({
-        status: args.status,
+        status: 'success',
+        data: {
+          address: args.address,
+          token: combinedTokens,
+        },
+        network: args.network,
+        address: args.address,
       }),
     );
   }
+
   getSchema(): z.ZodObject<any> {
-    const supportedNetworks = this.getsupportedNetworks();
+    const supportedNetworks = this.getSupportedNetworks();
     if (supportedNetworks.length === 0) {
       throw new Error('No supported networks available');
     }
@@ -105,16 +81,16 @@ export class GetWalletBalanceTool extends BaseTool {
       address: z
         .string()
         .optional()
-        .describe('The wallet address to query (optional - use agent wallet if not provided)'),
+        .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
       network: z
         .enum(['bnb', 'solana', 'ethereum'])
-        .optional()
-        .describe('The blockchain network to query the wallet on.'),
+        .default('bnb')
+        .describe('The blockchain to query the staking balances on.'),
     });
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('🛠️ Creating wallet balance tool');
+    console.log('🛠️ Creating staking balance tool');
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -126,12 +102,16 @@ export class GetWalletBalanceTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
+          if (this.agent.isMockResponseTool()) {
+            return this.mockResponseTool(args);
+          }
+
           const network = args.network;
           let address = args.address;
-          console.log(`🔍 Getting wallet balance for ${address || 'agent wallet'} on ${network}`);
+          console.log(`🔍 Getting staking balances for ${address || 'agent wallet'} on ${network}`);
 
           // STEP 1: Validate network
-          const supportedNetworks = this.getsupportedNetworks();
+          const supportedNetworks = this.getSupportedNetworks();
           if (!supportedNetworks.includes(network)) {
             console.error(`❌ Network ${network} is not supported`);
             throw this.createError(
@@ -159,7 +139,7 @@ export class GetWalletBalanceTool extends BaseTool {
 
           onProgress?.({
             progress: 20,
-            message: `Retrieving wallet information for ${address}`,
+            message: `Retrieving staking information for ${address}`,
           });
 
           // STEP 3: Check providers
@@ -179,7 +159,7 @@ export class GetWalletBalanceTool extends BaseTool {
 
           console.log(`🔄 Found ${providers.length} providers for network ${network}`);
 
-          let results: WalletInfo = {};
+          let allStakingBalances: { address: string; tokens: StakingBalance[] }[] = [];
           const errors: Record<string, string> = {};
 
           // STEP 4: Query providers
@@ -187,28 +167,55 @@ export class GetWalletBalanceTool extends BaseTool {
           for (const provider of providers) {
             console.log(`🔄 Querying provider: ${provider.getName()}`);
             try {
-              const data = await provider.getWalletInfo(address, network);
-              console.log(`✅ Successfully got data from ${provider.getName()}`);
-              results = mergeObjects(results, data);
+              const stakingBalances = await provider.getAllStakingBalances(address);
+              console.log(`✅ Successfully got staking data from ${provider.getName()}`);
+              allStakingBalances.push(stakingBalances);
             } catch (error) {
               console.warn(
-                `⚠️ Failed to get wallet info from ${provider.getName()}: ${error instanceof Error ? error.message : error}`,
+                `⚠️ Failed to get staking info from ${provider.getName()}: ${error instanceof Error ? error.message : error}`,
               );
               this.logError(
-                `Failed to get wallet info from ${provider.getName()}: ${error}`,
+                `Failed to get staking info from ${provider.getName()}: ${error}`,
                 'warn',
               );
               errors[provider.getName()] = error instanceof Error ? error.message : String(error);
             }
           }
 
+          // Combine all staking balances
+          const combinedTokens: StakingBalance[] = [];
+          allStakingBalances.forEach(balanceData => {
+            if (balanceData.tokens && balanceData.tokens.length > 0) {
+              combinedTokens.push(...balanceData.tokens);
+            }
+          });
+
           // If no successful results, throw error
-          if (Object.keys(results).length === 0) {
-            console.error(`❌ All providers failed for ${address}`);
-            throw `All providers failed for ${address}`;
+          if (combinedTokens.length === 0) {
+            console.error(`❌ No staking balances found for ${address} or all providers failed`);
+
+            // If we have errors, return them
+            if (Object.keys(errors).length > 0) {
+              return JSON.stringify({
+                status: 'error',
+                message: `No staking balances found for ${address}`,
+                errors,
+                network,
+                address,
+              });
+            }
+
+            // Otherwise return empty result
+            return JSON.stringify({
+              status: 'success',
+              data: { address, tokens: [] },
+              message: `No staking balances found for ${address}`,
+              network,
+              address,
+            });
           }
 
-          console.log(`💰 Wallet info retrieved successfully for ${address}`);
+          console.log(`💰 Staking info retrieved successfully for ${address}`);
 
           if (Object.keys(errors).length > 0) {
             console.warn(`⚠️ Some providers failed but we have partial results`);
@@ -216,30 +223,21 @@ export class GetWalletBalanceTool extends BaseTool {
 
           onProgress?.({
             progress: 100,
-            message: `Successfully retrieved wallet information for ${address}`,
+            message: `Successfully retrieved staking information for ${address}`,
           });
 
-          console.log(`✅ Returning wallet balance data for ${address}`);
-
-          if (results.tokens && Array.isArray(results.tokens)) {
-            results.tokens = results.tokens.filter(token => {
-              if (token.symbol === 'BNB' || token.symbol === 'ETH' || token.symbol === 'SOL') {
-                return true;
-              }
-              return Number(token.balance) > 0.00001;
-            });
-          }
+          console.log(`✅ Returning staking balance data for ${address}`);
 
           return JSON.stringify({
             status: 'success',
-            data: results,
+            data: { address, tokens: combinedTokens },
             errors: Object.keys(errors).length > 0 ? errors : undefined,
             network,
             address,
           });
         } catch (error) {
           console.error(
-            '❌ Error in wallet balance tool:',
+            '❌ Error in staking balance tool:',
             error instanceof Error ? error.message : error,
           );
           return this.handleError(error, args);

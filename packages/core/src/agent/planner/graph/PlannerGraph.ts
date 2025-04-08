@@ -69,7 +69,12 @@ export class PlannerGraph {
 
   async createPlanNode(state: typeof StateAnnotation.State) {
     const prompt = ChatPromptTemplate.fromMessages([
-      ['system', this.createPlanPrompt + `\n\nList tools:\n\n{toolsStr}`],
+      ['system', this.createPlanPrompt + `
+        Available tools with their names as actions they perform:
+        {toolsStr}
+
+        Create a plan using these services to execute the user's request.
+      `],
       new MessagesPlaceholder('chat_history'),
       ['human', `Plan to execute the user's request: {input}`],
     ]);
