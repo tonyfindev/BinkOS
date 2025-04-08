@@ -153,10 +153,6 @@ export class PlanningAgent extends Agent {
     const ignoreExecutorTools = ['knowledge'];
     const executorTools = this.getTools().filter(t => !ignoreExecutorTools.includes(t.name));
 
-    // const executorPrompt = `You are blockchain executor. Your goal is to execute the following steps. 
-    //   NOTE:
-    //   - Never call a tool more than once`;
-
     const executorPrompt = `You are a blockchain executor. 
       Execute each task by:
       1. Check what the action you need to do in each task
@@ -180,8 +176,7 @@ export class PlanningAgent extends Agent {
         + Sell/Swap X/X% A from B (amount = X/calculate X% of current balance, amountType = ouput).
       `;
 
-    const updatePlanPrompt =
-      `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
+    const updatePlanPrompt = `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
       When a task is failed, you need to update task title
       - If one same tool is failed many times and not provided required info to complete the task, update a new task to execute the plan
       - If one same tool is failed many times but provided required info to complete the task, take info of that tool id and continue next tasks
