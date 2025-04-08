@@ -174,6 +174,7 @@ export class PlanningAgent extends Agent {
       - You can create multiple tasks to execute the user's request and specific which tool will be used to execute the task.
       
       Following tips trading:
+
         + Sell/Swap X/X% A to B (amount = X/calculate X% of current balance, amountType = input).
         + Buy X A from B (amount = X/calculate X% of current balance, amountType = output).
         + Sell/Swap X/X% A from B (amount = X/calculate X% of current balance, amountType = ouput).
