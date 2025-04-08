@@ -161,16 +161,17 @@ export class PlanningAgent extends Agent {
       Execute each task by:
       1. Check what the action you need to do in each task
       2. Select the right tool
-      3. For balance task without network specified: check all networks
-      4. For token info task without network specified: check all networks
-      5. Only create ask task if you need more information to execute one task
+      3. - For balance/token info tasks without a specified network: check bnb, solana
+         - Call the tool separately for each network (get wallet balance tool only accepts one network at a time)
+         - You only need token info on one network to continue next tasks
+         - If more than one token (with similar symbol) is provided on different networks, ask user provide network they want
+      4. Only create ask task if you need more information to execute one task
     `;
 
     const createPlanPrompt = `You are blockchain planner. Your goal is create plan to execute the user's request.
       NOTE: 
       - Retrieve information in user's request and maintain it each task
       - You can create multiple tasks to execute the user's request and specific which tool will be used to execute the task.
-      - If a task is failed many times, update a new task to execute the plan
       
       Following tips trading:
         + Sell/Swap X/X% A to B (amount = X/calculate X% of current balance, amountType = input).
@@ -181,8 +182,10 @@ export class PlanningAgent extends Agent {
     const updatePlanPrompt =
       `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
       When a task is failed, you need to update task title
+      - If one same tool is failed many times and not provided required info to complete the task, update a new task to execute the plan
+      - If one same tool is failed many times but provided required info to complete the task, take info of that tool id and continue next tasks
       NOTE: 
-      - Create task ask user to provide more information
+      - Create task ask user to provide more information if needed
       - Retrieve information in user's request and maintain it each task
       `;
 
