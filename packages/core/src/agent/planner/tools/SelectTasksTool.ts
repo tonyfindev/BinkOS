@@ -35,6 +35,13 @@ export class SelectTasksTool implements ITool {
         .describe('The indexes of the tasks to executor need handle'),
     });
   }
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
+  }
   createTool(): CustomDynamicStructuredTool {
     return {
       name: this.getName(),

@@ -82,6 +82,8 @@ export abstract class BaseAgent implements IAgent {
   // Hook for subclasses to handle tool updates
   protected abstract onToolsUpdated(): Promise<void>;
 
+  public abstract isMockResponseTool(): boolean;
+
   public notifyHumanReview(data: HumanReviewData): void {
     this.callbackManager.notifyHumanReview(data);
   }

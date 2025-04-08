@@ -254,6 +254,10 @@ export class ExecutorGraph {
 
     // Set ask user state and use interrupt
     this.agent.setAskUser(true);
+    this.agent.notifyAskUser({
+      question,
+      timestamp: Date.now(),
+    });
     const userMessage = interrupt({ question });
     this.agent.setAskUser(false);
 
@@ -296,12 +300,13 @@ export class ExecutorGraph {
           quote = await (tool as any).simulateQuoteTool(toolCall.args);
 
           // Convert any BigInt values to strings in the quote object
-          quote = JSON.parse(
-            JSON.stringify(quote, (key, value) =>
-              typeof value === 'bigint' ? value.toString() : value,
-            ),
-          );
+          // quote = JSON.parse(
+          //   JSON.stringify(quote, (key, value) =>
+          //     typeof value === 'bigint' ? value.toString() : value,
+          //   ),
+          // );
         } catch (e: any) {
+          console.error('Error when simulate quote', e);
           const toolMessage = new ToolMessage({
             name: toolCall.name,
             content: 'Error: ' + e.message,
@@ -333,7 +338,6 @@ export class ExecutorGraph {
           if you want to update the transaction, please update the parameters and quote`,
           quote: quote,
         });
-
         this.agent.setAskUser(false);
 
         if (humanReview.input) {

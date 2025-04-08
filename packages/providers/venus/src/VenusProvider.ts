@@ -18,6 +18,7 @@ const CONSTANTS = {
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
   VENUS_API_BASE: 'https://api.venus.io/',
   VENUS_POOL_ADDRESS: '0xa07c5b74c9b40447a954e1466938b865b6bbea36',
+  VBNB_ADDRESS: '0xA07c5b74C9B40447a954e1466938b865b6BBea36',
 } as const;
 
 enum ChainId {
@@ -423,6 +424,35 @@ export class VenusProvider extends BaseStakingProvider {
         isValid: false,
         message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
+    }
+  }
+
+  async getAllStakingBalances(walletAddress: string) {
+    try {
+      // Get vBNB balance
+      const vBNBBalance = await this.getTokenBalance(
+        CONSTANTS.VBNB_ADDRESS,
+        walletAddress,
+        NetworkName.BNB,
+      );
+
+      const vBNBInfo = {
+        tokenAddress: CONSTANTS.VBNB_ADDRESS,
+        symbol: 'vBNB',
+        name: 'Venus BNB',
+        decimals: 8,
+        balance: vBNBBalance.formattedBalance,
+      };
+
+      return {
+        address: walletAddress,
+        tokens: [vBNBInfo],
+      };
+    } catch (error) {
+      console.error('Error getting vBNB staking balance:', error);
+      throw new Error(
+        `Failed to get vBNB staking balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 }

@@ -139,4 +139,6 @@ export abstract class BaseTool implements ITool {
 
     return this.formatErrorResponse(structuredError, args);
   }
+
+  abstract mockResponseTool(args: any): Promise<string>;
 }

@@ -187,6 +187,14 @@ export class UpdatePlanTool implements ITool {
         .describe('Only update the tasks that need to be updated'),
     });
   }
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        plan_id: args.plan_id,
+        tasks: args.tasks,
+      }),
+    );
+  }
   createTool(): CustomDynamicStructuredTool {
     return {
       name: this.getName(),

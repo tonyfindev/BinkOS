@@ -121,7 +121,7 @@ async function main() {
   console.log('💱 Example 1: Buy BINK from BNB');
   const inputResult = await agent.execute({
     input: `
-      Buy 0.001 BNB to BINK on Okx with 10 % slippage on bnb chain.
+      Buy BINK from 0.001 BNB on Okx
       Use the following token addresses:
       BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
     `,

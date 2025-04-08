@@ -19,6 +19,7 @@ export interface AgentConfig {
   maxTokens?: number;
   systemPrompt?: string;
   isHumanReview?: boolean;
+  isMockResponseTool?: boolean;
 }
 
 export interface AgentContext {
@@ -66,4 +67,5 @@ export interface IAgent {
   getWallet(): IWallet;
   getNetworks(): NetworksConfig['networks'];
   registerDatabase(db: DatabaseAdapter): Promise<void>;
+  isMockResponseTool(): boolean;
 }

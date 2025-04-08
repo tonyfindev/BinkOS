@@ -80,8 +80,8 @@ export class ThenaProvider extends BaseSwapProvider {
     try {
       // Fetch input and output token information
       const [sourceToken, destinationToken] = await Promise.all([
-        this.getToken(params.type === 'input' ? params.fromToken : params.toToken, params.network),
-        this.getToken(params.type === 'input' ? params.toToken : params.fromToken, params.network),
+        this.getToken(params.fromToken, params.network),
+        this.getToken(params.toToken, params.network),
       ]);
       const tokenInAddress =
         sourceToken.address === CONSTANTS.BNB_ADDRESS
@@ -117,7 +117,7 @@ export class ThenaProvider extends BaseSwapProvider {
       let swapTransactionData;
 
       let optimalRoute;
-      if (params?.limitPrice) {
+      if (params?.limitPrice && Number(params?.limitPrice) !== 0) {
         swapTransactionData = null;
 
         // Fetch optimal limit order route
@@ -134,7 +134,7 @@ export class ThenaProvider extends BaseSwapProvider {
         swapTransactionData = await this.buildLimitOrderRouteTransaction(optimalRoute, userAddress);
 
         if (!swapTransactionData) {
-          throw new Error('No limit  order routes available from Thena');
+          throw new Error('No limit order routes available from Thena');
         }
       } else {
         // Fetch optimal swap route

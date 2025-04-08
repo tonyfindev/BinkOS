@@ -206,16 +206,6 @@ export class deBridgeProvider extends BaseBridgeProvider {
       const srcChainRefundAddress = senderAddress;
       const allowedTaker = MAPPING_TOKEN_TAKER[params.fromNetwork as SupportedTokenTaker];
 
-      console.log(
-        '🚀 ~ deBridgeProvider ~ after data: from: ',
-        srcChainId,
-        srcChainTokenInAmount,
-        'to: ',
-        dstChainId,
-        senderAddress,
-        allowedTaker,
-      );
-
       const url = `https://deswap.debridge.finance/v1.0/dln/order/create-tx?srcChainId=${srcChainId}&srcChainTokenIn=${srcChainTokenIn}&srcChainTokenInAmount=${srcChainTokenInAmount}&dstChainId=${dstChainId}&dstChainTokenOut=${dstChainTokenOut}&dstChainTokenOutRecipient=${dstChainTokenOutRecipient}&senderAddress=${senderAddress}&srcChainOrderAuthorityAddress=${srcChainOrderAuthorityAddress}&srcChainRefundAddress=${srcChainRefundAddress}&dstChainOrderAuthorityAddress=${dstChainOrderAuthorityAddress}&enableEstimate=false&prependOperatingExpenses=true&additionalTakerRewardBps=0&allowedTaker=${allowedTaker}&deBridgeApp=DESWAP&ptp=false&tab=1739871311714`;
 
       const response = await axios.get(url);

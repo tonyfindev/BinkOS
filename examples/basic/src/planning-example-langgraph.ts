@@ -31,6 +31,10 @@ import { Connection } from '@solana/web3.js';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
 import { ThenaProvider } from '@binkai/thena-provider';
 
+import { KnowledgePlugin } from '@binkai/knowledge-plugin';
+import { BinkProvider } from '@binkai/bink-provider';
+import { ImagePlugin } from '@binkai/image-plugin';
+
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
@@ -167,7 +171,19 @@ async function main() {
       model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
-        'You are a BINK AI agent. You are able to perform swaps, bridges and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge or swap.',
+        `You are a BINK AI assistant. You can help user to query blockchain data .You are able to perform swaps and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a swap.
+        Your respone format:
+         BINK’s tone is informative, bold, and subtly mocking, blending wit with a cool edge for the crypto crowd. Think chain-vaping degen energy, but refined—less "honey, sit down" and more "I’ve got this, you don’t."
+Fiercely Casual – Slang, laid-back flow, and effortless LFG vibes.
+Witty with a Jab – Dry humor, sharp one-liners—more smirk, less roast.
+Confident & Cool – Market takes with swagger—just facts, no fluff.
+Crew Leader – Speaks degen, leads with "pay attention" energy.
+Subtle Shade – Calls out flops with a "nice try" tone, not full-on slander.
+BINK isn’t here to babysit. It’s sharp, fast, and always ahead of the curve—dropping crypto insights with a mocking wink, perfect for X’s chaos.    
+CRITICAL: 
+1. Format your responses in Telegram HTML style. 
+2. DO NOT use markdown. 
+3. Using HTML tags like <b>bold</b>, <i>italic</i>, <code>code</code>, <pre>preformatted</pre>, and <a href="URL">links</a>. \n\nWhen displaying token information or swap details:\n- Use <b>bold</b> for important values and token names\n- Use <code>code</code> for addresses and technical details\n- Use <i>italic</i> for additional information`,
     },
     wallet,
     networks,
@@ -232,6 +248,17 @@ async function main() {
 
   // const fourMeme = new FourMemeProvider(provider, 56);
 
+  const binkProvider = new BinkProvider({
+    apiKey: settings.get('BINK_API_KEY') || '',
+    baseUrl: settings.get('BINK_API_URL') || '',
+    imageApiUrl: settings.get('BINK_IMAGE_API_URL') || '',
+  });
+  // Initialize plugin with provider
+  const knowledgePlugin = new KnowledgePlugin();
+  await knowledgePlugin.initialize({
+    providers: [binkProvider],
+  });
+
   // Configure the plugin with supported chains
   await swapPlugin.initialize({
     providers: [pancakeswap, jupiter, thena],
@@ -241,12 +268,24 @@ async function main() {
 
   // Create providers with proper chain IDs
   const debridge = new deBridgeProvider(provider);
+
+  const imagePlugin = new ImagePlugin();
   // Configure the plugin with supported chains
   await bridgePlugin.initialize({
-    defaultChain: 'bnb',
     providers: [debridge],
     supportedChains: ['bnb', 'solana'], // These will be intersected with agent's networks
   });
+
+  await imagePlugin.initialize({
+    providers: [binkProvider],
+    supportedChains: ['bnb'],
+  });
+  console.log('✓ Token plugin initialized\n');
+
+  // Register the plugin with the agent
+  console.log('🔌 Registering token plugin with agent...');
+  await agent.registerPlugin(imagePlugin);
+  console.log('✓ Plugin registered\n');
 
   console.log('✓ Bridge plugin initialized\n');
 
@@ -265,6 +304,10 @@ async function main() {
 
   console.log('🔌 Registering bridge plugin with agent...');
   await agent.registerPlugin(bridgePlugin);
+  console.log('✓ Plugin registered\n');
+
+  console.log('🔌 Registering knowledge plugin with agent...');
+  await agent.registerPlugin(knowledgePlugin);
   console.log('✓ Plugin registered\n');
 
   return await agent.graph;
