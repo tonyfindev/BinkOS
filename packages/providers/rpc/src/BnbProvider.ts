@@ -138,18 +138,15 @@ export class BnbProvider implements IWalletProvider {
     const token = await this.getToken(params.token);
 
     // Adjust amount for native token transfers
-    let adjustedAmount = params.amount;
-    if (this.isNativeToken(params.token)) {
-      adjustedAmount = await this.adjustAmount(
-        params.token,
-        params.amount,
-        walletAddress,
-        params.network,
-      );
+    let adjustedAmount = await this.adjustAmount(
+      params.token,
+      params.amount,
+      walletAddress,
+      params.network,
+    );
 
-      if (adjustedAmount !== params.amount) {
-        console.log(`🤖 BnbProvider adjusted amount from ${params.amount} to ${adjustedAmount}`);
-      }
+    if (adjustedAmount !== params.amount) {
+      console.log(`🤖 BnbProvider adjusted amount from ${params.amount} to ${adjustedAmount}`);
     }
 
     // Generate a unique quote ID
