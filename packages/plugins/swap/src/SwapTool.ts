@@ -169,17 +169,19 @@ export class SwapTool extends BaseTool {
     return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
       if (params.type === 'input') {
         // For input amount, find highest output amount
-        const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals);
-        const currentAmount = BigInt(
+        const bestAmount = Math.floor(
+          Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals,
+        );
+        const currentAmount = Math.floor(
           Number(current.quote.toAmount) * 10 ** current.quote.toToken.decimals,
         );
         return currentAmount > bestAmount ? current : best;
       } else {
         // For output amount, find lowest input amount
-        const bestAmount = BigInt(
+        const bestAmount = Math.floor(
           Number(best.quote.fromAmount) * 10 ** best.quote.fromToken.decimals,
         );
-        const currentAmount = BigInt(
+        const currentAmount = Math.floor(
           Number(current.quote.fromAmount) * 10 ** current.quote.fromToken.decimals,
         );
         return currentAmount < bestAmount ? current : best;
