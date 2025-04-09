@@ -64,3 +64,6 @@ export interface TokenInfo {
   symbol: string;
   chainId: number;
 }
+
+export const RPC_SOLANA_DEBRIDGE = 'https://solana-rpc.debridge.finance';
+export const RPC_SOLANA_MAINNET = 'https://api.mainnet-beta.solana.com';

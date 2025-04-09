@@ -9,6 +9,8 @@ import {
   MAPPING_CHAIN_ID,
   MAPPING_TOKEN,
   MAPPING_TOKEN_TAKER,
+  RPC_SOLANA_DEBRIDGE,
+  RPC_SOLANA_MAINNET,
   SupportedChain,
   SupportedToken,
   SupportedTokenTaker,
@@ -37,7 +39,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
     // Create a Map with BNB network and the provider
     const providerMap = new Map<NetworkName, NetworkProvider>();
     providerMap.set(NetworkName.BNB, provider);
-    providerMap.set(NetworkName.SOLANA, new Connection('https://api.mainnet-beta.solana.com'));
+    providerMap.set(NetworkName.SOLANA, new Connection(RPC_SOLANA_MAINNET));
 
     super(providerMap);
     this.fromChainId = fromChainId;
@@ -224,7 +226,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
       let dataTx;
       let lastValidBlockHeight;
       if (params.fromNetwork === 'solana') {
-        const connection = new Connection('https://api.mainnet-beta.solana.com');
+        const connection = new Connection(RPC_SOLANA_MAINNET);
         const txBuffer = Buffer.from(data.tx.data.slice(2), 'hex');
         const versionedTx = VersionedTransaction.deserialize(txBuffer);
         // add blockhash to versionedTx
@@ -239,8 +241,7 @@ export class deBridgeProvider extends BaseBridgeProvider {
       }
 
       if (!lastValidBlockHeight && params.fromNetwork === 'solana') {
-        const RPC_SOLANA = 'https://solana-rpc.debridge.finance';
-        const connection = new Connection(RPC_SOLANA);
+        const connection = new Connection(RPC_SOLANA_DEBRIDGE);
         const latestBlockhash = await connection.getLatestBlockhash('confirmed');
         lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
       }
