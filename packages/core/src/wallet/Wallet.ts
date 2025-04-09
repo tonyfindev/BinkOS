@@ -388,7 +388,7 @@ export class Wallet implements IWallet {
               connection,
               signature,
               tx.message.recentBlockhash,
-              lastValidBlockHeight,
+              lastValidBlockHeight + 5, // fix waiting transaction for 5 blocks
             );
             return {
               hash: signature,
@@ -428,7 +428,7 @@ export class Wallet implements IWallet {
               connection,
               signature,
               tx.recentBlockhash!,
-              tx.lastValidBlockHeight!,
+              tx.lastValidBlockHeight! + 5,
             );
             return {
               hash: signature,

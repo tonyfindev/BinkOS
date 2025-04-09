@@ -238,6 +238,13 @@ export class deBridgeProvider extends BaseBridgeProvider {
         dataTx = data.tx.data;
       }
 
+      if (!lastValidBlockHeight && params.fromNetwork === 'solana') {
+        const RPC_SOLANA = 'https://solana-rpc.debridge.finance';
+        const connection = new Connection(RPC_SOLANA);
+        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+      }
+
       return {
         to: params.fromNetwork === 'solana' ? dstChainTokenOutRecipient : data.tx.to,
         data: dataTx,
