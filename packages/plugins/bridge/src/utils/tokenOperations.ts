@@ -14,6 +14,7 @@ import {
   validateNetwork,
 } from './networkUtils';
 import { Metaplex } from '@metaplex-foundation/js';
+import { NetworkProvider } from '../BaseBridgeProvider';
 
 // Default cache TTL (30 minutes)
 export const DEFAULT_CACHE_TTL = 30 * 60 * 1000;
@@ -51,8 +52,10 @@ export async function getTokenInfo(
 export async function getTokenInfoSolana(
   tokenAddress: string,
   network: NetworkName,
+  providers: Map<NetworkName, NetworkProvider>,
+  providerName: string,
 ): Promise<Token> {
-  const connection = new Connection('https://api.mainnet-beta.solana.com');
+  const connection = getSolanaProviderForNetwork(providers, network, providerName);
   const tokenMint = new PublicKey(tokenAddress);
   const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
 
@@ -128,7 +131,7 @@ export function createTokenCache(cacheTTL: number = DEFAULT_CACHE_TTL) {
           return cached.token;
         }
 
-        const connection = new Connection('https://api.mainnet-beta.solana.com');
+        const connection = getSolanaProviderForNetwork(providers, network, providerName);
         const tokenMint = new PublicKey(tokenAddress);
         const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
 
