@@ -9,8 +9,6 @@ import {
   MAPPING_CHAIN_ID,
   MAPPING_TOKEN,
   MAPPING_TOKEN_TAKER,
-  RPC_SOLANA_DEBRIDGE,
-  RPC_SOLANA_MAINNET,
   SupportedChain,
   SupportedToken,
   SupportedTokenTaker,
@@ -32,14 +30,14 @@ export class deBridgeProvider extends BaseBridgeProvider {
   private fromChainId: ChainID;
   private toChainId: ChainID;
   constructor(
-    provider: Provider,
+    provider: [Provider, Connection],
     fromChainId: ChainID = ChainID.BNB,
     toChainId: ChainID = ChainID.SOLANA,
   ) {
     // Create a Map with BNB network and the provider
     const providerMap = new Map<NetworkName, NetworkProvider>();
-    providerMap.set(NetworkName.BNB, provider);
-    providerMap.set(NetworkName.SOLANA, new Connection(RPC_SOLANA_MAINNET));
+    providerMap.set(NetworkName.BNB, provider[0]);
+    providerMap.set(NetworkName.SOLANA, provider[1]);
 
     super(providerMap);
     this.fromChainId = fromChainId;
@@ -226,12 +224,12 @@ export class deBridgeProvider extends BaseBridgeProvider {
       let dataTx;
       let lastValidBlockHeight;
       if (params.fromNetwork === 'solana') {
-        const connection = new Connection(RPC_SOLANA_MAINNET);
+        const provider = this.getSolanaProviderForNetwork(NetworkName.SOLANA);
         const txBuffer = Buffer.from(data.tx.data.slice(2), 'hex');
         const versionedTx = VersionedTransaction.deserialize(txBuffer);
         // add blockhash to versionedTx
         const { blockhash, lastValidBlockHeight: lastValidBlockHeightSolana } =
-          await connection.getLatestBlockhash('confirmed');
+          await provider.getLatestBlockhash('confirmed');
         versionedTx.message.recentBlockhash = blockhash;
         dataTx = Buffer.from(versionedTx.serialize()).toString('base64');
         lastValidBlockHeight = lastValidBlockHeightSolana;
@@ -241,8 +239,8 @@ export class deBridgeProvider extends BaseBridgeProvider {
       }
 
       if (!lastValidBlockHeight && params.fromNetwork === 'solana') {
-        const connection = new Connection(RPC_SOLANA_DEBRIDGE);
-        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        const provider = this.getSolanaProviderForNetwork(NetworkName.SOLANA);
+        const latestBlockhash = await provider.getLatestBlockhash('confirmed');
         lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
       }
 

@@ -19,7 +19,7 @@ import { Connection } from '@solana/web3.js';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
-const SOL_RPC = 'https://api.mainnet-beta.solana.com';
+const SOL_RPC = 'https://solana-rpc.debridge.finance'; //https://api.mainnet-beta.solana.com | https://solana-rpc.debridge.finance
 
 async function main() {
   console.log('🚀 Starting BinkOS bridge example...\n');
@@ -71,7 +71,7 @@ async function main() {
   // Initialize provider
   console.log('🔌 Initializing provider...');
   const provider = new ethers.JsonRpcProvider(BNB_RPC);
-  //const provider =  new anchor.web3.Connection(SOL_RPC);
+  const providerSolana = new Connection(SOL_RPC);
   console.log('✓ Provider initialized\n');
 
   // Initialize a new wallet
@@ -135,7 +135,7 @@ async function main() {
   });
 
   // Create providers with proper chain IDs
-  const debridge = new deBridgeProvider(provider, 56, 7565164);
+  const debridge = new deBridgeProvider([provider, providerSolana], 56, 7565164);
 
   // Configure the plugin with supported chains
   await bridgePlugin.initialize({
@@ -161,7 +161,7 @@ async function main() {
 
   console.log('💱 Example 1:Bridge all BNB to SOL on DeBridge Finance');
   const inputResult = await agent.execute({
-    input: `Bridge 0.001 SOL to BNB via debridge`,
+    input: `Bridge 0.01 BNB to SOL via debridge`,
     //input: `Bridge 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on BNB to amount 5 Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB on solana`, // usdc bnb to usdt sol
     //input: `swap 10% my BNB to SOL`, // bridge and swap
     //input: `Bridge 5 USDC on SOL to 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on solana`,
