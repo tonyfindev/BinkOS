@@ -58,7 +58,9 @@ export class SwapTool extends BaseTool {
     let description = `The SwapTool enables users to exchange one cryptocurrency token for another using various Decentralized Exchange (DEX) 
     providers across supported blockchain networks. This tool facilitates token swaps, 
     allowing users to specify either the input amount (the amount they wish to spend, if amount is percent, must get balance before swap). 
-    or the output amount (the amount they wish to receive). Supported networks include ${networks}.
+    or the output amount (the amount they wish to receive). 
+    IMPORTANT: For keywords "all", "max", or percentages like "50%", first check the token balance then convert to exact amounts before swapping.
+    Supported networks include ${networks}.
     Do not reasoning about Token information. If user want to do action with token A, you would take actions on token A. 
     Providers include ${providers}.`;
 
@@ -528,24 +530,31 @@ export class SwapTool extends BaseTool {
             // Non-critical error, don't throw
           }
 
-          // onProgress?.({
-          //   progress: 100,
-          //   message: `Swap complete! Successfully swapped ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
-          // });
+          onProgress?.({
+            progress: 100,
+            message: `Swap complete! Successfully swapped ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
+          });
 
           // Return result as JSON string
-          return JSON.stringify({
+          const result = {
             status: 'success',
             provider: selectedProvider.getName(),
             fromToken: quote.fromToken,
             toToken: quote.toToken,
             fromAmount: quote.fromAmount.toString(),
             toAmount: quote.toAmount.toString(),
-            transactionHash: finalReceipt?.hash,
+            transactionHash: finalReceipt.hash,
             priceImpact: quote.priceImpact,
             type: quote.type,
             network,
-          });
+            // ...(swapParams?.limitPrice &&
+            //   swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS &&
+            //   Number(swapParams.limitPrice) !== 0 && {
+            //     limitOrderPrice: swapParams.limitPrice,
+            //   }),
+          };
+
+          return JSON.stringify(result);
         } catch (error: any) {
           console.error('Swap error:', error);
 

@@ -80,7 +80,7 @@ export class TransferTool extends BaseTool {
 
     return z.object({
       token: z.string().describe('The token address to transfer'),
-      toAddress: z.string().describe('The recipient address'),
+      toAddress: z.string().describe('The recipient contract address'),
       amount: z.string().describe('The amount of tokens to transfer'),
       network: z
         .enum(supportedNetworks as [string, ...string[]])
