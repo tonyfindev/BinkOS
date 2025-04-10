@@ -108,7 +108,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
    * @throws Error if the network is not supported or if it's not a Solana network
    */
   protected getSolanaProviderForNetwork(network: NetworkName): Connection {
-    return getSolanaProvider(network);
+    return getSolanaProvider(this.providers, network, this.getName());
   }
 
   /**
@@ -229,7 +229,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
     this.validateNetwork(network);
     if (isSolanaNetwork(network)) {
       // TODO: Implement Solana
-      return await getTokenInfoSolana(tokenAddress, network);
+      return await getTokenInfoSolana(tokenAddress, network, this.providers, this.getName());
     }
     const provider = this.getEvmProviderForNetwork(network);
     return await getTokenInfo(tokenAddress, network, provider);
@@ -238,7 +238,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
   protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
     this.validateNetwork(network);
     if (isSolanaNetwork(network)) {
-      return await getTokenInfoSolana(tokenAddress, network);
+      return await getTokenInfoSolana(tokenAddress, network, this.providers, this.getName());
     }
     // Use the tokenCache utility instead of manual caching
     return await this.tokenCache.getToken(tokenAddress, network, this.providers, this.getName());
@@ -288,7 +288,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
           return { isValid: true };
         } else {
           // For SPL tokens
-          const connection = new Connection('https://api.mainnet-beta.solana.com');
+          const connection = this.getSolanaProviderForNetwork(quote.network);
           const tokenAccount = await connection.getParsedTokenAccountsByOwner(
             new PublicKey(walletAddress),
             {
