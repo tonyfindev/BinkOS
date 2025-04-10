@@ -54,7 +54,7 @@ const StateAnnotation = Annotation.Root({
 export class PlanningAgent extends Agent {
   private workflow!: StateGraph<any, any, any, any, any, any>;
   public graph!: CompiledStateGraph<any, any, any, any, any, any>;
-  private isAskUser = false;
+  private _isAskUser = false;
   private askUserTimeout: NodeJS.Timeout | null = null;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
@@ -65,11 +65,15 @@ export class PlanningAgent extends Agent {
     return [];
   }
 
-  public async setAskUser(isAskUser: boolean) {
-    this.isAskUser = isAskUser;
-    if (isAskUser) {
+  public get isAskUser() {
+    return this._isAskUser;
+  }
+
+  public async setAskUser(_isAskUser: boolean) {
+    this._isAskUser = _isAskUser;
+    if (_isAskUser) {
       this.askUserTimeout = setTimeout(() => {
-        this.isAskUser = false;
+        this._isAskUser = false;
       }, 60 * 1000);
     } else {
       if (this.askUserTimeout) {
@@ -276,7 +280,7 @@ export class PlanningAgent extends Agent {
         threadId: uuidv4(),
       };
     }
-    if (this.isAskUser && typeof commandOrParams !== 'string') {
+    if (this._isAskUser && typeof commandOrParams !== 'string') {
       let result = '';
       if (onStream) {
         const eventStream = await this.graph.streamEvents(
@@ -412,7 +416,7 @@ export class PlanningAgent extends Agent {
 
     //TODO: check this code. we will remove this code after testing
     //RESET DATA
-    if (!this.isAskUser && response.length > 0) {
+    if (!this._isAskUser && response.length > 0) {
       await this.createExecutor();
     }
     return response;

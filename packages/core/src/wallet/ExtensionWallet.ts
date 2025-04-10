@@ -267,7 +267,12 @@ export class ExtensionWallet implements IWallet {
         gasLimit: transaction.gasLimit,
       });
 
-      const signedTx = await this.signTransaction({ network, transaction: tx as EvmTransaction });
+      tx.from = null;
+
+      const signedTx = await this.signTransaction({
+        network,
+        transaction: EvmTransaction.from(tx),
+      });
 
       // Send signed transaction
       const sentTx = await this.sendTransaction(network, { transaction: signedTx });

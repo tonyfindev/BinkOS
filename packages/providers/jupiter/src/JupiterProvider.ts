@@ -24,6 +24,11 @@ import {
 } from './utils';
 import { Provider, ethers, Contract, Interface } from 'ethers';
 
+const STABLE_TOKENS = {
+  USDC_ADDRESS: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  USDT_ADDRESS: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+};
+
 export class JupiterProvider extends BaseSwapProvider {
   private api: AxiosInstance;
   private static readonly DEFAULT_BASE_URL = 'https://quote-proxy.jup.ag';
@@ -87,16 +92,6 @@ export class JupiterProvider extends BaseSwapProvider {
     return {
       error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
-  }
-
-  checkHaveNativeToken(params: any): boolean {
-    if (
-      params?.inputMint === SOL_NATIVE_TOKEN_ADDRESS2 ||
-      params?.outputMint === SOL_NATIVE_TOKEN_ADDRESS2
-    ) {
-      return true;
-    }
-    return false;
   }
 
   async getSwapBuyAggregator(params: any, userPublicKey: string): Promise<JupiterSwapResponse> {
@@ -189,7 +184,11 @@ export class JupiterProvider extends BaseSwapProvider {
     }
   }
 
-  async getCreateLimitOrder(params: JupiterQuoteResponse, userAddress: string, limitPrice: string) {
+  async getCreateLimitOrder(
+    params: JupiterQuoteResponse,
+    userAddress: string,
+    takingAmount: string,
+  ) {
     try {
       const createOrderResponse = await (
         await fetch(`${JupiterProvider.BASE_URL_JUPITER}/trigger/v1/createOrder`, {
@@ -205,7 +204,7 @@ export class JupiterProvider extends BaseSwapProvider {
             payer: userAddress,
             params: {
               makingAmount: params.inAmount,
-              takingAmount: limitPrice,
+              takingAmount: takingAmount,
             },
           }),
         })
@@ -292,6 +291,48 @@ export class JupiterProvider extends BaseSwapProvider {
     }
   }
 
+  async getTokenPrices(tokenIds: string[]) {
+    const baseUrl = 'https://api.jup.ag/price/v2';
+    const params = new URLSearchParams({
+      ids: tokenIds.join(','),
+      showExtraInfo: 'true',
+    });
+    const url = `${baseUrl}?${params.toString()}`;
+
+    const headers = {
+      accept: '*/*',
+    };
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json(); // Type assertion for the response
+
+      return data?.data;
+    } catch (error) {
+      console.error('Error fetching token prices:', error);
+      throw new Error('Jupiter not support this token');
+    }
+  }
+
+  private checkIsStableToken(tokenAddress: string) {
+    if (
+      tokenAddress.toLowerCase() === STABLE_TOKENS.USDC_ADDRESS.toLowerCase() ||
+      tokenAddress.toLowerCase() === STABLE_TOKENS.USDT_ADDRESS.toLowerCase()
+    ) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       const [sourceToken, destinationToken] = await Promise.all([
@@ -323,8 +364,19 @@ export class JupiterProvider extends BaseSwapProvider {
 
       let swapData;
       let getSwapBuyAggregator;
-
+      let amountOutLimitOrder;
       if (params?.limitPrice && Number(params?.limitPrice) !== 0) {
+        const tokenInStable = this.checkIsStableToken(sourceToken.address);
+        const tokenOutStable = this.checkIsStableToken(destinationToken.address);
+
+        if (!tokenInStable && !tokenOutStable) {
+          throw new Error('Jupiter only support limit order with USDC, USDT as input token');
+        }
+
+        if (!params?.limitPrice || Number(params?.limitPrice) < 0) {
+          throw new Error('No amount out from Jupiter');
+        }
+
         swapData = await this.getQuoteJupiter(
           {
             inputMint: new PublicKey(sourceToken.address),
@@ -335,12 +387,24 @@ export class JupiterProvider extends BaseSwapProvider {
           userAddress,
         );
 
-        const limitPrice = parseTokenAmount(
-          params?.limitPrice.toString(),
+        let amountOut;
+        const amount = Number(params?.amount.toString());
+        const price = Number(params?.limitPrice.toString());
+
+        amountOut = tokenInStable
+          ? amount * (price > 1 ? 1 / price : 1 / price)
+          : amount * (price > 1 ? price : 1 / (1 / price));
+
+        amountOutLimitOrder = parseTokenAmount(
+          amountOut.toString(),
           destinationToken.decimals,
         ).toString();
 
-        getSwapBuyAggregator = await this.getCreateLimitOrder(swapData, userAddress, limitPrice);
+        getSwapBuyAggregator = await this.getCreateLimitOrder(
+          swapData,
+          userAddress,
+          amountOutLimitOrder,
+        );
       } else {
         swapData = await this.getQuoteJupiter(
           {
@@ -370,7 +434,9 @@ export class JupiterProvider extends BaseSwapProvider {
         fromToken: sourceToken,
         toToken: destinationToken,
         fromAmount: ethers.formatUnits(swapData.inAmount, sourceToken.decimals),
-        toAmount: ethers.formatUnits(swapData.outAmount, destinationToken.decimals),
+        toAmount: params?.limitPrice
+          ? amountOutLimitOrder?.toString() || '0'
+          : ethers.formatUnits(swapData.outAmount, destinationToken.decimals),
         priceImpact: 0,
         route: [],
         estimatedGas: '',
