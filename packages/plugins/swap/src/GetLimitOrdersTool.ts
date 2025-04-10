@@ -34,7 +34,7 @@ export class GetLimitOrdersTool extends BaseTool {
   }
 
   getName(): string {
-    return 'getLimitOrders';
+    return 'get_limit_order';
   }
 
   getDescription(): string {

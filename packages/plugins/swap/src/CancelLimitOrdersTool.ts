@@ -34,7 +34,7 @@ export class CancelLimitOrdersTool extends BaseTool {
   }
 
   getName(): string {
-    return 'cancelLimitOrders';
+    return 'cancel_limit_order';
   }
 
   getDescription(): string {
