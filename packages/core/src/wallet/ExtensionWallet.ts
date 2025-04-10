@@ -19,7 +19,7 @@ import {
 export class ExtensionWallet implements IWallet {
   socket: Socket | null = null;
   readonly #network: Network;
-  readonly timeout: number = 30000; // 30 seconds timeout
+  readonly timeout: number = 60000; // 30 seconds timeout
 
   constructor(network: Network) {
     this.#network = network;
@@ -48,7 +48,9 @@ export class ExtensionWallet implements IWallet {
   public async getAddress(network: NetworkName): Promise<string> {
     await this.ensureConnection();
 
-    const response = (await this.socket?.timeout(5000).emitWithAck('get_address', { network })) as {
+    const response = (await this.socket
+      ?.timeout(this.timeout)
+      .emitWithAck('get_address', { network })) as {
       address?: string;
       error?: string;
     };
@@ -64,7 +66,9 @@ export class ExtensionWallet implements IWallet {
   public async signMessage(params: SignMessageParams): Promise<string> {
     await this.ensureConnection();
 
-    const response = (await this.socket?.timeout(5000).emitWithAck('sign_message', params)) as {
+    const response = (await this.socket
+      ?.timeout(this.timeout)
+      .emitWithAck('sign_message', params)) as {
       signature?: string;
       error?: string;
     };
@@ -81,26 +85,34 @@ export class ExtensionWallet implements IWallet {
     await this.ensureConnection();
 
     let transactionStr: string;
-
+    let response: { signedTransaction?: string; error?: string; tx_hash?: string } = {};
     if (params.transaction instanceof EvmTransaction) {
       transactionStr = params.transaction.unsignedSerialized;
+      response = (await this.socket?.timeout(this.timeout).emitWithAck('send_transaction', {
+        network: params.network,
+        transaction: transactionStr,
+      })) as { tx_hash?: string; error?: string };
     } else if (params.transaction instanceof VersionedTransaction) {
       transactionStr = Buffer.from(params.transaction.serialize()).toString('base64');
+      response = (await this.socket?.timeout(this.timeout).emitWithAck('sign_transaction', {
+        network: params.network,
+        transaction: transactionStr,
+      })) as { signedTransaction?: string; error?: string };
     } else {
       transactionStr = Buffer.from(params.transaction.serialize()).toString('base64');
+      response = (await this.socket?.timeout(this.timeout).emitWithAck('sign_transaction', {
+        network: params.network,
+        transaction: transactionStr,
+      })) as { signedTransaction?: string; error?: string };
     }
 
-    const response = (await this.socket?.timeout(5000).emitWithAck('sign_transaction', {
-      network: params.network,
-      transaction: transactionStr,
-    })) as { signedTransaction?: string; error?: string };
     if (response.error) {
       throw new Error(response.error);
     }
-    if (!response.signedTransaction) {
-      throw new Error('No signed transaction found');
+    if (!response.signedTransaction && !response.tx_hash) {
+      throw new Error('No signed transaction found or tx_hash');
     }
-    return response.signedTransaction;
+    return response.signedTransaction || response.tx_hash || '';
   }
 
   public async waitForSolanaTransaction(
@@ -268,19 +280,20 @@ export class ExtensionWallet implements IWallet {
       });
 
       tx.from = null;
-
-      const signedTx = await this.signTransaction({
+      const tx_hash = await this.signTransaction({
         network,
         transaction: EvmTransaction.from(tx),
       });
 
       // Send signed transaction
-      const sentTx = await this.sendTransaction(network, { transaction: signedTx });
+      // const sentTx = await this.sendTransaction(network, { transaction: signedTx });
+      const sentTx = await provider.getTransaction(tx_hash);
+      if (!sentTx) throw new Error('Transaction failed');
       const receipt = await sentTx.wait();
       if (!receipt) throw new Error('Transaction failed');
 
       return {
-        hash: sentTx.hash,
+        hash: receipt.hash,
         wait: async () => {
           const finalReceipt = await sentTx.wait();
           if (!finalReceipt) throw new Error('Transaction failed');
