@@ -240,7 +240,7 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
   protected async getTokenInfo(tokenAddress: string, network: NetworkName): Promise<Token> {
     this.validateNetwork(network);
     if (this.isSolanaNetwork(network)) {
-      return await getTokenInfoSolana(tokenAddress, network);
+      return await getTokenInfoSolana(tokenAddress, network, this.providers, this.getName());
     }
     const provider = this.getEvmProviderForNetwork(network);
     return await getTokenInfo(tokenAddress, network, provider);
@@ -249,7 +249,7 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
   protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
     this.validateNetwork(network);
     if (isSolanaNetwork(network)) {
-      return await getTokenInfoSolana(tokenAddress, network);
+      return await getTokenInfoSolana(tokenAddress, network, this.providers, this.getName());
     }
 
     // Use the tokenCache utility instead of manual caching
@@ -292,7 +292,7 @@ export abstract class BaseBridgeProvider implements IBridgeProvider {
           return { isValid: true };
         } else {
           // For SPL tokens
-          const connection = new Connection('https://api.mainnet-beta.solana.com');
+          const connection = this.getSolanaProviderForNetwork(quote.fromNetwork);
           const tokenAccount = await connection.getParsedTokenAccountsByOwner(
             new PublicKey(walletAddress),
             {

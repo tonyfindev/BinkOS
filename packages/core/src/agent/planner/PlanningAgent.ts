@@ -173,7 +173,7 @@ export class PlanningAgent extends Agent {
       NOTE: 
       - Retrieve information in user's request and maintain it each task
       - You can create multiple tasks to execute the user's request and specific which tool will be used to execute the task.
-      - Don't verify transaction (get wallet balance ) after finished swap, transfer task
+      - Don't create verify transaction task (get wallet balance ) after finished swap, transfer, stake task
       Following tips trading:
 
         + Sell/Swap X/X% A to B (amount = X/calculate X% of current balance, amountType = input).

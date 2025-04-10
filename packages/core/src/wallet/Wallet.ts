@@ -363,10 +363,10 @@ export class Wallet implements IWallet {
         let tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
         const latestBlockhash = await connection.getLatestBlockhash('confirmed');
         let lastValidBlockHeight = transaction.lastValidBlockHeight;
-        if (!tx.message.recentBlockhash) {
-          tx.message.recentBlockhash = latestBlockhash.blockhash;
-          lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
-        }
+        //if (!tx.message.recentBlockhash) {
+        tx.message.recentBlockhash = latestBlockhash.blockhash;
+        lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+        //}
 
         if (!lastValidBlockHeight) {
           throw new Error('Last valid block height is required');
@@ -389,7 +389,7 @@ export class Wallet implements IWallet {
               connection,
               signature,
               tx.message.recentBlockhash,
-              lastValidBlockHeight,
+              lastValidBlockHeight + 5, // fix waiting transaction for 5 blocks
             );
             return {
               hash: signature,
@@ -407,11 +407,11 @@ export class Wallet implements IWallet {
 
         // If not a VersionedTransaction, try as regular Transaction
         const tx = SolanaTransaction.from(Buffer.from(transaction.data, 'base64'));
-        if (!tx.recentBlockhash) {
-          const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-          tx.recentBlockhash = latestBlockhash.blockhash;
-          tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
-        }
+        //if (!tx.recentBlockhash) {
+        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        tx.recentBlockhash = latestBlockhash.blockhash;
+        tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+        //}
         // Sign transaction
         tx.sign(this.#solanaKeypair);
 
@@ -429,7 +429,7 @@ export class Wallet implements IWallet {
               connection,
               signature,
               tx.recentBlockhash!,
-              tx.lastValidBlockHeight!,
+              tx.lastValidBlockHeight! + 5,
             );
             return {
               hash: signature,
