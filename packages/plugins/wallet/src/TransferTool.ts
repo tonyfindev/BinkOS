@@ -11,13 +11,19 @@ import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, TransferParams, TransferQuote } from './types';
 import { ethers } from 'ethers';
 
-export function validateTokenAddress(address: string): boolean {
+export function validateTokenAddress(address: string, chain: string): boolean {
   try {
-    // Check if it's a valid Ethereum address
+    if (chain === 'solana') {
+      return isValidSolanaAddress(address);
+    }
     return ethers.isAddress(address);
   } catch (error) {
     return false;
   }
+}
+
+export function isValidSolanaAddress(address: string): boolean {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
 }
 
 export interface TransferToolConfig extends IToolConfig {
@@ -57,14 +63,7 @@ export class TransferTool extends BaseTool {
   }
 
   private getSupportedNetworks(): string[] {
-    // Get networks from agent's wallet
-    const agentNetworks = Object.keys(this.agent.getNetworks());
-
-    // Intersect with supported networks from providers
-    const providerNetworks = Array.from(this.supportedNetworks);
-
-    // Return intersection of agent networks and provider supported networks
-    return agentNetworks.filter(network => providerNetworks.includes(network));
+    return Array.from(this.supportedNetworks) as NetworkName[];
   }
 
   getSchema(): z.ZodObject<any> {
@@ -108,7 +107,7 @@ export class TransferTool extends BaseTool {
       provider: preferredProvider,
     } = args;
     // Validate token address
-    if (!validateTokenAddress(token)) {
+    if (!validateTokenAddress(token, network)) {
       throw new Error(`Invalid token address for network ${network}: ${token}`);
     }
 
@@ -197,46 +196,57 @@ export class TransferTool extends BaseTool {
           const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();
-          // Build transaction
-          const transferTx = await selectedProvider?.buildTransferTransaction?.(quote, userAddress);
-          if (!transferTx) {
-            throw new Error('No transfer transaction found');
-          }
+          let transferTx;
 
-          const allowance = await selectedProvider?.checkAllowance?.(
-            network as NetworkName,
-            token,
-            userAddress,
-            transferTx?.to,
-          );
+          // Only check allowance for non-solana networks
+          if (network !== 'solana') {
+            // Build transaction
+            transferTx = await selectedProvider?.buildTransferTransaction?.(quote, userAddress);
+            if (!transferTx) {
+              throw new Error('No transfer transaction found');
+            }
 
-          const requiredAmount = BigInt(
-            Number(quote?.amount || 0) * 10 ** (quote?.token.decimals || 0),
-          );
-
-          console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
-
-          if (allowance && allowance < requiredAmount) {
-            const approveTx = await selectedProvider?.buildApproveTransaction?.(
+            const allowance = await selectedProvider?.checkAllowance?.(
               network as NetworkName,
               token,
-              transferTx?.to,
-              quote?.amount,
               userAddress,
+              transferTx?.to,
             );
 
-            console.log('🤖 Approving...');
-            // Sign and send approval transaction
-            const approveReceipt = await wallet.signAndSendTransaction(network, {
-              to: approveTx?.to || '',
-              data: approveTx?.data || '',
-              value: BigInt(approveTx?.value || 0),
-            });
+            const requiredAmount = BigInt(
+              Number(quote?.amount || 0) * 10 ** (quote?.token.decimals || 0),
+            );
 
-            console.log('🤖 ApproveReceipt:', approveReceipt);
+            console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
-            // Wait for approval to be mined
-            await approveReceipt.wait();
+            if (allowance && allowance < requiredAmount) {
+              const approveTx = await selectedProvider?.buildApproveTransaction?.(
+                network as NetworkName,
+                token,
+                transferTx?.to,
+                quote?.amount,
+                userAddress,
+              );
+
+              console.log('🤖 Approving...');
+              // Sign and send approval transaction
+              const approveReceipt = await wallet.signAndSendTransaction(network, {
+                to: approveTx?.to || '',
+                data: approveTx?.data || '',
+                value: BigInt(approveTx?.value || 0),
+              });
+
+              console.log('🤖 ApproveReceipt:', approveReceipt);
+
+              // Wait for approval to be mined
+              await approveReceipt.wait();
+            }
+          } else {
+            transferTx = await selectedProvider?.buildTransferTransaction?.(quote, userAddress);
+
+            if (!transferTx) {
+              throw new Error('No transfer transaction found');
+            }
           }
 
           console.log('🤖 Transferring...');

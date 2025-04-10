@@ -40,6 +40,7 @@ export interface Transaction {
   value: string;
   gasLimit?: bigint;
   network: NetworkName;
+  lastValidBlockHeight?: number;
 }
 
 export interface IWalletProvider {
