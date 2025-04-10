@@ -195,6 +195,7 @@ export class TransferTool extends BaseTool {
           console.log('🤖 Transfer Args:', args);
 
           const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
+
           // Get agent's wallet and address
           const wallet = this.agent.getWallet();
           // Build transaction

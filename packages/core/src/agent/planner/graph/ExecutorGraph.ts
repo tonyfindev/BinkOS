@@ -253,11 +253,13 @@ export class ExecutorGraph {
     });
 
     // Set ask user state and use interrupt
-    this.agent.setAskUser(true);
-    this.agent.notifyAskUser({
-      question,
-      timestamp: Date.now(),
-    });
+    if (!this.agent.isAskUser) {
+      this.agent.setAskUser(true);
+      this.agent.notifyAskUser({
+        question,
+        timestamp: Date.now(),
+      });
+    }
     const userMessage = interrupt({ question });
     this.agent.setAskUser(false);
 
@@ -322,13 +324,15 @@ export class ExecutorGraph {
           quote: !!quote,
         });
 
-        this.agent.setAskUser(true);
-        this.agent.notifyHumanReview({
-          toolName: toolCall.name,
-          input: toolCall.args,
-          data: quote,
-          timestamp: Date.now(),
-        });
+        if (!this.agent.isAskUser) {
+          this.agent.setAskUser(true);
+          this.agent.notifyHumanReview({
+            toolName: toolCall.name,
+            input: toolCall.args,
+            data: quote,
+            timestamp: Date.now(),
+          });
+        }
 
         const humanReview = interrupt<
           { question: string; quote: any },
