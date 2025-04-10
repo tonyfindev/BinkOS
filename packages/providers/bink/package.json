@@ -1,6 +1,6 @@
 {
   "name": "@binkai/bink-provider",
-  "version": "0.2.2-alpha.0.2",
+  "version": "0.2.3-alpha.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
