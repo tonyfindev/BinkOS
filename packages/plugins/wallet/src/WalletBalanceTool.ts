@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  AgentNodeTypes,
   BaseTool,
   CustomDynamicStructuredTool,
   IToolConfig,
@@ -50,6 +51,10 @@ export function mergeObjects<T extends Record<string, any>>(obj1: T, obj2: T): T
 }
 
 export class GetWalletBalanceTool extends BaseTool {
+  public readonly agentNodeSupports: AgentNodeTypes[] = [
+    AgentNodeTypes.PLANNER,
+    AgentNodeTypes.EXECUTOR,
+  ];
   public registry: ProviderRegistry;
   private supportedNetworks: Set<string>;
 
@@ -83,6 +88,13 @@ export class GetWalletBalanceTool extends BaseTool {
     return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
+  }
   getSchema(): z.ZodObject<any> {
     const supportedNetworks = this.getsupportedNetworks();
     if (supportedNetworks.length === 0) {
@@ -93,10 +105,11 @@ export class GetWalletBalanceTool extends BaseTool {
       address: z
         .string()
         .optional()
-        .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
+        .describe('The wallet address to query (optional - use agent wallet if not provided)'),
       network: z
-        .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon'])
-        .describe('The blockchain to query the wallet on.'),
+        .enum(['bnb', 'solana', 'ethereum'])
+        .optional()
+        .describe('The blockchain network to query the wallet on.'),
     });
   }
 

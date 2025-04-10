@@ -23,6 +23,13 @@ export class KnowledgeTool extends BaseTool {
     this.providers.set(provider.getName(), provider);
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
+  }
   getSchema(): z.ZodObject<any> {
     const providers = Array.from(this.providers.keys());
     if (providers.length === 0) {

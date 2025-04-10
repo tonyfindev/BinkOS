@@ -4,6 +4,11 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bink-AI/BinkOS"
+  },
+  "homepage": "https://bink.ai/",
   "files": [
     "dist",
     "README.md",
@@ -19,7 +24,7 @@
   },
   "dependencies": {
     "@binkai/core": "workspace:*",
-    "@langchain/core": "^0.3.32",
+    "@langchain/core": "^0.3.42",
     "ethers": "^6.0.0",
     "zod": "^3.22.0"
   },

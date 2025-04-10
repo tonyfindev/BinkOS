@@ -28,5 +28,10 @@
     "jest": "^29.0.0",
     "rimraf": "^5.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bink-AI/BinkOS"
+  },
+  "homepage": "https://bink.ai/"
 }

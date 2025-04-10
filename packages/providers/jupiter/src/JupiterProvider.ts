@@ -39,6 +39,7 @@ export class JupiterProvider extends BaseSwapProvider {
         Accept: 'application/json',
       },
     });
+
     this.provider = this.getSolanaProviderForNetwork(NetworkName.SOLANA);
   }
 
@@ -297,6 +298,9 @@ export class JupiterProvider extends BaseSwapProvider {
         this.getToken(params.fromToken, params.network),
         this.getToken(params.toToken, params.network),
       ]);
+
+      console.log('🤖 Jupiter quote sourceToken:', sourceToken);
+      console.log('🤖 Jupiter quote destinationToken:', destinationToken);
 
       let adjustedAmount = params.amount;
 

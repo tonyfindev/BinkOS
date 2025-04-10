@@ -8,11 +8,18 @@ import { UserEntity, UUID } from '../types';
 import { DatabaseAdapter } from '../storage';
 import { IToolExecutionCallback } from './callbacks';
 
+export enum AgentNodeTypes {
+  PLANNER = 'planner',
+  EXECUTOR = 'executor',
+}
+
 export interface AgentConfig {
   model: string;
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
+  isHumanReview?: boolean;
+  isMockResponseTool?: boolean;
 }
 
 export interface AgentContext {
@@ -60,4 +67,5 @@ export interface IAgent {
   getWallet(): IWallet;
   getNetworks(): NetworksConfig['networks'];
   registerDatabase(db: DatabaseAdapter): Promise<void>;
+  isMockResponseTool(): boolean;
 }
