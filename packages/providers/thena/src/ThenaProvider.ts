@@ -1,4 +1,10 @@
-import { SwapQuote, SwapParams, BaseSwapProvider, NetworkProvider } from '@binkai/swap-plugin';
+import {
+  SwapQuote,
+  SwapParams,
+  BaseSwapProvider,
+  NetworkProvider,
+  parseTokenAmount,
+} from '@binkai/swap-plugin';
 import { Contract, ethers, Provider } from 'ethers';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 import { OrbsABI } from './abis/Orbs';
@@ -16,6 +22,9 @@ export const CONSTANTS = {
   EXCHANGE_ADDRESS: '0xc2aBC02acd77Bb2407efA22348dA9afC8B375290', // OpenOceanExchange
   ORBS_ADDRESS: '0x25a0A78f5ad07b2474D3D42F1c1432178465936d',
   WRAP_BNB_ADDRESS: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
+  USDC_ADDRESS: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+  USDT_ADDRESS: '0x55d398326f99059ff775485246999027b3197955',
+  BUSD_ADDRESS: '0xe9e7cea3dedca5984780bafc599bd69add087d56',
 } as const;
 
 enum ChainId {
@@ -117,7 +126,20 @@ export class ThenaProvider extends BaseSwapProvider {
       let swapTransactionData;
 
       let optimalRoute;
+      let amountOut;
       if (params?.limitPrice && Number(params?.limitPrice) !== 0) {
+        // check token in is stable token
+        const tokenInStable = this.checkIsStableToken(tokenInAddress);
+        const tokenOutStable = this.checkIsStableToken(tokenOutAddress);
+
+        if (!tokenInStable && !tokenOutStable) {
+          throw new Error('Thena only support limit order with USDC, USDT, BUSD as input token');
+        }
+        // need verify amount out
+        if (!params?.limitPrice || Number(params?.limitPrice) < 0) {
+          throw new Error('No amount out from Thena');
+        }
+
         swapTransactionData = null;
 
         // Fetch optimal limit order route
@@ -129,9 +151,19 @@ export class ThenaProvider extends BaseSwapProvider {
           amountIn.toString(),
           params?.limitPrice,
         );
+        // check token in is stable token
+        const multiplier =
+          params?.limitPrice > 1 ? Number(params?.limitPrice) : 1 / Number(params?.limitPrice);
+        amountOut = Number(amountIn) * (tokenInStable ? 1 / multiplier : multiplier);
+
+        amountOut = amountOut.toFixed(0);
 
         // build limit order transaction
-        swapTransactionData = await this.buildLimitOrderRouteTransaction(optimalRoute, userAddress);
+        swapTransactionData = await this.buildLimitOrderRouteTransaction(
+          optimalRoute,
+          userAddress,
+          amountOut.toString(),
+        );
 
         if (!swapTransactionData) {
           throw new Error('No limit order routes available from Thena');
@@ -162,6 +194,7 @@ export class ThenaProvider extends BaseSwapProvider {
         swapTransactionData,
         optimalRoute,
         userAddress,
+        amountOut?.toString(),
       );
       this.storeQuoteWithExpiry(swapQuote);
       return swapQuote;
@@ -170,6 +203,18 @@ export class ThenaProvider extends BaseSwapProvider {
       throw new Error(
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
+    }
+  }
+
+  private checkIsStableToken(tokenAddress: string) {
+    if (
+      tokenAddress.toLowerCase() === CONSTANTS.USDC_ADDRESS.toLowerCase() ||
+      tokenAddress.toLowerCase() === CONSTANTS.USDT_ADDRESS.toLowerCase() ||
+      tokenAddress.toLowerCase() === CONSTANTS.BUSD_ADDRESS.toLowerCase()
+    ) {
+      return true;
+    } else {
+      return false;
     }
   }
 
@@ -239,15 +284,19 @@ export class ThenaProvider extends BaseSwapProvider {
     return await transactionResponse.json();
   }
 
-  private async buildLimitOrderRouteTransaction(routeData: any, userAddress: string) {
+  private async buildLimitOrderRouteTransaction(
+    routeData: any,
+    userAddress: string,
+    amountOut: string,
+  ) {
     const ask = {
       exchange: CONSTANTS.EXCHANGE_ADDRESS,
       srcToken: routeData.inTokens[0],
       dstToken: routeData.outTokens[0],
       srcAmount: routeData.inAmounts[0],
       srcBidAmount: routeData.inAmounts[0],
-      dstMinAmount: routeData.outAmounts[0],
-      deadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour will expire
+      dstMinAmount: amountOut,
+      deadline: Math.floor(Date.now() / 1000) + 24 * 3600, // 1 day will expire
       bidDelay: CONSTANTS.TIME_DELAY,
       fillDelay: '0',
       data: '0x',
@@ -287,6 +336,21 @@ export class ThenaProvider extends BaseSwapProvider {
     return order;
   }
 
+  private async getInfoToken(address: string) {
+    try {
+      const response = await fetch(`https://api.thena.fi/api/v1/topTokens/${ChainId.BSC}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch token info: ${response.statusText}`);
+      }
+      const data = await response.json();
+      const tokenInfo = data.data.find((token: any) => token.address === address);
+      return tokenInfo;
+    } catch (error) {
+      console.error('Error fetching token info:', error);
+      throw new Error('Thena not support this token');
+    }
+  }
+
   private createSwapQuote(
     params: SwapParams,
     sourceToken: Token,
@@ -294,6 +358,7 @@ export class ThenaProvider extends BaseSwapProvider {
     swapTransactionData: any,
     routeData: any,
     walletAddress: string,
+    amountOutLimitOrder?: string,
   ): SwapQuote {
     const quoteId = ethers.hexlify(ethers.randomBytes(32));
     return {
@@ -302,7 +367,10 @@ export class ThenaProvider extends BaseSwapProvider {
       fromToken: sourceToken,
       toToken: destinationToken,
       fromAmount: ethers.formatUnits(routeData.inAmounts[0], sourceToken.decimals),
-      toAmount: ethers.formatUnits(routeData.outAmounts[0], destinationToken.decimals),
+      toAmount:
+        params?.limitPrice && amountOutLimitOrder
+          ? ethers.formatUnits(amountOutLimitOrder, destinationToken.decimals)
+          : ethers.formatUnits(routeData.outAmounts[0], destinationToken.decimals),
       slippage: 100, // 10% default slippage
       type: params.type,
       priceImpact: routeData.priceImpact || 0,
