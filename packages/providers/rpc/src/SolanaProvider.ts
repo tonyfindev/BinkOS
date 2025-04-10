@@ -17,6 +17,12 @@ import {
 import { Metaplex } from '@metaplex-foundation/js';
 import { GAS_BUFFER } from './types';
 import { ethers } from 'ethers';
+import {
+  createTransferCheckedInstruction,
+  createTransferInstruction,
+  getAssociatedTokenAddress,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 interface SolanaProviderConfig {
   rpcUrl?: string;
 }
@@ -160,13 +166,54 @@ export class SolanaProvider implements IWalletProvider {
     tx.recentBlockhash = blockhash.blockhash;
     tx.lastValidBlockHeight = blockhash.lastValidBlockHeight;
 
-    tx.add(
-      solanaWeb3.SystemProgram.transfer({
-        fromPubkey: new PublicKey(quote.fromAddress),
-        toPubkey: new PublicKey(quote.toAddress),
-        lamports: Number(amount),
-      }),
-    );
+    if (this.isNativeSolana(quote.token.address)) {
+      // Handle native SOL transfer
+      tx.add(
+        solanaWeb3.SystemProgram.transfer({
+          fromPubkey: new PublicKey(quote.fromAddress),
+          toPubkey: new PublicKey(quote.toAddress),
+          lamports: Number(amount),
+        }),
+      );
+    } else {
+      console.log('spl token transfer');
+      // Handle SPL token transfer
+      const mintPubkey = new PublicKey(quote.token.address);
+      const fromPubkey = new PublicKey(quote.fromAddress);
+      const toPubkey = new PublicKey(quote.toAddress);
+
+      // Get the source token account (sender's token account)
+      const sourceTokenAccounts = await this.connection.getParsedTokenAccountsByOwner(fromPubkey, {
+        mint: mintPubkey,
+      });
+
+      if (sourceTokenAccounts.value.length === 0) {
+        throw new Error('Source token account not found');
+      }
+
+      const sourceTokenAccount = sourceTokenAccounts.value[0].pubkey;
+
+      // Get or create the destination token account (recipient's token account)
+      const destinationTokenAccount = await getAssociatedTokenAddress(mintPubkey, toPubkey);
+
+      // Check if the destination token account exists
+      const destinationAccountInfo = await this.connection.getAccountInfo(destinationTokenAccount);
+      if (!destinationAccountInfo) {
+        throw new Error('Transaction simulation failed: Blockhash not found');
+      }
+
+      // Create transfer instruction
+      tx.add(
+        createTransferCheckedInstruction(
+          sourceTokenAccount, // source token account
+          mintPubkey, // mint
+          destinationTokenAccount, // destination token account
+          fromPubkey, // owner of source token account
+          Number(amount), // amount
+          quote.token.decimals, // decimals
+        ),
+      );
+    }
 
     // Serialize without signatures since they will be added by the wallet
     const dataTx = Buffer.from(tx.serialize({ verifySignatures: false })).toString('base64');

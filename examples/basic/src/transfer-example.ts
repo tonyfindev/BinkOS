@@ -145,7 +145,8 @@ async function main() {
 
   // Execute token transfer through natural language
   const result = await agent.execute({
-    input: 'send 0.0001 SOL to 4F2KM7qgRLWAAXWnLW2rBpJnZmUCe2qCbHztHUqgqSyj on solana',
+    input:
+      'send 0.01 USDT(Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB) to wallet(4F2KM7qgRLWAAXWnLW2rBpJnZmUCe2qCbHztHUqgqSyj) on solana',
   });
   console.log('🤖 Result:', result);
 }
