@@ -23,7 +23,6 @@ import {
   SwapMode,
 } from './utils';
 import { Provider, ethers, Contract, Interface } from 'ethers';
-const DEFAULT_SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
 
 export class JupiterProvider extends BaseSwapProvider {
   private api: AxiosInstance;
@@ -40,7 +39,8 @@ export class JupiterProvider extends BaseSwapProvider {
         Accept: 'application/json',
       },
     });
-    this.provider = provider;
+
+    this.provider = this.getSolanaProviderForNetwork(NetworkName.SOLANA);
   }
 
   getName(): string {
@@ -177,7 +177,6 @@ export class JupiterProvider extends BaseSwapProvider {
       }
 
       const data = await response.json();
-
       const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
       return {
         tx: data.transactions[0],

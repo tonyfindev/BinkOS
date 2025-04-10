@@ -554,6 +554,7 @@ export class SwapTool extends BaseTool {
             //   Number(swapParams.limitPrice) !== 0 && {
             //     limitOrderPrice: swapParams.limitPrice,
             //   }),
+
           };
 
           return JSON.stringify(result);

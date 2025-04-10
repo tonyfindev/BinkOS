@@ -140,8 +140,8 @@ Before using this tool, you should first check your staking balances using the g
     // Find the best quote based on amount type
     return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
       // For output amount, find lowest input amount
-      const bestAmount = BigInt(Number(best.quote.amountA) * 10 ** best.quote.tokenA.decimals);
-      const currentAmount = BigInt(
+      const bestAmount = Math.floor(Number(best.quote.amountA) * 10 ** best.quote.tokenA.decimals);
+      const currentAmount = Math.floor(
         Number(current.quote.amountA) * 10 ** current.quote.tokenA.decimals,
       );
       return currentAmount < bestAmount ? current : best;
@@ -380,6 +380,7 @@ Before using this tool, you should first check your staking balances using the g
 
           // Return result as JSON string
           return JSON.stringify({
+            status: 'success',
             provider: selectedProvider.getName(),
             tokenA: quote.tokenA,
             tokenB: quote.tokenB,
