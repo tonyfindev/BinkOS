@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ethers, Transaction, TransactionRequest } from 'ethers';
 import {
   Agent,
   Wallet,
@@ -10,6 +10,7 @@ import {
   IToolExecutionCallback,
   ToolExecutionData,
   ToolExecutionState,
+  ExtensionWallet,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
@@ -21,6 +22,18 @@ import { BnbProvider } from '@binkai/rpc-provider';
 // import { FourMemeProvider } from '@binkai/four-meme-provider';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
+import { Server } from 'socket.io';
+import { io as ioClient } from 'socket.io-client';
+import { JupiterProvider } from '@binkai/jupiter-provider';
+import {
+  Connection,
+  VersionedTransaction,
+  Transaction as SolanaTransaction,
+} from '@solana/web3.js';
+
+const io = new Server(3000, {
+  // options
+});
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -55,6 +68,61 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
       console.log(`   Error: ${data.error.message || String(data.error)}`);
     }
   }
+}
+
+async function mockExtensionWalletClient(network: Network) {
+  //Fake wallet for testing
+  const wallet = new Wallet(
+    {
+      seedPhrase:
+        settings.get('WALLET_MNEMONIC') ||
+        'test test test test test test test test test test test junk',
+      index: 0,
+    },
+    network,
+  );
+  const socket = ioClient('http://localhost:3000');
+
+  socket.on('connect', () => {
+    console.log('connected to extension wallet client');
+  });
+
+  socket.on('disconnect', () => {
+    console.log('disconnected from extension wallet client');
+  });
+
+  socket.on('error', error => {
+    console.log('error from extension wallet client', error);
+  });
+
+  socket.on('get_address', async (data, callback) => {
+    console.log('get_address from extension wallet client', data);
+    callback({ address: await wallet.getAddress(data.network) });
+  });
+
+  socket.on('sign_message', async (data, callback) => {
+    console.log('sign_message from extension wallet client', data);
+    callback({ signature: await wallet.signMessage(data) });
+  });
+
+  socket.on('sign_transaction', async (data, callback) => {
+    console.log('sign_transaction from extension wallet client', data);
+    let tx: ethers.Transaction | VersionedTransaction | SolanaTransaction;
+
+    if (data.network == 'solana') {
+      try {
+        tx = VersionedTransaction.deserialize(Buffer.from(data.transaction, 'base64'));
+      } catch (e) {
+        tx = SolanaTransaction.from(Buffer.from(data.transaction, 'base64'));
+      }
+    } else {
+      tx = Transaction.from(data.transaction);
+    }
+
+    const signedTx = await wallet.signTransaction({ network: data.network, transaction: tx });
+    console.log('signedTx', signedTx);
+    callback({ signedTransaction: signedTx });
+  });
 }
 
 async function main() {
@@ -124,19 +192,22 @@ async function main() {
 
   // Initialize a new wallet
   console.log('👛 Creating wallet...');
-  const wallet = new Wallet(
-    {
-      seedPhrase:
-        settings.get('WALLET_MNEMONIC') ||
-        'test test test test test test test test test test test junk',
-      index: 0,
-    },
-    network,
-  );
+  const wallet = new ExtensionWallet(network);
   console.log('✓ Wallet created\n');
 
+  //Listen for connection from extension wallet
+  io.on('connection', socket => {
+    console.log('a user connected');
+    wallet.connect(socket);
+  });
+
+  await mockExtensionWalletClient(network);
+
+  //sleep for 2 seconds
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
-  console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
+  console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.SOLANA));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
@@ -195,6 +266,7 @@ async function main() {
 
   // Create providers with proper chain IDs
   const pancakeswap = new PancakeSwapProvider(provider, 56);
+  const jupiter = new JupiterProvider(new Connection(SOL_RPC));
 
   // const okx = new OkxProvider(provider, 56);
 
@@ -204,8 +276,8 @@ async function main() {
   await swapPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [pancakeswap],
-    supportedChains: ['bnb', 'ethereum'], // These will be intersected with agent's networks
+    providers: [pancakeswap, jupiter],
+    supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
   });
   console.log('✓ Swap plugin initialized\n');
 
@@ -251,7 +323,7 @@ async function main() {
   console.log('💱 Example 2: buy BINK from 10 USDC on solana');
   const result2 = await agent.execute({
     input: `
-    Swap BINK to USDC 
+   BUY TRUMP from 0.001 SOL
     `,
   });
 

@@ -19,11 +19,10 @@ import {
   JupiterQuoteParams,
   JupiterQuoteResponse,
   JupiterResponse,
-  JupiterSwapParams,
   JupiterSwapResponse,
+  SwapMode,
 } from './utils';
 import { Provider, ethers, Contract, Interface } from 'ethers';
-const DEFAULT_SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
 
 const STABLE_TOKENS = {
   USDC_ADDRESS: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
@@ -37,7 +36,7 @@ export class JupiterProvider extends BaseSwapProvider {
   private provider: Connection;
   constructor(provider: Connection) {
     const providerMap = new Map<NetworkName, NetworkProvider>();
-    providerMap.set(NetworkName.SOLANA, new Connection(DEFAULT_SOLANA_RPC_URL));
+    providerMap.set(NetworkName.SOLANA, provider);
     super(providerMap);
     this.api = axios.create({
       baseURL: JupiterProvider.DEFAULT_BASE_URL,
@@ -45,7 +44,7 @@ export class JupiterProvider extends BaseSwapProvider {
         Accept: 'application/json',
       },
     });
-    this.provider = new Connection(DEFAULT_SOLANA_RPC_URL);
+    this.provider = this.getSolanaProviderForNetwork(NetworkName.SOLANA);
   }
 
   getName(): string {
@@ -172,7 +171,6 @@ export class JupiterProvider extends BaseSwapProvider {
       }
 
       const data = await response.json();
-
       const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
       return {
         tx: data.transactions[0],
@@ -280,6 +278,7 @@ export class JupiterProvider extends BaseSwapProvider {
           autoSlippageCollisionUsdValue: params.autoSlippageCollisionUsdValue,
         }),
       };
+      console.log('🚀 ~ JupiterProvider ~ getQuoteJupiter ~ queryParams:', queryParams);
 
       const response = await this.api.get<JupiterQuoteResponse>('/quote', {
         params: queryParams,
@@ -336,11 +335,12 @@ export class JupiterProvider extends BaseSwapProvider {
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       const [sourceToken, destinationToken] = await Promise.all([
-        this.getToken(params.type === 'input' ? params.fromToken : params.toToken, params.network),
-        this.getToken(params.type === 'input' ? params.toToken : params.fromToken, params.network),
+        this.getToken(params.fromToken, params.network),
+        this.getToken(params.toToken, params.network),
       ]);
 
       let adjustedAmount = params.amount;
+
       if (params.type === 'input') {
         adjustedAmount = await this.adjustAmount(
           params.fromToken,
@@ -355,6 +355,8 @@ export class JupiterProvider extends BaseSwapProvider {
           );
         }
       }
+
+      const swapMode = params.type === 'input' ? SwapMode.ExactIn : SwapMode.ExactOut;
 
       let swapData;
       let getSwapBuyAggregator;
@@ -376,6 +378,7 @@ export class JupiterProvider extends BaseSwapProvider {
             inputMint: new PublicKey(sourceToken.address),
             outputMint: new PublicKey(destinationToken.address),
             amount: Number(parseTokenAmount(adjustedAmount, sourceToken.decimals)),
+            swapMode,
           },
           userAddress,
         );
@@ -403,11 +406,16 @@ export class JupiterProvider extends BaseSwapProvider {
           {
             inputMint: new PublicKey(sourceToken.address),
             outputMint: new PublicKey(destinationToken.address),
-            amount: Number(parseTokenAmount(adjustedAmount, sourceToken.decimals)),
+            amount: Number(
+              parseTokenAmount(
+                adjustedAmount,
+                swapMode === SwapMode.ExactIn ? sourceToken.decimals : destinationToken.decimals,
+              ),
+            ),
+            swapMode,
           },
           userAddress,
         );
-
         // build transaction
         getSwapBuyAggregator = await this.getSwapBuyAggregator(swapData, userAddress);
       }
@@ -416,17 +424,12 @@ export class JupiterProvider extends BaseSwapProvider {
         throw new Error('Failed to get swap buy aggregator');
       }
 
-      // if (!getSwapBuyAggregator?.lastValidBlockHeight) {
-      //   const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
-      //   getSwapBuyAggregator.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
-      // }
-
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
       const quote: SwapQuote = {
         quoteId: quoteId,
         fromToken: sourceToken,
         toToken: destinationToken,
-        fromAmount: adjustedAmount,
+        fromAmount: ethers.formatUnits(swapData.inAmount, sourceToken.decimals),
         toAmount: params?.limitPrice
           ? amountOutLimitOrder?.toString() || '0'
           : ethers.formatUnits(swapData.outAmount, destinationToken.decimals),

@@ -121,7 +121,7 @@ async function main() {
   console.log('💱 Example 1: Buy with exact input amount on BNB Chain');
   const result1 = await agent.execute({
     input: `
-      Buy BINK from exactly 0.001 BNB on KyberSwap with 10% slippage on bnb chain.
+      Buy 0.001 BNB to BINK on Kyber
       Use the following token addresses:
       BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
     `,
@@ -129,14 +129,14 @@ async function main() {
   console.log('✓ Swap result:', result1, '\n');
 
   // Example 2: Sell with exact output amount on BNB Chain
-  console.log('💱 Example 2: Sell with exact output amount on BNB Chain');
-  const result2 = await agent.execute({
-    input: `
-      Sell 50236.023973228333437327 BINK to BNB on KyberSwap with 0.5% slippage on bnb chain.
-      Use the following token addresses:
-      BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
-    `,
-  });
+  // console.log('💱 Example 2: Sell with exact output amount on BNB Chain');
+  // const result2 = await agent.execute({
+  //   input: `
+  //     Sell 50236.023973228333437327 BINK to BNB on KyberSwap with 0.5% slippage on bnb chain.
+  //     Use the following token addresses:
+  //     BINK: 0x5fdfaFd107Fc267bD6d6B1C08fcafb8d31394ba1
+  //   `,
+  // });
 
   // console.log('✓ Swap result:', result2, '\n');
 

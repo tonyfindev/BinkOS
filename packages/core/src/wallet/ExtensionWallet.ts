@@ -1,108 +1,106 @@
-import { ethers } from 'ethers';
+import { NetworkName } from '../network';
 import {
-  Keypair,
-  Transaction as SolanaTransaction,
-  VersionedTransaction,
-  Connection,
-  sendAndConfirmTransaction,
-  sendAndConfirmRawTransaction,
-} from '@solana/web3.js';
-import { mnemonicToSeedSync } from 'bip39';
-import { derivePath } from 'ed25519-hd-key';
-import bs58 from 'bs58';
-import nacl from 'tweetnacl';
-
-import { Network } from '../network';
-import { NetworkName } from '../network/types';
-import {
-  WalletConfig,
+  IWallet,
+  SignedTransactionRequest,
   SignMessageParams,
   SignTransactionParams,
-  TransactionType,
-  IWallet,
-  TransactionRequest,
   TransactionReceipt,
-  SignedTransactionRequest,
+  TransactionRequest,
 } from './types';
+import { Socket } from 'socket.io';
+import { Network } from '../network/Network';
+import { ethers, Transaction as EvmTransaction } from 'ethers';
+import {
+  Connection,
+  Transaction as SolanaTransaction,
+  VersionedTransaction,
+} from '@solana/web3.js';
 
-export class Wallet implements IWallet {
-  readonly #evmWallet: ethers.HDNodeWallet;
-  readonly #solanaKeypair: Keypair;
+export class ExtensionWallet implements IWallet {
+  socket: Socket | null = null;
   readonly #network: Network;
+  readonly timeout: number = 30000; // 30 seconds timeout
 
-  constructor(config: WalletConfig, network: Network) {
+  constructor(network: Network) {
     this.#network = network;
-
-    // Initialize EVM wallet
-    this.#evmWallet = ethers.Wallet.fromPhrase(config.seedPhrase);
-
-    // Initialize Solana wallet
-    const seed = mnemonicToSeedSync(config.seedPhrase);
-    const derivedPath = `m/44'/501'/${config.index ?? 0}'/0'`;
-    const keyPair = derivePath(derivedPath, seed.toString('hex'));
-    this.#solanaKeypair = Keypair.fromSeed(keyPair.key);
   }
 
-  public async getAddress(network: NetworkName): Promise<string> {
-    const networkType = this.#network.getNetworkType(network);
+  public async connect(socket: Socket): Promise<void> {
+    this.socket = socket;
+  }
 
-    if (networkType === 'evm') {
-      return this.#evmWallet.address;
-    } else {
-      return this.#solanaKeypair.publicKey.toString();
+  private async ensureConnection(): Promise<void> {
+    if (!this.socket) {
+      throw new Error('Not connected to extension wallet client');
     }
-  }
-
-  public async signMessage(params: SignMessageParams): Promise<string> {
-    const networkType = this.#network.getNetworkType(params.network);
-
-    if (networkType === 'evm') {
-      return await this.#evmWallet.signMessage(params.message);
-    } else {
-      const messageBytes = new TextEncoder().encode(params.message);
-      const signature = nacl.sign.detached(messageBytes, this.#solanaKeypair.secretKey);
-      return bs58.encode(signature);
-    }
-  }
-
-  public async signTransaction(params: SignTransactionParams): Promise<string> {
-    const networkType = this.#network.getNetworkType(params.network);
-    const transaction = params.transaction as TransactionType;
-
-    if (networkType === 'evm') {
-      const evmTx = transaction as ethers.Transaction;
-      return await this.#evmWallet.signTransaction(evmTx);
-    } else {
-      if (transaction instanceof VersionedTransaction) {
-        transaction.sign([this.#solanaKeypair]);
-        return Buffer.from(transaction.serialize()).toString('base64');
-      } else if (transaction instanceof SolanaTransaction) {
-        transaction.partialSign(this.#solanaKeypair);
-        return Buffer.from(transaction.serialize()).toString('base64');
-      }
-      throw new Error('Invalid Solana transaction type');
+    if (!this.socket.connected) {
+      throw new Error('Not connected to extension wallet client');
     }
   }
 
   public async getPublicKey(network: NetworkName): Promise<string> {
-    const networkType = this.#network.getNetworkType(network);
-
-    if (networkType === 'evm') {
-      return this.#evmWallet.publicKey;
-    } else {
-      return this.#solanaKeypair.publicKey.toBase58();
-    }
+    return this.getAddress(network);
+  }
+  public async getPrivateKey(network: NetworkName): Promise<string> {
+    throw new Error('Not supported getting private key for extension wallet');
   }
 
-  // TODO: THIS METHOD WILL BE REMOVED IN THE FUTURE
-  public async getPrivateKey(network: NetworkName): Promise<string> {
-    const networkType = this.#network.getNetworkType(network);
+  public async getAddress(network: NetworkName): Promise<string> {
+    await this.ensureConnection();
 
-    if (networkType === 'evm') {
-      return this.#evmWallet.privateKey;
-    } else {
-      return bs58.encode(this.#solanaKeypair.secretKey);
+    const response = (await this.socket?.timeout(5000).emitWithAck('get_address', { network })) as {
+      address?: string;
+      error?: string;
+    };
+    if (response.error) {
+      throw new Error(response.error);
     }
+    if (!response.address) {
+      throw new Error('No address found');
+    }
+    return response.address;
+  }
+
+  public async signMessage(params: SignMessageParams): Promise<string> {
+    await this.ensureConnection();
+
+    const response = (await this.socket?.timeout(5000).emitWithAck('sign_message', params)) as {
+      signature?: string;
+      error?: string;
+    };
+    if (response.error) {
+      throw new Error(response.error);
+    }
+    if (!response.signature) {
+      throw new Error('No signature found');
+    }
+    return response.signature;
+  }
+
+  public async signTransaction(params: SignTransactionParams): Promise<string> {
+    await this.ensureConnection();
+
+    let transactionStr: string;
+
+    if (params.transaction instanceof EvmTransaction) {
+      transactionStr = params.transaction.unsignedSerialized;
+    } else if (params.transaction instanceof VersionedTransaction) {
+      transactionStr = Buffer.from(params.transaction.serialize()).toString('base64');
+    } else {
+      transactionStr = Buffer.from(params.transaction.serialize()).toString('base64');
+    }
+
+    const response = (await this.socket?.timeout(5000).emitWithAck('sign_transaction', {
+      network: params.network,
+      transaction: transactionStr,
+    })) as { signedTransaction?: string; error?: string };
+    if (response.error) {
+      throw new Error(response.error);
+    }
+    if (!response.signedTransaction) {
+      throw new Error('No signed transaction found');
+    }
+    return response.signedTransaction;
   }
 
   public async waitForSolanaTransaction(
@@ -122,71 +120,6 @@ export class Wallet implements IWallet {
 
     if (result.value.err) {
       throw new Error(`Transaction failed: ${result.value.err.toString()}`);
-    }
-  }
-
-  async watchTransaction(
-    connection: Connection,
-    txHash: string,
-    serializedTx?: string,
-    sendTransaction?: any,
-    retry: number = 20,
-  ): Promise<{ confirmed: boolean; message: string }> {
-    if (retry <= 0) {
-      return {
-        confirmed: false,
-        message: `❌ Transaction not confirmed`,
-      };
-    }
-
-    try {
-      const status = await connection.getSignatureStatus(txHash);
-
-      if (
-        status.value?.confirmationStatus !== 'confirmed' &&
-        status.value?.confirmationStatus !== 'finalized'
-      ) {
-        await new Promise(r => setTimeout(r, 1500));
-
-        if (serializedTx && sendTransaction) {
-          sendTransaction(serializedTx);
-        }
-
-        return await this.watchTransaction(
-          connection,
-          txHash,
-          serializedTx,
-          sendTransaction,
-          retry - 1,
-        );
-      }
-
-      if (status.value?.err) {
-        console.log(status.value?.err);
-        return {
-          confirmed: false,
-          message: `❌ Transaction failed. Error: ${JSON.stringify(status.value?.err)}`,
-        };
-      }
-
-      return {
-        confirmed: true,
-        message: '✅ Transaction submitted successfully',
-      };
-    } catch (e) {
-      await new Promise(r => setTimeout(r, 1500));
-
-      if (serializedTx && sendTransaction) {
-        sendTransaction(serializedTx);
-      }
-
-      return await this.watchTransaction(
-        connection,
-        txHash,
-        serializedTx,
-        sendTransaction,
-        retry - 1,
-      );
     }
   }
 
@@ -322,7 +255,9 @@ export class Wallet implements IWallet {
 
     if (networkType === 'evm') {
       const provider = new ethers.JsonRpcProvider(networkConfig.config.rpcUrl);
-      const signer = this.#evmWallet.connect(provider);
+      const address = await this.getAddress(network);
+
+      const signer = new ethers.VoidSigner(address, provider);
 
       // Create and sign transaction
       const tx = await signer.populateTransaction({
@@ -331,10 +266,11 @@ export class Wallet implements IWallet {
         value: transaction.value,
         gasLimit: transaction.gasLimit,
       });
-      const signedTx = await signer.signTransaction(tx);
+
+      const signedTx = await this.signTransaction({ network, transaction: tx as EvmTransaction });
 
       // Send signed transaction
-      const sentTx = await provider.broadcastTransaction(signedTx);
+      const sentTx = await this.sendTransaction(network, { transaction: signedTx });
       const receipt = await sentTx.wait();
       if (!receipt) throw new Error('Transaction failed');
 
@@ -362,20 +298,23 @@ export class Wallet implements IWallet {
         let tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
         const latestBlockhash = await connection.getLatestBlockhash('confirmed');
         let lastValidBlockHeight = transaction.lastValidBlockHeight;
-        //if (!tx.message.recentBlockhash) {
-        tx.message.recentBlockhash = latestBlockhash.blockhash;
-        lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
-        //}
+        if (!tx.message.recentBlockhash) {
+          tx.message.recentBlockhash = latestBlockhash.blockhash;
+          lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+        }
 
         if (!lastValidBlockHeight) {
           throw new Error('Last valid block height is required');
         }
 
         // Sign transaction
-        tx.sign([this.#solanaKeypair]);
+        const signedTx = await this.signTransaction({
+          network,
+          transaction: tx as VersionedTransaction,
+        });
 
         // Send raw transaction
-        const rawTransaction = Buffer.from(tx.serialize());
+        const rawTransaction = Buffer.from(signedTx, 'base64');
         const signature = await connection.sendRawTransaction(rawTransaction, {
           skipPreflight: false,
           preflightCommitment: 'confirmed',
@@ -388,7 +327,7 @@ export class Wallet implements IWallet {
               connection,
               signature,
               tx.message.recentBlockhash,
-              lastValidBlockHeight + 5, // fix waiting transaction for 5 blocks
+              lastValidBlockHeight,
             );
             return {
               hash: signature,
@@ -406,16 +345,18 @@ export class Wallet implements IWallet {
 
         // If not a VersionedTransaction, try as regular Transaction
         const tx = SolanaTransaction.from(Buffer.from(transaction.data, 'base64'));
-        //if (!tx.recentBlockhash) {
-        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-        tx.recentBlockhash = latestBlockhash.blockhash;
-        tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
-        //}
+        if (!tx.recentBlockhash) {
+          const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+          tx.recentBlockhash = latestBlockhash.blockhash;
+          tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+        }
         // Sign transaction
-        tx.sign(this.#solanaKeypair);
-
+        const signedTx = await this.signTransaction({
+          network,
+          transaction: tx as SolanaTransaction,
+        });
         // Send raw transaction
-        const rawTransaction = tx.serialize();
+        const rawTransaction = Buffer.from(signedTx, 'base64');
         const signature = await connection.sendRawTransaction(rawTransaction, {
           skipPreflight: false,
           preflightCommitment: 'confirmed',
@@ -428,7 +369,7 @@ export class Wallet implements IWallet {
               connection,
               signature,
               tx.recentBlockhash!,
-              tx.lastValidBlockHeight! + 5,
+              tx.lastValidBlockHeight!,
             );
             return {
               hash: signature,
@@ -443,5 +384,10 @@ export class Wallet implements IWallet {
         };
       }
     }
+  }
+
+  // Method to disconnect the socket
+  public disconnect(): void {
+    this.socket?.disconnect();
   }
 }

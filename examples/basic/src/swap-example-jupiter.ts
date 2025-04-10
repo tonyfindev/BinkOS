@@ -17,7 +17,7 @@ import { BirdeyeProvider } from '@binkai/birdeye-provider';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
-const SOL_RPC = 'https://api.mainnet-beta.solana.com';
+const SOL_RPC = 'https://solana-rpc.debridge.finance';
 
 async function main() {
   console.log('🚀 Starting BinkOS swap on Solana example...\n');
@@ -65,7 +65,7 @@ async function main() {
       seedPhrase:
         settings.get('WALLET_MNEMONIC') ||
         'test test test test test test test test test test test junk',
-      index: 0,
+      index: 9,
     },
     network,
   );
@@ -129,7 +129,7 @@ async function main() {
   console.log('💱 Example 1: Buy USDC from SOL');
   const inputResult = await agent.execute({
     input: `
-       swap 0.001 sol to usdc 
+        swap 0.1 USDT to SOL via jupiter
     `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');

@@ -37,7 +37,9 @@ export class StakingTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    let description = `Stake and unstake tokens using various staking providers (${providers}). Supports networks: ${networks}. You can specify either input amount (how much to stake) or output amount (how much to receive).`;
+    let description = `Stake and unstake tokens from your wallet using various staking providers (${providers}). Supports networks: ${networks}. 
+    
+Before using this tool, you should first check your staking balances using the get_staking_balance tool to see what tokens you have staked. This is especially important for unstake or withdraw operations, as you'll need to know the specific staked token addresses and available amounts. You should also check your wallet balance to ensure you have sufficient funds for staking operations. This tool will verify your wallet balance and handle any required token approvals automatically. You can specify either input amount (how much to stake) or output amount (how much to receive).`;
 
     // Add provider-specific prompts if they exist
     const providerPrompts = this.registry

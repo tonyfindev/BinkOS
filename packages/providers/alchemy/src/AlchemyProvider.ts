@@ -144,14 +144,12 @@ export class AlchemyProvider implements ITokenProvider, IWalletProvider {
           .filter((token: any) => token.tokenPrices.length > 0 && BigInt(token.tokenBalance) > 0n)
           .map((token: any) => {
             return {
-              tokenAddress: token.address,
+              tokenAddress: token.tokenAddress,
               symbol: token.tokenMetadata.symbol,
               name: token.tokenMetadata.name,
               decimals: token.tokenMetadata.decimals,
               usdValue: token.tokenPrices[0].value,
-              balance: this.formatBalance(
-                ethers.formatUnits(token.tokenBalance, token.tokenMetadata.decimals),
-              ),
+              balance: ethers.formatUnits(token.tokenBalance, token.tokenMetadata.decimals),
             };
           });
       }
