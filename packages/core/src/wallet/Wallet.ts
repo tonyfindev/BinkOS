@@ -71,7 +71,8 @@ export class Wallet implements IWallet {
 
     if (networkType === 'evm') {
       const evmTx = transaction as ethers.Transaction;
-      return await this.#evmWallet.signTransaction(evmTx);
+      const signer = this.#evmWallet.connect(this.#network.getProvider(params.network, 'evm'));
+      return await signer.signTransaction(evmTx);
     } else {
       if (transaction instanceof VersionedTransaction) {
         transaction.sign([this.#solanaKeypair]);
@@ -321,7 +322,7 @@ export class Wallet implements IWallet {
     const networkConfig = this.#network.getConfig(network);
 
     if (networkType === 'evm') {
-      const provider = new ethers.JsonRpcProvider(networkConfig.config.rpcUrl);
+      const provider = this.#network.getProvider(network, 'evm');
       const signer = this.#evmWallet.connect(provider);
 
       // Create and sign transaction
