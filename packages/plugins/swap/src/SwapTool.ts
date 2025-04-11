@@ -427,7 +427,6 @@ export class SwapTool extends BaseTool {
           console.log('🤖 Swap Args:', args);
 
           const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
-
           onProgress?.({
             progress: 20,
             message: `Preparing to swap ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
@@ -554,7 +553,6 @@ export class SwapTool extends BaseTool {
             //   Number(swapParams.limitPrice) !== 0 && {
             //     limitOrderPrice: swapParams.limitPrice,
             //   }),
-
           };
 
           return JSON.stringify(result);
