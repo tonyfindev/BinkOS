@@ -29,7 +29,10 @@
       "prettier --write"
     ]
   },
-  "dependencies": {},
+  "dependencies": {
+    "@binkai/rpc-provider": "0.2.5-alpha.1",
+    "@solana/spl-token": "^0.4.0"
+  },
   "devDependencies": {
     "@commitlint/cli": "^19.7.1",
     "@commitlint/config-conventional": "^19.7.1",

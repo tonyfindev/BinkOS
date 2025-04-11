@@ -25,6 +25,7 @@
   "dependencies": {
     "@binkai/core": "workspace:*",
     "@langchain/core": "^0.3.42",
+    "@binkai/token-plugin": "workspace:*",
     "ethers": "^6.0.0",
     "zod": "^3.22.0"
   },
