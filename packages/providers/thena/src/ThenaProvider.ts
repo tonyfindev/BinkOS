@@ -87,62 +87,85 @@ export class ThenaProvider extends BaseSwapProvider {
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
-      // Fetch input and output token information
+      const isInputType = params.type === 'input';
+      const fromToken = isInputType ? params.fromToken : params.toToken;
+      const toToken = isInputType ? params.toToken : params.fromToken;
+
       const [sourceToken, destinationToken] = await Promise.all([
-        this.getToken(params.fromToken, params.network),
-        this.getToken(params.toToken, params.network),
+        this.getToken(fromToken, params.network),
+        this.getToken(toToken, params.network),
       ]);
-      const tokenInAddress =
+
+      let tokenInAddress =
         sourceToken.address === CONSTANTS.BNB_ADDRESS
           ? CONSTANTS.THENA_BNB_ADDRESS
           : sourceToken.address;
-
-      const tokenOutAddress =
+      let tokenOutAddress =
         destinationToken.address === CONSTANTS.BNB_ADDRESS
           ? CONSTANTS.THENA_BNB_ADDRESS
           : destinationToken.address;
 
-      // Calculate input amount based on decimals
       let adjustedAmount = params.amount;
-      if (params.type === 'input') {
-        // Use the adjustAmount method for all tokens (both native and ERC20)
+      if (isInputType) {
         adjustedAmount = await this.adjustAmount(
-          params.fromToken,
+          fromToken,
           params.amount,
           userAddress,
           params.network,
         );
-
         if (adjustedAmount !== params.amount) {
           console.log(`🤖 Thena adjusted input amount from ${params.amount} to ${adjustedAmount}`);
         }
       }
-      const amountIn =
-        params.type === 'input'
-          ? ethers.parseUnits(adjustedAmount, sourceToken.decimals)
-          : ethers.parseUnits(adjustedAmount, destinationToken.decimals);
 
-      console.log('getQuote: ', params);
-      let swapTransactionData;
+      let amountIn = ethers.parseUnits(
+        adjustedAmount,
+        isInputType ? sourceToken.decimals : destinationToken.decimals,
+      );
 
-      let optimalRoute;
-      let amountOut;
-      if (params?.limitPrice && Number(params?.limitPrice) !== 0) {
-        // check token in is stable token
+      let routeParams = {
+        tokenIn: tokenInAddress,
+        tokenOut: tokenOutAddress,
+        userAddress,
+        slippage: params.slippage,
+        amount: amountIn.toString(),
+      };
+
+      if (!isInputType) {
+        const reverseRoute = await this.fetchOptimalRoute(
+          routeParams.tokenIn,
+          routeParams.tokenOut,
+          routeParams.userAddress,
+          routeParams.slippage,
+          routeParams.amount,
+        );
+        amountIn = reverseRoute.outAmounts[0];
+        tokenInAddress = reverseRoute.outTokens[0];
+        tokenOutAddress = reverseRoute.inTokens[0];
+        routeParams = {
+          ...routeParams,
+          tokenIn: tokenInAddress,
+          tokenOut: tokenOutAddress,
+          amount: amountIn.toString(),
+        };
+      }
+
+      let swapTransactionData: any;
+      let optimalRoute: any;
+      let amountOut: string | undefined;
+
+      const limitPrice = Number(params?.limitPrice || 0);
+      if (limitPrice > 0) {
         const tokenInStable = this.checkIsStableToken(tokenInAddress);
         const tokenOutStable = this.checkIsStableToken(tokenOutAddress);
 
         if (!tokenInStable && !tokenOutStable) {
-          throw new Error('Thena only support limit order with USDC, USDT, BUSD as input token');
-        }
-        // need verify amount out
-        if (!params?.limitPrice || Number(params?.limitPrice) < 0) {
-          throw new Error('No amount out from Thena');
+          throw new Error('Thena only supports limit orders with USDC, USDT, BUSD as input token');
         }
 
-        swapTransactionData = null;
+        const multiplier = limitPrice > 1 ? limitPrice : 1 / limitPrice;
+        amountOut = (Number(amountIn) * (tokenInStable ? 1 / multiplier : multiplier)).toFixed(0);
 
-        // Fetch optimal limit order route
         optimalRoute = await this.fetchOptimalRoute(
           tokenInAddress,
           tokenOutAddress,
@@ -151,25 +174,14 @@ export class ThenaProvider extends BaseSwapProvider {
           amountIn.toString(),
           params?.limitPrice,
         );
-        // check token in is stable token
-        const multiplier =
-          params?.limitPrice > 1 ? Number(params?.limitPrice) : 1 / Number(params?.limitPrice);
-        amountOut = Number(amountIn) * (tokenInStable ? 1 / multiplier : multiplier);
 
-        amountOut = amountOut.toFixed(0);
-
-        // build limit order transaction
         swapTransactionData = await this.buildLimitOrderRouteTransaction(
           optimalRoute,
           userAddress,
-          amountOut.toString(),
+          amountOut,
         );
-
-        if (!swapTransactionData) {
-          throw new Error('No limit order routes available from Thena');
-        }
+        if (!swapTransactionData) throw new Error('No limit order routes available from Thena');
       } else {
-        // Fetch optimal swap route
         optimalRoute = await this.fetchOptimalRoute(
           tokenInAddress,
           tokenOutAddress,
@@ -177,26 +189,24 @@ export class ThenaProvider extends BaseSwapProvider {
           params?.slippage,
           amountIn.toString(),
         );
+        console.log('optimalRoute', optimalRoute);
 
-        // Build swap transaction
         swapTransactionData = await this.buildSwapRouteTransaction(optimalRoute, userAddress);
-
-        if (!swapTransactionData) {
-          throw new Error('No swap routes available from Thena');
-        }
+        if (!swapTransactionData) throw new Error('No swap routes available from Thena');
       }
 
-      // Create and store quote
       const swapQuote = this.createSwapQuote(
         params,
-        sourceToken,
-        destinationToken,
+        isInputType ? sourceToken : destinationToken,
+        isInputType ? destinationToken : sourceToken,
         swapTransactionData,
         optimalRoute,
         userAddress,
         amountOut?.toString(),
       );
+
       this.storeQuoteWithExpiry(swapQuote);
+
       return swapQuote;
     } catch (error: unknown) {
       console.error('Error getting quote:', error);
