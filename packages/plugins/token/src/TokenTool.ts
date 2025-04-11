@@ -132,6 +132,24 @@ export class GetTokenInfoTool extends BaseTool {
     return address.toLowerCase();
   }
 
+  // Convert native token address to wrapped token address for price queries
+  private convertNativeToWrapped(address: string, network: NetworkName): string {
+    // Normalize the address for comparison
+    const normalizedAddress = address.toLowerCase();
+
+    // Check if this is a native token address (multiple formats)
+    if (normalizedAddress === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
+      switch (network) {
+        case NetworkName.BNB:
+          return '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // WBNB on BSC
+        default:
+          return address;
+      }
+    }
+
+    return address;
+  }
+
   // Get cache key for token
   private getCacheKey(address: string, network: NetworkName): string {
     return this.normalizeAddress(address, network);
@@ -191,9 +209,12 @@ export class GetTokenInfoTool extends BaseTool {
 
       console.log(`🔍 Trying to get price from ${provider.getName()}`);
       try {
+        // Convert native token address to wrapped token address for price queries
+        const queryAddress = this.convertNativeToWrapped(tokenInfo.address, network);
+
         // Query the provider using the token address
         const updatedTokenInfo = await provider.getTokenInfo({
-          query: tokenInfo.address,
+          query: queryAddress,
           network,
           includePrice: true,
         });
