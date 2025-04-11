@@ -120,7 +120,7 @@ async function main() {
   // Example 1: Buy with exact input amount on BNB Chain
   const result1 = await agent.execute({
     input: `
-      Buy 0.001 BNB to USDC on ThenaSwap with 10% slippage on bnb chain.
+      Swap 0.001 BNB from USDC on ThenaSwap.
       Use the following token addresses:
       USDC: 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d
     `,
