@@ -31,7 +31,7 @@ const STABLE_TOKENS = {
 
 export class JupiterProvider extends BaseSwapProvider {
   private api: AxiosInstance;
-  private static readonly DEFAULT_BASE_URL = 'https://quote-proxy.jup.ag';
+  private static readonly DEFAULT_BASE_URL = 'https://ultra-api.jup.ag/proxy';
   private static readonly BASE_URL_JUPITER = 'https://api.jup.ag';
   private provider: Connection;
   constructor(provider: Connection) {
