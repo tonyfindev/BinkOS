@@ -114,8 +114,8 @@ export class JupiterProvider extends BaseSwapProvider {
         wrapAndUnwrapSol: true,
       });
       const data = response?.data;
-      const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
-      data.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+      // const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
+      // data.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
       return data;
     } catch (error) {
       throw new Error('Failed to get swap buy aggregator');
