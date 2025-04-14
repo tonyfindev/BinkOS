@@ -298,7 +298,9 @@ export class PlanningAgent extends Agent {
       let result = '';
       if (onStream) {
         const eventStream = await this.graph.streamEvents(
-          new Command({ resume: { input: commandOrParams.input } }),
+          commandOrParams.action
+            ? new Command({ resume: { action: commandOrParams.action } })
+            : new Command({ resume: { input: commandOrParams.input } }),
           {
             version: 'v2',
             configurable: {
@@ -320,11 +322,16 @@ export class PlanningAgent extends Agent {
         }
       } else {
         result = (
-          await this.graph.invoke(new Command({ resume: { input: commandOrParams.input } }), {
-            configurable: {
-              thread_id: commandOrParams.threadId,
+          await this.graph.invoke(
+            commandOrParams.action
+              ? new Command({ resume: { action: commandOrParams.action } })
+              : new Command({ resume: { input: commandOrParams.input } }),
+            {
+              configurable: {
+                thread_id: commandOrParams.threadId,
+              },
             },
-          })
+          )
         ).answer;
       }
       try {
