@@ -1,17 +1,15 @@
-import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { BaseMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { Annotation, END, interrupt, START, StateGraph } from '@langchain/langgraph';
 import { BaseLanguageModel } from '@langchain/core/language_models/base';
 import { MessagesPlaceholder } from '@langchain/core/prompts';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { convertToOpenAITool } from '@langchain/core/utils/function_calling';
 import { shouldBindTools } from '../utils/llm';
-import { PlanningAgent } from '../PlanningAgent';
 import { CreatePlanTool } from '../tools/CreatePlanTool';
 import { BaseAgent } from '../../BaseAgent';
 import { UpdatePlanTool } from '../tools/UpdatePlanTool';
 import { SelectTasksTool } from '../tools/SelectTasksTool';
 import { TerminateTool } from '../tools/TerminateTool';
-import { AskTool } from '../tools/AskTool';
 
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
@@ -70,12 +68,16 @@ export class PlannerGraph {
 
   async createPlanNode(state: typeof StateAnnotation.State) {
     const prompt = ChatPromptTemplate.fromMessages([
-      ['system', this.createPlanPrompt + `
+      [
+        'system',
+        this.createPlanPrompt +
+          `
         Available tools with their names as actions they perform:
         {toolsStr}
 
         Create a plan using these services to execute the user's request.
-      `],
+      `,
+      ],
       new MessagesPlaceholder('chat_history'),
       ['human', `Plan to execute the user's request: {input}`],
     ]);
@@ -200,10 +202,7 @@ export class PlannerGraph {
     }
 
     const prompt = ChatPromptTemplate.fromMessages([
-      [
-        'system',
-          this.activeTasksPrompt,
-      ],
+      ['system', this.activeTasksPrompt],
       ['human', `The current plan: {plan}`],
     ]);
 
@@ -261,16 +260,21 @@ export class PlannerGraph {
     if (!state?.plans || state?.plans.length === 0) {
       return 'create_plan';
     }
-    
+
     // Check if active plan is complete or if previous execution ended with planner_answer
     const isActivePlanCompleted = state.plans.some(
-      plan => plan.id === state.active_plan_id && plan.status === 'complete'
+      plan => plan.id === state.active_plan_id && plan.status === 'complete',
     );
-    
+
     const wasEndedByPlanner = state.ended_by === 'planner_answer';
-    
-    console.log('====isActivePlanCompleted====', isActivePlanCompleted, 'wasEndedByPlanner:', wasEndedByPlanner);
-    
+
+    console.log(
+      '====isActivePlanCompleted====',
+      isActivePlanCompleted,
+      'wasEndedByPlanner:',
+      wasEndedByPlanner,
+    );
+
     return isActivePlanCompleted || wasEndedByPlanner ? 'create_plan' : 'update_plan';
   }
 
@@ -295,9 +299,9 @@ export class PlannerGraph {
         chat_history: state.chat_history || [],
       });
 
-    return { 
-      chat_history: [response], 
-      answer: response.content, 
+    return {
+      chat_history: [response],
+      answer: response.content,
       next_node: END,
       ended_by: 'planner_answer',
     };

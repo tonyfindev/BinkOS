@@ -57,7 +57,6 @@ export class PlanningAgent extends Agent {
   public graph!: CompiledStateGraph<any, any, any, any, any, any>;
   private _isAskUser = false;
   private askUserTimeout: NodeJS.Timeout | null = null;
-  private shouldResetState = false;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super(config, wallet, networks);
@@ -179,8 +178,7 @@ export class PlanningAgent extends Agent {
       Following tips trading:
 
         + Sell/Swap X/X% A to B (amount = X/calculate X% of current balance, amountType = input).
-        + Buy X A from B (amount = X/calculate X% of current balance, amountType = output).
-        + Sell/Swap X/X% A from B (amount = X/calculate X% of current balance, amountType = ouput).
+        + Swap/Buy X/X% A from B (amount = X/calculate X% of current balance, amountType = ouput).
       `;
 
     const updatePlanPrompt = `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
@@ -251,17 +249,15 @@ export class PlanningAgent extends Agent {
         'planner',
         state => {
           const isActivePlanCompleted = state.plans.some(
-            plan => plan.id === state.active_plan_id && plan.status === 'complete'
+            plan => plan.id === state.active_plan_id && plan.status === 'complete',
           );
 
           if (
-            (state.next_node === END && state.answer != null) 
-            || (state.ended_by === 'planner_answer' && isActivePlanCompleted)) {
-            console.log('====planner node 1====')
+            (state.next_node === END && state.answer != null) ||
+            (state.ended_by === 'planner_answer' && isActivePlanCompleted)
+          ) {
             return END;
           } else if (state.ended_by === 'planner_answer' && !isActivePlanCompleted) {
-            // New plan was created but not completed, continue to executor
-            console.log('====planner created new plan, executing====');
             return 'executor';
           } else {
             return 'executor';
@@ -379,11 +375,8 @@ export class PlanningAgent extends Agent {
 
     let response = '';
     if (onStream) {
-      console.log('====streaming mode====');
       const eventStream = await this.graph.streamEvents(
-        { input, 
-          chat_history 
-        },
+        { input, chat_history },
         {
           version: 'v2',
           configurable: {
@@ -404,10 +397,9 @@ export class PlanningAgent extends Agent {
         }
       }
     } else {
-      console.log('====non-streaming mode====');
       response = (
         await this.graph.invoke(
-          { 
+          {
             input,
             chat_history: history,
           },
