@@ -408,6 +408,11 @@ export class SwapTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
+          // check if amount is number convert to string
+          if (typeof args.amount === 'number') {
+            args.amount = args.amount.toString();
+          }
+
           const {
             fromToken,
             toToken,
