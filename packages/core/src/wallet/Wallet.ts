@@ -357,16 +357,17 @@ export class Wallet implements IWallet {
       };
     } else {
       const connection = new Connection(networkConfig.config.rpcUrl);
-
+      let isVersionedTransaction = false;
       // Try to parse as VersionedTransaction first
       try {
         let tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
-        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        isVersionedTransaction = true;
         let lastValidBlockHeight = transaction.lastValidBlockHeight;
-        //if (!tx.message.recentBlockhash) {
-        tx.message.recentBlockhash = latestBlockhash.blockhash;
-        lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
-        //}
+        if (!tx.message.recentBlockhash) {
+          const latestBlockhash = await connection.getLatestBlockhash('finalized');
+          tx.message.recentBlockhash = latestBlockhash.blockhash;
+          lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+        }
 
         if (!lastValidBlockHeight) {
           throw new Error('Last valid block height is required');
@@ -404,14 +405,17 @@ export class Wallet implements IWallet {
         };
       } catch (e) {
         console.log('🚀 ~ Wallet ~ signAndSendTransactionSolana ~ error:', e);
+        if (isVersionedTransaction) {
+          throw e;
+        }
 
         // If not a VersionedTransaction, try as regular Transaction
         const tx = SolanaTransaction.from(Buffer.from(transaction.data, 'base64'));
-        //if (!tx.recentBlockhash) {
-        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
-        tx.recentBlockhash = latestBlockhash.blockhash;
-        tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
-        //}
+        if (!tx.recentBlockhash) {
+          const latestBlockhash = await connection.getLatestBlockhash('finalized');
+          tx.recentBlockhash = latestBlockhash.blockhash;
+          tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+        }
         // Sign transaction
         tx.sign(this.#solanaKeypair);
 

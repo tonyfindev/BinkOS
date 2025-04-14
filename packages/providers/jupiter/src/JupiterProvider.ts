@@ -102,6 +102,7 @@ export class JupiterProvider extends BaseSwapProvider {
         asLegacyTransaction: false,
         correctLastValidBlockHeight: true,
         dynamicComputeUnitLimit: true,
+        dynamicSlippage: true,
         prioritizationFeeLamports: {
           priorityLevelWithMaxLamports: {
             global: false,
@@ -212,8 +213,8 @@ export class JupiterProvider extends BaseSwapProvider {
       if (createOrderResponse.error) {
         throw new Error(createOrderResponse.error);
       }
-      const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
-      createOrderResponse.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
+      // const latestBlockhash = await this.provider.getLatestBlockhash('confirmed');
+      // createOrderResponse.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
 
       return createOrderResponse;
     } catch (error) {
