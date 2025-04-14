@@ -121,22 +121,22 @@ async function main() {
   console.log('💱 Example 1: Buy with exact input amount on BNB Chain');
   const result1 = await agent.execute({
     input: `
-      Buy 0.001 BNB to USDC on OkuSwap with 10% slippage on bnb chain.
+      Buy 0.001 BNB from USDC on OkuSwap with 10% slippage on bnb chain.
       Use the following token addresses:
       USDC: 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d
     `,
   });
   console.log('✓ Swap result:', result1, '\n');
 
-  console.log('💱 Example 2: Buy with exact input amount on BNB Chain');
-  const result2 = await agent.execute({
-    input: `
-      sell 1 USDC to BNB on OkuSwap with 10% slippage on bnb chain.
-      Use the following token addresses:
-      USDC: 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d
-    `,
-  });
-  console.log('✓ Swap result:', result1, '\n');
+  // console.log('💱 Example 2: Buy with exact input amount on BNB Chain');
+  // const result2 = await agent.execute({
+  //   input: `
+  //     sell 1 USDC to BNB on OkuSwap with 10% slippage on bnb chain.
+  //     Use the following token addresses:
+  //     USDC: 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d
+  //   `,
+  // });
+  // console.log('✓ Swap result:', result1, '\n');
   // Get plugin information
   const registeredPlugin = agent.getPlugin('swap') as SwapPlugin;
 
