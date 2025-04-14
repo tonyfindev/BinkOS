@@ -132,6 +132,24 @@ export class GetTokenInfoTool extends BaseTool {
     return address.toLowerCase();
   }
 
+  // Convert native token address to wrapped token address for price queries
+  private convertNativeToWrapped(address: string, network: NetworkName): string {
+    // Normalize the address for comparison
+    const normalizedAddress = address.toLowerCase();
+
+    // Check if this is a native token address (multiple formats)
+    if (normalizedAddress === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
+      switch (network) {
+        case NetworkName.BNB:
+          return '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // WBNB on BSC
+        default:
+          return address;
+      }
+    }
+
+    return address;
+  }
+
   // Get cache key for token
   private getCacheKey(address: string, network: NetworkName): string {
     return this.normalizeAddress(address, network);
@@ -191,30 +209,33 @@ export class GetTokenInfoTool extends BaseTool {
 
       console.log(`🔍 Trying to get price from ${provider.getName()}`);
       try {
+        // Convert native token address to wrapped token address for price queries
+        const queryAddress = this.convertNativeToWrapped(tokenInfo.address, network);
+
         // Query the provider using the token address
         const updatedTokenInfo = await provider.getTokenInfo({
-          query: tokenInfo.address,
+          query: queryAddress,
           network,
           includePrice: true,
         });
 
         // If we got price information, update our cache
-        if (updatedTokenInfo.price?.usd) {
+        if (updatedTokenInfo?.price?.usd) {
           // Round the price for display
-          const roundedPrice = roundNumber(updatedTokenInfo.price.usd, 6);
+          const roundedPrice = roundNumber(updatedTokenInfo?.price?.usd, 6);
 
           // Create a merged token with base info from original and price from updated
           const mergedToken: TokenInfo = {
             ...tokenInfo,
             network,
             price: {
-              ...updatedTokenInfo.price,
+              ...updatedTokenInfo?.price,
               usd: roundedPrice,
             },
             priceUpdatedAt: Date.now(),
-            priceChange24h: roundNumber(updatedTokenInfo.priceChange24h, 2),
-            volume24h: roundNumber(updatedTokenInfo.volume24h, 0),
-            marketCap: roundNumber(updatedTokenInfo.marketCap, 0),
+            priceChange24h: roundNumber(updatedTokenInfo?.priceChange24h, 2),
+            volume24h: roundNumber(updatedTokenInfo?.volume24h, 0),
+            marketCap: roundNumber(updatedTokenInfo?.marketCap, 0),
           };
 
           // Update the token cache
@@ -326,12 +347,12 @@ export class GetTokenInfoTool extends BaseTool {
       const updatedToken = await this.fetchTokenPrice(cachedToken, network);
 
       // Ensure all numeric values are properly rounded
-      if (updatedToken.price?.usd) {
-        updatedToken.price.usd = roundNumber(updatedToken.price.usd, 6);
+      if (updatedToken?.price?.usd) {
+        updatedToken.price.usd = roundNumber(updatedToken?.price?.usd, 6);
       }
-      updatedToken.priceChange24h = roundNumber(updatedToken.priceChange24h, 2);
-      updatedToken.volume24h = roundNumber(updatedToken.volume24h, 0);
-      updatedToken.marketCap = roundNumber(updatedToken.marketCap, 0);
+      updatedToken.priceChange24h = roundNumber(updatedToken?.priceChange24h, 2);
+      updatedToken.volume24h = roundNumber(updatedToken?.volume24h, 0);
+      updatedToken.marketCap = roundNumber(updatedToken?.marketCap, 0);
 
       return updatedToken;
     }
@@ -348,12 +369,12 @@ export class GetTokenInfoTool extends BaseTool {
       const updatedToken = await this.fetchTokenPrice(tokenInfo, network);
 
       // Ensure all numeric values are properly rounded
-      if (updatedToken.price?.usd) {
-        updatedToken.price.usd = roundNumber(updatedToken.price.usd, 6);
+      if (updatedToken?.price?.usd) {
+        updatedToken.price.usd = roundNumber(updatedToken?.price?.usd, 6);
       }
-      updatedToken.priceChange24h = roundNumber(updatedToken.priceChange24h, 2);
-      updatedToken.volume24h = roundNumber(updatedToken.volume24h, 0);
-      updatedToken.marketCap = roundNumber(updatedToken.marketCap, 0);
+      updatedToken.priceChange24h = roundNumber(updatedToken?.priceChange24h, 2);
+      updatedToken.volume24h = roundNumber(updatedToken?.volume24h, 0);
+      updatedToken.marketCap = roundNumber(updatedToken?.marketCap, 0);
 
       return updatedToken;
     } catch (error: any) {
@@ -502,20 +523,20 @@ export class GetTokenInfoTool extends BaseTool {
           }
 
           // Ensure all numeric values are properly rounded before returning
-          if (tokenInfo.price?.usd) {
-            tokenInfo.price.usd = roundNumber(tokenInfo.price.usd, 6);
+          if (tokenInfo?.price?.usd) {
+            tokenInfo.price.usd = roundNumber(tokenInfo?.price?.usd, 6);
           }
-          tokenInfo.priceChange24h = roundNumber(tokenInfo.priceChange24h, 2);
-          tokenInfo.volume24h = roundNumber(tokenInfo.volume24h, 0);
-          tokenInfo.marketCap = roundNumber(tokenInfo.marketCap, 0);
+          tokenInfo.priceChange24h = roundNumber(tokenInfo?.priceChange24h, 2);
+          tokenInfo.volume24h = roundNumber(tokenInfo?.volume24h, 0);
+          tokenInfo.marketCap = roundNumber(tokenInfo?.marketCap, 0);
 
           console.log(
-            `💰 Token info retrieved: ${tokenInfo.symbol || query} ${tokenInfo.price?.usd ? `($${tokenInfo.price.usd})` : ''}`,
+            `💰 Token info retrieved: ${tokenInfo.symbol || query} ${tokenInfo?.price?.usd ? `($${tokenInfo?.price?.usd})` : ''}`,
           );
 
           onProgress?.({
             progress: 100,
-            message: `Successfully retrieved information for ${tokenInfo.name || tokenInfo.symbol || query}${tokenInfo.price?.usd ? ` (Current price: $${tokenInfo.price.usd})` : ''}.`,
+            message: `Successfully retrieved information for ${tokenInfo.name || tokenInfo.symbol || query}${tokenInfo?.price?.usd ? ` (Current price: $${tokenInfo?.price?.usd})` : ''}.`,
           });
 
           if (!tokenInfo.verified) {
