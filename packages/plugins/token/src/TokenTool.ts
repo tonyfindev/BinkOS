@@ -70,7 +70,7 @@ export class GetTokenInfoTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    return `Query token information using various providers (${providers}). Supports networks: ${networks}. You can query by token address or symbol.`;
+    return `Query token information including prices, symbols, and details using various providers (${providers}). Supports networks: ${networks}. You can query by token address or symbol (like "BTC", "ETH", "USDT", etc). Use this tool to get current token prices and information.`;
   }
 
   private getSupportedNetworks(): NetworkName[] {
@@ -107,6 +107,7 @@ export class GetTokenInfoTool extends BaseTool {
       query: z.string().describe('The token address or symbol to query'),
       network: z
         .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon', 'null'])
+        .default('null')
         .describe('The blockchain network to query the token on'),
       provider: z
         .enum(providers as [string, ...string[]])
@@ -132,22 +133,31 @@ export class GetTokenInfoTool extends BaseTool {
     return address.toLowerCase();
   }
 
-  // Convert native token address to wrapped token address for price queries
-  private convertNativeToWrapped(address: string, network: NetworkName): string {
-    // Normalize the address for comparison
-    const normalizedAddress = address.toLowerCase();
+  // Convert native token symbols to wrapped token symbols
+  private convertNativeSymbolToWrapped(
+    symbol: string,
+    network: string,
+  ): { symbol: string; network: NetworkName } {
+    // Normalize the symbol for comparison
+    const normalizedSymbol = symbol.toUpperCase();
 
-    // Check if this is a native token address (multiple formats)
-    if (normalizedAddress === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
-      switch (network) {
-        case NetworkName.BNB:
-          return '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'; // WBNB on BSC
-        default:
-          return address;
+    // Convert native token symbols to wrapped versions based on network
+    if (normalizedSymbol === 'BNB') {
+      if (network === 'null') {
+        return { symbol: 'WBNB', network: NetworkName.BNB };
+      } else {
+        return { symbol: 'WBNB', network: network as NetworkName };
+      }
+    } else if (normalizedSymbol === 'BTC') {
+      if (network === 'null') {
+        return { symbol: 'WBTC', network: NetworkName.ETHEREUM };
+      } else {
+        return { symbol: 'WBTC', network: network as NetworkName };
       }
     }
 
-    return address;
+    // Return original symbol if no conversion needed
+    return { symbol: symbol, network: network as NetworkName };
   }
 
   // Get cache key for token
@@ -209,12 +219,9 @@ export class GetTokenInfoTool extends BaseTool {
 
       console.log(`🔍 Trying to get price from ${provider.getName()}`);
       try {
-        // Convert native token address to wrapped token address for price queries
-        const queryAddress = this.convertNativeToWrapped(tokenInfo.address, network);
-
         // Query the provider using the token address
         const updatedTokenInfo = await provider.getTokenInfo({
-          query: queryAddress,
+          query: tokenInfo.address,
           network,
           includePrice: true,
         });
@@ -384,6 +391,11 @@ export class GetTokenInfoTool extends BaseTool {
     }
   }
 
+  private isAddress(query: string): boolean {
+    // Basic address validation - can be enhanced based on network requirements
+    return /^[0-9a-zA-Z]{32,44}$/.test(query);
+  }
+
   createTool(): CustomDynamicStructuredTool {
     console.log('🛠️ Creating token info tool');
     return {
@@ -397,10 +409,22 @@ export class GetTokenInfoTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
-          const { query, network, provider: preferredProvider, includePrice = true } = args;
+          let { query, network, provider: preferredProvider, includePrice = true } = args;
 
           console.log(`🔍 Searching for token "${query}" on ${network} network`);
           console.log('📋 Token Tool Args:', args);
+
+          // check if query is an address
+          const isAddress = this.isAddress(query);
+          if (!isAddress) {
+            const { symbol, network: newNetwork } = this.convertNativeSymbolToWrapped(
+              query,
+              network,
+            );
+            query = symbol;
+            network = newNetwork;
+            console.log(`🔍 Converted to wrapped token: ${query} on ${network} network`);
+          }
 
           onProgress?.({
             progress: 20,
