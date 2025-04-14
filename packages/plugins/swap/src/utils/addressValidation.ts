@@ -22,24 +22,30 @@ export function isValidSolanaAddress(address: string): boolean {
  * @param chain The blockchain network (e.g., 'solana', 'eth', 'bnb')
  * @returns boolean indicating if the address is valid for the specified chain
  */
-export function validateTokenAddress(address: string, chain: string): { isValid: boolean, address: string } {
+export function validateTokenAddress(
+  address: string,
+  chain: string,
+): { isValid: boolean; address: string } {
   let validAddress = address;
   // Solana chains
   if (chain === 'solana') {
     return {
       isValid: isValidSolanaAddress(address),
-      address: validAddress
+      address: validAddress,
     };
-  } else if (chain === 'bnb' && address.toLowerCase() === '0x0000000000000000000000000000000000000000') {
+  } else if (
+    chain !== 'solana' &&
+    address.toLowerCase() === '0x0000000000000000000000000000000000000000'
+  ) {
     validAddress = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
     return {
       isValid: isValidEVMAddress(validAddress),
-      address: validAddress
+      address: validAddress,
     };
   }
   // EVM chains (eth, bnb, etc.)
   return {
     isValid: isValidEVMAddress(address),
-    address: validAddress
+    address: validAddress,
   };
 }
