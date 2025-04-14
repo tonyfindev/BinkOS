@@ -31,6 +31,7 @@ const StateAnnotation = Annotation.Root({
   answer: Annotation<string>,
   chat_history: Annotation<BaseMessage[]>,
   ask_question: Annotation<string>,
+  ended_by: Annotation<string>,
 });
 
 export class PlannerGraph {
@@ -201,7 +202,6 @@ export class PlannerGraph {
     const prompt = ChatPromptTemplate.fromMessages([
       [
         'system',
-        `Based on the plan, Select the tasks to executor need handle, You can select multiple tasks. You should prioritize tasks that require more information.\n` +
           this.activeTasksPrompt,
       ],
       ['human', `The current plan: {plan}`],
@@ -257,7 +257,21 @@ export class PlannerGraph {
   }
 
   shouldCreateOrUpdatePlan(state: typeof StateAnnotation.State) {
-    return !state?.plans || state?.plans.length === 0 ? 'create_plan' : 'update_plan';
+    // Check if no plans exist
+    if (!state?.plans || state?.plans.length === 0) {
+      return 'create_plan';
+    }
+    
+    // Check if active plan is complete or if previous execution ended with planner_answer
+    const isActivePlanCompleted = state.plans.some(
+      plan => plan.id === state.active_plan_id && plan.status === 'complete'
+    );
+    
+    const wasEndedByPlanner = state.ended_by === 'planner_answer';
+    
+    console.log('====isActivePlanCompleted====', isActivePlanCompleted, 'wasEndedByPlanner:', wasEndedByPlanner);
+    
+    return isActivePlanCompleted || wasEndedByPlanner ? 'create_plan' : 'update_plan';
   }
 
   async answerNode(state: typeof StateAnnotation.State) {
@@ -281,7 +295,12 @@ export class PlannerGraph {
         chat_history: state.chat_history || [],
       });
 
-    return { chat_history: [response], answer: response.content, next_node: END };
+    return { 
+      chat_history: [response], 
+      answer: response.content, 
+      next_node: END,
+      ended_by: 'planner_answer',
+    };
   }
 
   create() {

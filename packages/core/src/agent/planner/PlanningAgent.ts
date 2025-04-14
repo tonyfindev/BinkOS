@@ -49,6 +49,7 @@ const StateAnnotation = Annotation.Root({
   chat_history: Annotation<BaseMessage[]>,
   input: Annotation<string>,
   answer: Annotation<string>,
+  ended_by: Annotation<string>,
 });
 
 export class PlanningAgent extends Agent {
@@ -56,6 +57,7 @@ export class PlanningAgent extends Agent {
   public graph!: CompiledStateGraph<any, any, any, any, any, any>;
   private _isAskUser = false;
   private askUserTimeout: NodeJS.Timeout | null = null;
+  private shouldResetState = false;
 
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super(config, wallet, networks);
@@ -248,8 +250,19 @@ export class PlanningAgent extends Agent {
       .addConditionalEdges(
         'planner',
         state => {
-          if (state.next_node === END && state.answer != null) {
+          const isActivePlanCompleted = state.plans.some(
+            plan => plan.id === state.active_plan_id && plan.status === 'complete'
+          );
+
+          if (
+            (state.next_node === END && state.answer != null) 
+            || (state.ended_by === 'planner_answer' && isActivePlanCompleted)) {
+            console.log('====planner node 1====')
             return END;
+          } else if (state.ended_by === 'planner_answer' && !isActivePlanCompleted) {
+            // New plan was created but not completed, continue to executor
+            console.log('====planner created new plan, executing====');
+            return 'executor';
           } else {
             return 'executor';
           }
@@ -280,6 +293,7 @@ export class PlanningAgent extends Agent {
         threadId: uuidv4(),
       };
     }
+
     if (this._isAskUser && typeof commandOrParams !== 'string') {
       let result = '';
       if (onStream) {
@@ -358,8 +372,11 @@ export class PlanningAgent extends Agent {
 
     let response = '';
     if (onStream) {
+      console.log('====streaming mode====');
       const eventStream = await this.graph.streamEvents(
-        { input, chat_history },
+        { input, 
+          chat_history 
+        },
         {
           version: 'v2',
           configurable: {
@@ -380,9 +397,13 @@ export class PlanningAgent extends Agent {
         }
       }
     } else {
+      console.log('====non-streaming mode====');
       response = (
         await this.graph.invoke(
-          { input, chat_history },
+          { 
+            input,
+            chat_history: history,
+          },
           {
             configurable: {
               thread_id: commandOrParams.threadId,
