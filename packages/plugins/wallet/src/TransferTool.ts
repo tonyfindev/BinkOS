@@ -9,6 +9,7 @@ import {
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, TransferParams, TransferQuote } from './types';
+import { defaultTokens } from '@binkai/token-plugin';
 import { ethers } from 'ethers';
 
 export function validateTokenAddress(address: string, chain: string): boolean {
@@ -59,7 +60,9 @@ export class TransferTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    return `Transfer tokens from your wallet to another address. Supports networks: ${networks}. Available providers: ${providers}.`;
+    const defaultToken = JSON.stringify(defaultTokens[this.defaultNetwork as NetworkName]);
+    const description = `Transfer tokens from your wallet to another address. Supports networks: ${networks}. Available providers: ${providers}. Default token: ${defaultToken}`;
+    return description;
   }
 
   private getSupportedNetworks(): string[] {

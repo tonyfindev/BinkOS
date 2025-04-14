@@ -213,29 +213,36 @@ export class SwapTool extends BaseTool {
     }
 
     // STEP 2: Validate token addresses
-    if (!validateTokenAddress(fromToken, network)) {
+    const fromTokenValidation = validateTokenAddress(fromToken, network);
+    const toTokenValidation = validateTokenAddress(toToken, network);
+
+    // Process fromToken validation
+    if (!fromTokenValidation.isValid) {
       throw this.createError(
         ErrorStep.TOKEN_NOT_FOUND,
         `Invalid fromToken address for network ${network}: ${fromToken}`,
         {
           token: fromToken,
-          network: network,
+          network,
           tokenType: 'fromToken',
         },
       );
     }
+    args.fromToken = fromTokenValidation.address;
 
-    if (!validateTokenAddress(toToken, network)) {
+    // Process toToken validation
+    if (!toTokenValidation.isValid) {
       throw this.createError(
         ErrorStep.TOKEN_NOT_FOUND,
         `Invalid toToken address for network ${network}: ${toToken}`,
         {
           token: toToken,
-          network: network,
+          network,
           tokenType: 'toToken',
         },
       );
     }
+    args.toToken = toTokenValidation.address;
 
     // STEP 3: Get wallet address
     let userAddress;
@@ -408,6 +415,11 @@ export class SwapTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
+          // check if amount is number convert to string
+          if (typeof args.amount === 'number') {
+            args.amount = args.amount.toString();
+          }
+
           const {
             fromToken,
             toToken,
