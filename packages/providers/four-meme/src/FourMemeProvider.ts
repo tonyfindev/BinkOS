@@ -101,15 +101,7 @@ export class FourMemeProvider extends BaseSwapProvider {
 
   protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
     try {
-      console.log(
-        `=== Provider four-meme getToken=== tokenAddress ${tokenAddress} network ${network}`,
-      );
       if (this.isNativeToken(tokenAddress)) {
-        console.log(
-          '=== Provider four-meme getToken isNativeToken===',
-          tokenAddress as `0x${string}`,
-          'BNB',
-        );
         return {
           address: tokenAddress as `0x${string}`,
           decimals: 18,
@@ -125,16 +117,13 @@ export class FourMemeProvider extends BaseSwapProvider {
         decimals: token.decimals,
         symbol: token.symbol,
       };
-      console.log(`=== Provider four-meme getToken output===`, tokenInfo);
       return tokenInfo;
     } catch (error) {
-      console.error('===Error getting token===', error);
       throw new Error(
-        `===Failed to get token===: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
-
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
@@ -177,26 +166,15 @@ export class FourMemeProvider extends BaseSwapProvider {
           ? tokenOut.address
           : tokenIn.address;
 
-      if (
-        needToken == CONSTANTS.USDC_ADDRESS ||
-        needToken == CONSTANTS.USDT_ADDRESS
-      ) {
+      if (needToken == CONSTANTS.USDC_ADDRESS || needToken == CONSTANTS.USDT_ADDRESS) {
         throw new Error('Token is not supported');
       }
 
       // Get token info from contract and convert to proper format
-      console.log(`=== Provider four-meme getQuote needToken===`, needToken);
       const rawTokenInfo = await this.factory._tokenInfos(needToken);
-      console.log(`=== Provider four-meme getQuote rawTokenInfo===`, rawTokenInfo);
-      console.log(
-        `=== Provider four-meme getQuote rawTokenInfo.status===`,
-        Number(rawTokenInfo.status),
-      );
       if (Number(rawTokenInfo.status) !== 0) {
         throw new Error('Token is not launched');
       }
-
-      
 
       const tokenInfo = {
         base: rawTokenInfo.base,
@@ -213,8 +191,6 @@ export class FourMemeProvider extends BaseSwapProvider {
         T: rawTokenInfo.T,
         status: rawTokenInfo.status,
       };
-
-      console.log(`=== Provider four-meme getQuote tokenInfo===`, tokenInfo);
 
       let txData;
       let value = '0';

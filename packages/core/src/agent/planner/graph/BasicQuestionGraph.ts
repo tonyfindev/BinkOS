@@ -25,7 +25,7 @@ const StateAnnotation = Annotation.Root({
     {
       title: string;
       tasks: { title: string; status: string; retry?: number; result?: string; index: number }[];
-      id: string;
+      plan_id: string;
       status: string;
     }[]
   >,

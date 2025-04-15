@@ -42,7 +42,7 @@ const StateAnnotation = Annotation.Root({
     {
       title: string;
       tasks: { title: string; status: string; retry?: number; result?: string; index: number }[];
-      id: string;
+      plan_id: string;
       status: string;
     }[]
   >,
@@ -174,7 +174,8 @@ export class PlanningAgent extends Agent {
       NOTE: 
       - Retrieve information in user's request and maintain it each task
       - You can create multiple tasks to execute the user's request and specific which tool will be used to execute the task.
-      - Don't create verify transaction task (get wallet balance ) after finished swap, transfer, stake task
+      - Don't create verify and confirm transaction task
+      
       Following tips trading:
 
         + Sell/Swap X/X% A to B (amount = X/calculate X% of current balance, amountType = input).
@@ -184,10 +185,11 @@ export class PlanningAgent extends Agent {
     const updatePlanPrompt = `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
       - If one same tool is failed many times and not provided required info to complete the task, update a new task to execute the plan
       - If one same tool is failed many times but provided required info to complete the task, take info of that tool id and continue next tasks
+      - If swap/bridge/transfer task success, update the plan status to completed
       NOTE: 
       - Create task ask user to provide more information if needed
       - Retrieve information in user's request and maintain it each task
-      - If tool swap success, terminate the plan
+      - If tool swap success, update title of the plan to completed
       `;
 
     let toolsStr = '';
@@ -248,16 +250,15 @@ export class PlanningAgent extends Agent {
       .addConditionalEdges(
         'planner',
         state => {
-          const isActivePlanCompleted = state.plans.some(
-            plan => plan.id === state.active_plan_id && plan.status === 'complete',
-          );
+          const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
+          const isLastActivePlanCompleted = activePlan?.status === 'completed';
 
           if (
             (state.next_node === END && state.answer != null) ||
-            (state.ended_by === 'planner_answer' && isActivePlanCompleted)
+            (state.ended_by === 'planner_answer' && isLastActivePlanCompleted)
           ) {
             return END;
-          } else if (state.ended_by === 'planner_answer' && !isActivePlanCompleted) {
+          } else if (state.ended_by === 'planner_answer' && !isLastActivePlanCompleted) {
             return 'executor';
           } else {
             return 'executor';
