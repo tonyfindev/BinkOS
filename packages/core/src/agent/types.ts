@@ -30,6 +30,7 @@ export interface AgentExecuteParams {
   input: string;
   history?: BaseMessage[];
   threadId?: UUID;
+  action?: string;
 }
 
 export interface IAgent {

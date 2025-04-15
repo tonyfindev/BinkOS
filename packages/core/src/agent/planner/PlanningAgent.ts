@@ -42,13 +42,14 @@ const StateAnnotation = Annotation.Root({
     {
       title: string;
       tasks: { title: string; status: string; retry?: number; result?: string; index: number }[];
-      id: string;
+      plan_id: string;
       status: string;
     }[]
   >,
   chat_history: Annotation<BaseMessage[]>,
   input: Annotation<string>,
   answer: Annotation<string>,
+  ended_by: Annotation<string>,
 });
 
 export class PlanningAgent extends Agent {
@@ -173,21 +174,22 @@ export class PlanningAgent extends Agent {
       NOTE: 
       - Retrieve information in user's request and maintain it each task
       - You can create multiple tasks to execute the user's request and specific which tool will be used to execute the task.
-      - Don't create verify transaction task (get wallet balance ) after finished swap, transfer, stake task
+      - Don't create verify and confirm transaction task
+      
       Following tips trading:
 
         + Sell/Swap X/X% A to B (amount = X/calculate X% of current balance, amountType = input).
-        + Buy X A from B (amount = X/calculate X% of current balance, amountType = output).
-        + Sell/Swap X/X% A from B (amount = X/calculate X% of current balance, amountType = ouput).
+        + Swap/Buy X/X% A from B (amount = X/calculate X% of current balance, amountType = ouput).
       `;
 
     const updatePlanPrompt = `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
       - If one same tool is failed many times and not provided required info to complete the task, update a new task to execute the plan
       - If one same tool is failed many times but provided required info to complete the task, take info of that tool id and continue next tasks
+      - If swap/bridge/transfer task success, update the plan status to completed
       NOTE: 
       - Create task ask user to provide more information if needed
       - Retrieve information in user's request and maintain it each task
-      - If tool swap success, terminate the plan
+      - If tool swap success, update title of the plan to completed
       `;
 
     let toolsStr = '';
@@ -248,8 +250,16 @@ export class PlanningAgent extends Agent {
       .addConditionalEdges(
         'planner',
         state => {
-          if (state.next_node === END && state.answer != null) {
+          const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
+          const isLastActivePlanCompleted = activePlan?.status === 'completed';
+
+          if (
+            (state.next_node === END && state.answer != null) ||
+            (state.ended_by === 'planner_answer' && isLastActivePlanCompleted)
+          ) {
             return END;
+          } else if (state.ended_by === 'planner_answer' && !isLastActivePlanCompleted) {
+            return 'executor';
           } else {
             return 'executor';
           }
@@ -280,11 +290,14 @@ export class PlanningAgent extends Agent {
         threadId: uuidv4(),
       };
     }
+
     if (this._isAskUser && typeof commandOrParams !== 'string') {
       let result = '';
       if (onStream) {
         const eventStream = await this.graph.streamEvents(
-          new Command({ resume: { input: commandOrParams.input } }),
+          commandOrParams.action
+            ? new Command({ resume: { action: commandOrParams.action } })
+            : new Command({ resume: { input: commandOrParams.input } }),
           {
             version: 'v2',
             configurable: {
@@ -306,11 +319,16 @@ export class PlanningAgent extends Agent {
         }
       } else {
         result = (
-          await this.graph.invoke(new Command({ resume: { input: commandOrParams.input } }), {
-            configurable: {
-              thread_id: commandOrParams.threadId,
+          await this.graph.invoke(
+            commandOrParams.action
+              ? new Command({ resume: { action: commandOrParams.action } })
+              : new Command({ resume: { input: commandOrParams.input } }),
+            {
+              configurable: {
+                thread_id: commandOrParams.threadId,
+              },
             },
-          })
+          )
         ).answer;
       }
       try {
@@ -382,7 +400,10 @@ export class PlanningAgent extends Agent {
     } else {
       response = (
         await this.graph.invoke(
-          { input, chat_history },
+          {
+            input,
+            chat_history: history,
+          },
           {
             configurable: {
               thread_id: commandOrParams.threadId,

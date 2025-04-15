@@ -35,7 +35,7 @@ const StateAnnotation = Annotation.Root({
     {
       title: string;
       tasks: { title: string; status: string; retry?: number; result?: string; index: number }[];
-      id: string;
+      plan_id: string;
       status: string;
     }[]
   >,
@@ -300,13 +300,6 @@ export class ExecutorGraph {
         let quote;
         try {
           quote = await (tool as any).simulateQuoteTool(toolCall.args);
-
-          // Convert any BigInt values to strings in the quote object
-          // quote = JSON.parse(
-          //   JSON.stringify(quote, (key, value) =>
-          //     typeof value === 'bigint' ? value.toString() : value,
-          //   ),
-          // );
         } catch (e: any) {
           console.error('Error when simulate quote', e);
           const toolMessage = new ToolMessage({
@@ -398,15 +391,17 @@ export class ExecutorGraph {
           });
           return new Command({ goto: 'executor_tools' });
         } else if (humanReview.action === 'reject') {
-          const toolMessage = new ToolMessage({
-            name: toolCall.name,
-            content: 'Transaction rejected by human review. Exit process.',
+          const askUserMessage = new ToolMessage({
+            content: `Transaction rejected by human review. 
+            Ask if user want to exit process and create new plan? 
+            Or continue to execute the current plan?`,
             tool_call_id: toolCall.id ?? createToolCallId(),
+            name: toolCall.name,
           });
           this.logToolExecution('review_transaction', 'completed', {
             status: 'rejected',
           });
-          return new Command({ goto: 'executor_agent', update: { messages: [toolMessage] } });
+          return new Command({ goto: 'executor_agent', update: { messages: [askUserMessage] } });
         } else if (humanReview.action === 'update') {
           if (!this.model.withStructuredOutput) {
             throw new Error('Model does not support structured output');

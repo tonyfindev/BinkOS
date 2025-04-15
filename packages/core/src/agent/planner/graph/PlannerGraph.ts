@@ -1,17 +1,15 @@
-import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import { BaseMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { Annotation, END, interrupt, START, StateGraph } from '@langchain/langgraph';
 import { BaseLanguageModel } from '@langchain/core/language_models/base';
 import { MessagesPlaceholder } from '@langchain/core/prompts';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { convertToOpenAITool } from '@langchain/core/utils/function_calling';
 import { shouldBindTools } from '../utils/llm';
-import { PlanningAgent } from '../PlanningAgent';
 import { CreatePlanTool } from '../tools/CreatePlanTool';
 import { BaseAgent } from '../../BaseAgent';
 import { UpdatePlanTool } from '../tools/UpdatePlanTool';
 import { SelectTasksTool } from '../tools/SelectTasksTool';
 import { TerminateTool } from '../tools/TerminateTool';
-import { AskTool } from '../tools/AskTool';
 
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
@@ -21,7 +19,7 @@ const StateAnnotation = Annotation.Root({
     {
       title: string;
       tasks: { title: string; status: string; retry?: number; result?: string; index: number }[];
-      id: string;
+      plan_id: string;
       status: string;
     }[]
   >,
@@ -31,6 +29,7 @@ const StateAnnotation = Annotation.Root({
   answer: Annotation<string>,
   chat_history: Annotation<BaseMessage[]>,
   ask_question: Annotation<string>,
+  ended_by: Annotation<string>,
 });
 
 export class PlannerGraph {
@@ -69,12 +68,18 @@ export class PlannerGraph {
 
   async createPlanNode(state: typeof StateAnnotation.State) {
     const prompt = ChatPromptTemplate.fromMessages([
-      ['system', this.createPlanPrompt + `
+      [
+        'system',
+        this.createPlanPrompt +
+          `
         Available tools with their names as actions they perform:
         {toolsStr}
 
         Create a plan using these services to execute the user's request.
-      `],
+
+        Use chat history only for retrieving context, do not create a new plan based on chat history unless explicitly requested by the user
+      `,
+      ],
       new MessagesPlaceholder('chat_history'),
       ['human', `Plan to execute the user's request: {input}`],
     ]);
@@ -162,10 +167,12 @@ export class PlannerGraph {
       );
     });
 
+    const currentPlan = state.plans.find(plan => plan.plan_id === state.active_plan_id);
+
     const response = (await planAgent.invoke({
       input: state.input,
       toolsStr: this.listToolsPrompt,
-      plans: JSON.stringify(state.plans),
+      plans: JSON.stringify(currentPlan),
       executor_response_tools: toolMessages,
     })) as any;
 
@@ -199,11 +206,7 @@ export class PlannerGraph {
     }
 
     const prompt = ChatPromptTemplate.fromMessages([
-      [
-        'system',
-        `Based on the plan, Select the tasks to executor need handle, You can select multiple tasks. You should prioritize tasks that require more information.\n` +
-          this.activeTasksPrompt,
-      ],
+      ['system', this.activeTasksPrompt],
       ['human', `The current plan: {plan}`],
     ]);
 
@@ -256,8 +259,19 @@ export class PlannerGraph {
     }
   }
 
-  shouldCreateOrUpdatePlan(state: typeof StateAnnotation.State) {
-    return !state?.plans || state?.plans.length === 0 ? 'create_plan' : 'update_plan';
+  shouldCreateOrUpdatePlan(state: typeof StateAnnotation.State): string {
+    // Check if no plans exist
+    if (!state?.plans || state?.plans.length === 0) {
+      return 'create_plan';
+    }
+
+    // Check if active plan is complete
+    const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
+    const isLastActivePlanCompleted = activePlan?.status === 'completed';
+
+    const wasEndedByPlanner = state.ended_by === 'planner_answer';
+
+    return isLastActivePlanCompleted && wasEndedByPlanner ? 'create_plan' : 'update_plan';
   }
 
   async answerNode(state: typeof StateAnnotation.State) {
@@ -281,7 +295,12 @@ export class PlannerGraph {
         chat_history: state.chat_history || [],
       });
 
-    return { chat_history: [response], answer: response.content, next_node: END };
+    return {
+      chat_history: [response],
+      answer: response.content,
+      next_node: END,
+      ended_by: 'planner_answer',
+    };
   }
 
   create() {
