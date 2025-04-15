@@ -378,7 +378,7 @@ export class Wallet implements IWallet {
         // Send raw transaction
         const rawTransaction = Buffer.from(tx.serialize());
         const signature = await connection.sendRawTransaction(rawTransaction, {
-          skipPreflight: false,
+          skipPreflight: true,
           preflightCommitment: 'confirmed',
         });
 
