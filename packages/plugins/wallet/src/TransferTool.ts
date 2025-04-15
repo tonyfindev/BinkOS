@@ -265,7 +265,7 @@ export class TransferTool extends BaseTool {
             to: transferTx.to,
             data: transferTx.data,
             value: BigInt(transferTx.value),
-            lastValidBlockHeight: transferTx.lastValidBlockHeight,
+            ...(network === 'solana' && { lastValidBlockHeight: transferTx.lastValidBlockHeight }),
           });
 
           // Wait for transaction to be mined
