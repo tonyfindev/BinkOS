@@ -267,6 +267,7 @@ export class TransferTool extends BaseTool {
 
           // Return result as JSON string
           return JSON.stringify({
+            status: 'success',
             provider: selectedProvider.getName(),
             token: quote.token,
             fromAddress: userAddress,
