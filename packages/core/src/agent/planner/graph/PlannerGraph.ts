@@ -19,7 +19,7 @@ const StateAnnotation = Annotation.Root({
     {
       title: string;
       tasks: { title: string; status: string; retry?: number; result?: string; index: number }[];
-      id: string;
+      plan_id: string;
       status: string;
     }[]
   >,
@@ -76,6 +76,8 @@ export class PlannerGraph {
         {toolsStr}
 
         Create a plan using these services to execute the user's request.
+
+        Use chat history only for retrieving context, do not create a new plan based on chat history unless explicitly requested by the user
       `,
       ],
       new MessagesPlaceholder('chat_history'),
@@ -165,10 +167,12 @@ export class PlannerGraph {
       );
     });
 
+    const currentPlan = state.plans.find(plan => plan.plan_id === state.active_plan_id);
+
     const response = (await planAgent.invoke({
       input: state.input,
       toolsStr: this.listToolsPrompt,
-      plans: JSON.stringify(state.plans),
+      plans: JSON.stringify(currentPlan),
       executor_response_tools: toolMessages,
     })) as any;
 
@@ -255,27 +259,19 @@ export class PlannerGraph {
     }
   }
 
-  shouldCreateOrUpdatePlan(state: typeof StateAnnotation.State) {
+  shouldCreateOrUpdatePlan(state: typeof StateAnnotation.State): string {
     // Check if no plans exist
     if (!state?.plans || state?.plans.length === 0) {
       return 'create_plan';
     }
 
-    // Check if active plan is complete or if previous execution ended with planner_answer
-    const isActivePlanCompleted = state.plans.some(
-      plan => plan.id === state.active_plan_id && plan.status === 'complete',
-    );
+    // Check if active plan is complete
+    const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
+    const isLastActivePlanCompleted = activePlan?.status === 'completed';
 
     const wasEndedByPlanner = state.ended_by === 'planner_answer';
 
-    console.log(
-      '====isActivePlanCompleted====',
-      isActivePlanCompleted,
-      'wasEndedByPlanner:',
-      wasEndedByPlanner,
-    );
-
-    return isActivePlanCompleted || wasEndedByPlanner ? 'create_plan' : 'update_plan';
+    return isLastActivePlanCompleted && wasEndedByPlanner ? 'create_plan' : 'update_plan';
   }
 
   async answerNode(state: typeof StateAnnotation.State) {
