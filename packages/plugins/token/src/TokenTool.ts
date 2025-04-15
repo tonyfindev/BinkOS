@@ -70,7 +70,7 @@ export class GetTokenInfoTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    return `Query token information using various providers (${providers}). Supports networks: ${networks}. You can query by token address or symbol.`;
+    return `Query token information including prices, symbols, and details using various providers (${providers}). Supports networks: ${networks}. You can query by token address or symbol (like "BTC", "ETH", "USDT", etc). Use this tool to get current token prices and information.`;
   }
 
   private getSupportedNetworks(): NetworkName[] {
@@ -107,6 +107,7 @@ export class GetTokenInfoTool extends BaseTool {
       query: z.string().describe('The token address or symbol to query'),
       network: z
         .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon', 'null'])
+        .default('null')
         .describe('The blockchain network to query the token on'),
       provider: z
         .enum(providers as [string, ...string[]])
@@ -130,6 +131,33 @@ export class GetTokenInfoTool extends BaseTool {
 
     // For EVM networks, lowercase the address
     return address.toLowerCase();
+  }
+
+  // Convert native token symbols to wrapped token symbols
+  private convertNativeSymbolToWrapped(
+    symbol: string,
+    network: string,
+  ): { symbol: string; network: NetworkName } {
+    // Normalize the symbol for comparison
+    const normalizedSymbol = symbol.toUpperCase();
+
+    // Convert native token symbols to wrapped versions based on network
+    if (normalizedSymbol === 'BNB') {
+      if (network === 'null') {
+        return { symbol: 'WBNB', network: NetworkName.BNB };
+      } else {
+        return { symbol: 'WBNB', network: network as NetworkName };
+      }
+    } else if (normalizedSymbol === 'BTC') {
+      if (network === 'null') {
+        return { symbol: 'WBTC', network: NetworkName.ETHEREUM };
+      } else {
+        return { symbol: 'WBTC', network: network as NetworkName };
+      }
+    }
+
+    // Return original symbol if no conversion needed
+    return { symbol: symbol, network: network as NetworkName };
   }
 
   // Get cache key for token
@@ -199,22 +227,22 @@ export class GetTokenInfoTool extends BaseTool {
         });
 
         // If we got price information, update our cache
-        if (updatedTokenInfo.price?.usd) {
+        if (updatedTokenInfo?.price?.usd) {
           // Round the price for display
-          const roundedPrice = roundNumber(updatedTokenInfo.price.usd, 6);
+          const roundedPrice = roundNumber(updatedTokenInfo?.price?.usd, 6);
 
           // Create a merged token with base info from original and price from updated
           const mergedToken: TokenInfo = {
             ...tokenInfo,
             network,
             price: {
-              ...updatedTokenInfo.price,
+              ...updatedTokenInfo?.price,
               usd: roundedPrice,
             },
             priceUpdatedAt: Date.now(),
-            priceChange24h: roundNumber(updatedTokenInfo.priceChange24h, 2),
-            volume24h: roundNumber(updatedTokenInfo.volume24h, 0),
-            marketCap: roundNumber(updatedTokenInfo.marketCap, 0),
+            priceChange24h: roundNumber(updatedTokenInfo?.priceChange24h, 2),
+            volume24h: roundNumber(updatedTokenInfo?.volume24h, 0),
+            marketCap: roundNumber(updatedTokenInfo?.marketCap, 0),
           };
 
           // Update the token cache
@@ -326,12 +354,12 @@ export class GetTokenInfoTool extends BaseTool {
       const updatedToken = await this.fetchTokenPrice(cachedToken, network);
 
       // Ensure all numeric values are properly rounded
-      if (updatedToken.price?.usd) {
-        updatedToken.price.usd = roundNumber(updatedToken.price.usd, 6);
+      if (updatedToken?.price?.usd) {
+        updatedToken.price.usd = roundNumber(updatedToken?.price?.usd, 6);
       }
-      updatedToken.priceChange24h = roundNumber(updatedToken.priceChange24h, 2);
-      updatedToken.volume24h = roundNumber(updatedToken.volume24h, 0);
-      updatedToken.marketCap = roundNumber(updatedToken.marketCap, 0);
+      updatedToken.priceChange24h = roundNumber(updatedToken?.priceChange24h, 2);
+      updatedToken.volume24h = roundNumber(updatedToken?.volume24h, 0);
+      updatedToken.marketCap = roundNumber(updatedToken?.marketCap, 0);
 
       return updatedToken;
     }
@@ -348,12 +376,12 @@ export class GetTokenInfoTool extends BaseTool {
       const updatedToken = await this.fetchTokenPrice(tokenInfo, network);
 
       // Ensure all numeric values are properly rounded
-      if (updatedToken.price?.usd) {
-        updatedToken.price.usd = roundNumber(updatedToken.price.usd, 6);
+      if (updatedToken?.price?.usd) {
+        updatedToken.price.usd = roundNumber(updatedToken?.price?.usd, 6);
       }
-      updatedToken.priceChange24h = roundNumber(updatedToken.priceChange24h, 2);
-      updatedToken.volume24h = roundNumber(updatedToken.volume24h, 0);
-      updatedToken.marketCap = roundNumber(updatedToken.marketCap, 0);
+      updatedToken.priceChange24h = roundNumber(updatedToken?.priceChange24h, 2);
+      updatedToken.volume24h = roundNumber(updatedToken?.volume24h, 0);
+      updatedToken.marketCap = roundNumber(updatedToken?.marketCap, 0);
 
       return updatedToken;
     } catch (error: any) {
@@ -361,6 +389,11 @@ export class GetTokenInfoTool extends BaseTool {
         `Failed to refresh price: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  private isAddress(query: string): boolean {
+    // Basic address validation - can be enhanced based on network requirements
+    return /^[0-9a-zA-Z]{32,44}$/.test(query);
   }
 
   createTool(): CustomDynamicStructuredTool {
@@ -376,10 +409,22 @@ export class GetTokenInfoTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
-          const { query, network, provider: preferredProvider, includePrice = true } = args;
+          let { query, network, provider: preferredProvider, includePrice = true } = args;
 
           console.log(`🔍 Searching for token "${query}" on ${network} network`);
           console.log('📋 Token Tool Args:', args);
+
+          // check if query is an address
+          const isAddress = this.isAddress(query);
+          if (!isAddress) {
+            const { symbol, network: newNetwork } = this.convertNativeSymbolToWrapped(
+              query,
+              network,
+            );
+            query = symbol;
+            network = newNetwork;
+            console.log(`🔍 Converted to wrapped token: ${query} on ${network} network`);
+          }
 
           onProgress?.({
             progress: 20,
@@ -502,20 +547,20 @@ export class GetTokenInfoTool extends BaseTool {
           }
 
           // Ensure all numeric values are properly rounded before returning
-          if (tokenInfo.price?.usd) {
-            tokenInfo.price.usd = roundNumber(tokenInfo.price.usd, 6);
+          if (tokenInfo?.price?.usd) {
+            tokenInfo.price.usd = roundNumber(tokenInfo?.price?.usd, 6);
           }
-          tokenInfo.priceChange24h = roundNumber(tokenInfo.priceChange24h, 2);
-          tokenInfo.volume24h = roundNumber(tokenInfo.volume24h, 0);
-          tokenInfo.marketCap = roundNumber(tokenInfo.marketCap, 0);
+          tokenInfo.priceChange24h = roundNumber(tokenInfo?.priceChange24h, 2);
+          tokenInfo.volume24h = roundNumber(tokenInfo?.volume24h, 0);
+          tokenInfo.marketCap = roundNumber(tokenInfo?.marketCap, 0);
 
           console.log(
-            `💰 Token info retrieved: ${tokenInfo.symbol || query} ${tokenInfo.price?.usd ? `($${tokenInfo.price.usd})` : ''}`,
+            `💰 Token info retrieved: ${tokenInfo.symbol || query} ${tokenInfo?.price?.usd ? `($${tokenInfo?.price?.usd})` : ''}`,
           );
 
           onProgress?.({
             progress: 100,
-            message: `Successfully retrieved information for ${tokenInfo.name || tokenInfo.symbol || query}${tokenInfo.price?.usd ? ` (Current price: $${tokenInfo.price.usd})` : ''}.`,
+            message: `Successfully retrieved information for ${tokenInfo.name || tokenInfo.symbol || query}${tokenInfo?.price?.usd ? ` (Current price: $${tokenInfo?.price?.usd})` : ''}.`,
           });
 
           if (!tokenInfo.verified) {
