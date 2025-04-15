@@ -18,7 +18,7 @@ async function main() {
   // Define available networks
   const BNB_RPC = 'https://bsc-dataseed1.binance.org';
   const ETH_RPC = 'https://eth.llamarpc.com';
-  const SOL_RPC = 'https://api.mainnet-beta.solana.com';
+  const SOL_RPC = 'https://solana-rpc.debridge.finance';
 
   console.log('📡 Configuring networks...');
   const networks: NetworksConfig['networks'] = {
