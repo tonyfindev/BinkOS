@@ -18,6 +18,7 @@ import { Metaplex } from '@metaplex-foundation/js';
 import { GAS_BUFFER } from './types';
 import { ethers } from 'ethers';
 import {
+  createAssociatedTokenAccountInstruction,
   createTransferCheckedInstruction,
   createTransferInstruction,
   getAssociatedTokenAddress,
@@ -157,7 +158,7 @@ export class SolanaProvider implements IWalletProvider {
     const blockhash = await this.connection.getLatestBlockhash('confirmed');
 
     if (!blockhash) {
-      throw new Error('Transaction simulation failed: Blockhash not found');
+      throw new Error('Transaction simulation failed 1: Blockhash not found');
     }
 
     // Build transfer using legacy transaction to avoid version issues
@@ -199,7 +200,14 @@ export class SolanaProvider implements IWalletProvider {
       // Check if the destination token account exists
       const destinationAccountInfo = await this.connection.getAccountInfo(destinationTokenAccount);
       if (!destinationAccountInfo) {
-        throw new Error('Transaction simulation failed: Blockhash not found');
+        tx.add(
+          createAssociatedTokenAccountInstruction(
+            fromPubkey, // payer
+            destinationTokenAccount, // ata
+            toPubkey, // owner
+            mintPubkey, // mint
+          ),
+        );
       }
 
       // Create transfer instruction
