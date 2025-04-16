@@ -551,4 +551,23 @@ export abstract class BaseStakingProvider implements IStakingProvider {
       tokens: [],
     };
   }
+
+  async getAllClaimableBalances(
+    walletAddress: string,
+  ): Promise<{ address: string; tokens: StakingBalance[] }> {
+    return {
+      address: walletAddress,
+      tokens: [],
+    };
+  }
+
+  async buildClaimTransaction(uuid: bigint): Promise<Transaction> {
+    return {
+      to: '',
+      data: '',
+      value: '0',
+      network: NetworkName.BNB,
+      spender: '',
+    };
+  }
 }

@@ -75,6 +75,9 @@ importers:
       '@binkai/kyber-provider':
         specifier: workspace:*
         version: link:../../packages/providers/kyber
+      '@binkai/lista-provider':
+        specifier: workspace:*
+        version: link:../../packages/providers/lista
       '@binkai/oku-provider':
         specifier: workspace:*
         version: link:../../packages/providers/oku
@@ -657,6 +660,28 @@ importers:
       '@types/crypto-js':
         specifier: ^4.2.2
         version: 4.2.2
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.17.14
+      rimraf:
+        specifier: ^5.0.0
+        version: 5.0.10
+      typescript:
+        specifier: ^5.0.0
+        version: 5.7.3
+
+  packages/providers/lista:
+    dependencies:
+      '@binkai/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@binkai/staking-plugin':
+        specifier: workspace:*
+        version: link:../../plugins/staking
+      ethers:
+        specifier: ^6.0.0
+        version: 6.13.5(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+    devDependencies:
       '@types/node':
         specifier: ^20.0.0
         version: 20.17.14

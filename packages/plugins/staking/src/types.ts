@@ -152,4 +152,19 @@ export interface IStakingProvider {
     address: string;
     tokens: StakingBalance[];
   }>;
+
+  /**
+   * Get all claimable balances for a user
+   * @param walletAddress The address of the user
+   */
+  getAllClaimableBalances(walletAddress: string): Promise<{
+    address: string;
+    tokens: StakingBalance[];
+  }>;
+
+  /**
+   * Build a transaction for claiming a balance
+   * @param uuid The UUID of the claimable balance
+   */
+  buildClaimTransaction(uuid: bigint): Promise<Transaction>;
 }
