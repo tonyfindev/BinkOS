@@ -442,6 +442,7 @@ export class VenusProvider extends BaseStakingProvider {
         name: 'Venus BNB',
         decimals: 8,
         balance: vBNBBalance.formattedBalance,
+        provider: this.getName(),
       };
 
       return {
