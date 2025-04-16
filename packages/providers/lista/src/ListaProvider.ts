@@ -3,12 +3,21 @@ import {
   StakingParams,
   StakingQuote,
   NetworkProvider,
+  StakingBalance,
+  Transaction,
 } from '@binkai/staking-plugin';
 import { ethers, Contract, Provider } from 'ethers';
-import { VenusPoolABI } from './abis/VenusPool';
+import { ListaPoolABI } from './abis/Lista';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
 import { isSolanaNetwork } from '@binkai/staking-plugin';
 import { isWithinTolerance, parseTokenAmount } from '@binkai/staking-plugin';
+
+export enum StakingOperationType {
+  STAKE = 'stake',
+  UNSTAKE = 'unstake',
+  SUPPLY = 'supply',
+  WITHDRAW = 'withdraw',
+}
 
 // Core system constants
 const CONSTANTS = {
@@ -16,9 +25,8 @@ const CONSTANTS = {
   APPROVE_GAS_LIMIT: '50000',
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
-  VENUS_API_BASE: 'https://api.venus.io/',
-  VENUS_POOL_ADDRESS: '0xa07c5b74c9b40447a954e1466938b865b6bbea36',
-  VBNB_ADDRESS: '0xA07c5b74C9B40447a954e1466938b865b6BBea36',
+  SLISBNB_ADDRESS: '0xB0b84D294e0C75A6abe60171b70edEb2EFd14A1B',
+  LISTA_CONTRACT_ADDRESS: '0x1adB950d8bB3dA4bE104211D5AB038628e477fE6',
 } as const;
 
 enum ChainId {
@@ -26,86 +34,7 @@ enum ChainId {
   ETH = 1,
 }
 
-// Add these interfaces before the VenusProvider class
-
-interface VenusPoolsResponse {
-  limit: number;
-  page: number;
-  total: number;
-  result: VenusPool[];
-}
-
-interface VenusPool {
-  address: string;
-  chainId: string;
-  name: string;
-  description: string | null;
-  priceOracleAddress: string;
-  closeFactorMantissa: string;
-  liquidationIncentiveMantissa: string;
-  minLiquidatableCollateralMantissa: string;
-  markets: VenusMarket[];
-}
-
-interface VenusMarket {
-  address: string;
-  chainId: string;
-  symbol: string;
-  name: string;
-  underlyingAddress: string;
-  underlyingName: string;
-  underlyingSymbol: string;
-  underlyingDecimal: number;
-
-  // Interest rates
-  borrowRatePerBlock: string;
-  supplyRatePerBlock: string;
-  borrowApy: string;
-  supplyApy: string;
-
-  // Market state
-  exchangeRateMantissa: string;
-  underlyingPriceMantissa: string;
-  totalBorrowsMantissa: string;
-  totalSupplyMantissa: string;
-  cashMantissa: string;
-  totalReservesMantissa: string;
-
-  // Configuration
-  reserveFactorMantissa: string;
-  collateralFactorMantissa: string;
-  supplyCapsMantissa: string;
-  borrowCapsMantissa: string;
-
-  // Market metrics
-  borrowerCount: number;
-  supplierCount: number;
-  liquidityCents: string;
-  tokenPriceCents: string;
-
-  // Status
-  pausedActionsBitmap: number;
-  isListed: boolean;
-
-  // Rewards
-  rewardsDistributors: RewardDistributor[];
-}
-
-interface RewardDistributor {
-  id: string;
-  marketAddress: string;
-  rewardTokenAddress: string;
-  chainId: string;
-  supplySpeed: string;
-  borrowSpeed: string;
-  priceMantissa: string;
-  rewardType: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export class VenusProvider extends BaseStakingProvider {
+export class ListaProvider extends BaseStakingProvider {
   private chainId: ChainId;
   private factory: any;
   protected GAS_BUFFER: bigint = ethers.parseEther('0.0003');
@@ -117,11 +46,11 @@ export class VenusProvider extends BaseStakingProvider {
     super(providerMap);
 
     this.chainId = chainId;
-    this.factory = new Contract(CONSTANTS.VENUS_POOL_ADDRESS, VenusPoolABI, provider);
+    this.factory = new Contract(CONSTANTS.LISTA_CONTRACT_ADDRESS, ListaPoolABI, provider);
   }
 
   getName(): string {
-    return 'venus';
+    return 'lista';
   }
 
   getSupportedNetworks(): NetworkName[] {
@@ -130,10 +59,10 @@ export class VenusProvider extends BaseStakingProvider {
 
   getPrompt(): string {
     return `
-      Venus Protocol Information:
-      - For unstaking from Venus, use the token with "v" prefix (e.g., vBNB for BNB, vBUSD for BUSD).
-      - When a user asks to "unstake all BNB on Venus", you should use vBNB as tokenA.
-      - The "v" prefix indicates a Venus-supplied token that represents the staked position.
+      Lista Protocol Information:
+      - For unstaking from Lista, use the token with "slis" prefix (e.g., slisBNB for BNB, slisBUSD for BUSD).
+      - When a user asks to "unstake all BNB on Lista", you should use slisBNB as tokenA.
+      - The "slis" prefix indicates a Lista-supplied token that represents the staked position.
     `;
   }
 
@@ -157,7 +86,7 @@ export class VenusProvider extends BaseStakingProvider {
       decimals: token.decimals,
       symbol: token.symbol,
     };
-    console.log('🤖 Venus token info:', tokenInfo);
+    console.log('🤖 Lista token info:', tokenInfo);
     return tokenInfo;
   }
 
@@ -165,14 +94,15 @@ export class VenusProvider extends BaseStakingProvider {
     try {
       // Check if tokenA is BNB
       if (
-        (params.type === 'supply' || params.type === 'stake') &&
+        (params.type === StakingOperationType.SUPPLY ||
+          params.type === StakingOperationType.STAKE) &&
         params.tokenA.toLowerCase() !== CONSTANTS.BNB_ADDRESS.toLowerCase()
       ) {
-        throw new Error(`Venus does not support supplying BNB tokens`);
+        throw new Error(`Lista does not support supplying BNB tokens`);
       }
 
       if (params.tokenB) {
-        throw new Error(`Venus does not support supplying other tokens without BNB`);
+        throw new Error(`Lista does not support supplying other tokens without BNB`);
       }
 
       // Fetch input and output token information
@@ -185,7 +115,10 @@ export class VenusProvider extends BaseStakingProvider {
 
       // If input token is native token and it's an exact input swap
       let adjustedAmount = params.amountA;
-      if (params.type === 'supply' || params.type === 'stake') {
+      if (
+        params.type === StakingOperationType.SUPPLY ||
+        params.type === StakingOperationType.STAKE
+      ) {
         // Use the adjustAmount method for all tokens (both native and ERC20)
         adjustedAmount = await this.adjustAmount(
           params.tokenA,
@@ -195,29 +128,42 @@ export class VenusProvider extends BaseStakingProvider {
         );
 
         if (adjustedAmount !== params.amountA) {
-          console.log(`🤖 Venus adjusted input amount from ${params.amountA} to ${adjustedAmount}`);
+          console.log(`🤖 Lista adjusted input amount from ${params.amountA} to ${adjustedAmount}`);
         }
       }
 
       // Calculate input amount based on decimals
       const swapAmountA = BigInt(Math.floor(Number(adjustedAmount) * 10 ** tokenA.decimals));
+      console.log('🚀 ~ ListaProvider ~ getQuote ~ swapAmountA:', swapAmountA);
+
       const swapAmountB = params.amountB
         ? BigInt(Math.floor(Number(params.amountB) * 10 ** tokenB.decimals))
         : swapAmountA;
 
-      // Fetch optimal swap route
-      const optimalRoute: VenusMarket = await this.fetchOptimalRoute(CONSTANTS.VENUS_POOL_ADDRESS);
-
-      // Build swap transaction
+      // Build  transaction
       const buildTransactionData = await this.buildStakingRouteTransaction(
-        optimalRoute,
         swapAmountA,
         swapAmountB,
-        params.type,
+        params.type as StakingOperationType,
       );
 
+      const swapTransactionData = {
+        currentAPY: '28.74',
+        averageAPY: '28.74',
+        maxSupply: '0',
+        totalSupplyMantissa: '0',
+        liquidity: '0',
+      };
+
       // Create and store quote
-      const quote = this.createQuote(params, tokenA, tokenB, optimalRoute, buildTransactionData);
+      const quote = this.createQuote(
+        params,
+        tokenA,
+        tokenB,
+        swapTransactionData,
+        buildTransactionData,
+      );
+      console.log('🚀 ~ ListaProvider ~ getQuote ~ quote:', quote);
 
       this.storeQuoteWithExpiry(quote);
 
@@ -230,70 +176,56 @@ export class VenusProvider extends BaseStakingProvider {
     }
   }
 
-  // Helper methods for better separation of concerns
-  private async fetchOptimalRoute(poolAddress: string): Promise<VenusMarket> {
-    const routePath = `pools?chainId=56`;
-    const routeResponse = await fetch(`${CONSTANTS.VENUS_API_BASE}${routePath}`);
-    const routeData = (await routeResponse.json()) as VenusPoolsResponse;
-
-    if (!routeData.result || routeData.result.length === 0) {
-      throw new Error('No pools available from Venus');
-    }
-
-    // First find the Core Pool
-    const corePool = routeData.result.find((pool: VenusPool) => pool.name === 'Core Pool');
-
-    if (!corePool) {
-      throw new Error('Core Pool not found');
-    }
-
-    // Then find the specific market within the Core Pool's markets
-    const targetMarket = corePool.markets.find(
-      (market: VenusMarket) => market.address.toLowerCase() === poolAddress.toLowerCase(),
-    );
-
-    if (!targetMarket) {
-      throw new Error(`Market with address ${poolAddress} not found in Venus`);
-    }
-
-    return targetMarket;
-  }
-
   private async buildStakingRouteTransaction(
-    routeData: VenusMarket,
     amountA: bigint,
     amountB: bigint,
-    type: 'stake' | 'unstake' | 'supply' | 'withdraw' | 'deposit' = 'stake',
+    type: StakingOperationType = StakingOperationType.STAKE,
   ) {
     try {
       let txData: string;
 
       // Handle staking/supply
-      if (type === 'stake' || type === 'supply') {
-        txData = this.factory.interface.encodeFunctionData('mint', []);
-
+      if (type === StakingOperationType.STAKE || type === StakingOperationType.SUPPLY) {
+        txData = this.factory.interface.encodeFunctionData('deposit', []);
         return {
-          to: routeData.address,
+          to: CONSTANTS.LISTA_CONTRACT_ADDRESS,
           data: txData,
           value: amountA.toString(), // For BNB, the value field is used
-          gasLimit: CONSTANTS.DEFAULT_GAS_LIMIT,
         };
       }
-      // Handle unstaking/withdraw
+      // Handle request unstaking/withdraw
       else {
-        txData = this.factory.interface.encodeFunctionData('redeem', [amountA]);
+        txData = this.factory.interface.encodeFunctionData('requestWithdraw', [amountA]);
 
         return {
-          to: routeData.address,
+          to: CONSTANTS.LISTA_CONTRACT_ADDRESS,
           data: txData,
           value: '0', // No value needed for redeem
-          gasLimit: CONSTANTS.DEFAULT_GAS_LIMIT,
         };
       }
     } catch (error) {
       console.error('Error building staking transaction:', error);
       throw new Error(
         `Failed to build staking transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  async buildClaimTransaction(uuid: bigint): Promise<Transaction> {
+    try {
+      const txData = this.factory.interface.encodeFunctionData('claimWithdraw', [uuid]);
+
+      return {
+        to: CONSTANTS.LISTA_CONTRACT_ADDRESS,
+        data: txData,
+        value: '0',
+        network: NetworkName.BNB,
+        spender: CONSTANTS.LISTA_CONTRACT_ADDRESS,
+      };
+    } catch (error) {
+      console.error('Error building claim transaction:', error);
+      throw new Error(
+        `Failed to build claim transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -315,11 +247,11 @@ export class VenusProvider extends BaseStakingProvider {
       amountA: params.amountA,
       amountB: params.amountB || '0',
       type: params.type,
-      currentAPY: Number(swapTransactionData.supplyApy),
-      averageAPY: Number(swapTransactionData.supplyApy),
-      maxSupply: Number(swapTransactionData.supplyCapsMantissa),
+      currentAPY: Number(swapTransactionData.currentAPY),
+      averageAPY: Number(swapTransactionData.averageAPY),
+      maxSupply: Number(swapTransactionData.maxSupply),
       currentSupply: Number(swapTransactionData.totalSupplyMantissa),
-      liquidity: Number(swapTransactionData.liquidityCents),
+      liquidity: Number(swapTransactionData.liquidity),
       estimatedGas: CONSTANTS.DEFAULT_GAS_LIMIT,
       tx: {
         to: buildTransactionData.to,
@@ -355,9 +287,6 @@ export class VenusProvider extends BaseStakingProvider {
       }
 
       this.validateNetwork(quote.network);
-      if (isSolanaNetwork(quote.network)) {
-        // TODO: Implement Solana
-      }
 
       const tokenToCheck = quote.tokenA;
       const requiredAmount = parseTokenAmount(quote.amountA, quote.tokenA.decimals);
@@ -429,29 +358,67 @@ export class VenusProvider extends BaseStakingProvider {
 
   async getAllStakingBalances(walletAddress: string) {
     try {
-      // Get vBNB balance
-      const vBNBBalance = await this.getTokenBalance(
-        CONSTANTS.VBNB_ADDRESS,
+      // Get slisBNB balance
+      const slisBNBBalance = await this.getTokenBalance(
+        CONSTANTS.SLISBNB_ADDRESS,
         walletAddress,
         NetworkName.BNB,
       );
 
-      const vBNBInfo = {
-        tokenAddress: CONSTANTS.VBNB_ADDRESS,
-        symbol: 'vBNB',
-        name: 'Venus BNB',
-        decimals: 8,
-        balance: vBNBBalance.formattedBalance,
+      const slisBNBInfo = {
+        tokenAddress: CONSTANTS.SLISBNB_ADDRESS,
+        symbol: 'slisBNB',
+        name: 'Staked Lista BNB',
+        decimals: 18,
+        balance: slisBNBBalance.formattedBalance,
       };
 
       return {
         address: walletAddress,
-        tokens: [vBNBInfo],
+        tokens: [slisBNBInfo],
       };
     } catch (error) {
-      console.error('Error getting vBNB staking balance:', error);
+      console.error('Error getting slisBNB staking balance:', error);
       throw new Error(
-        `Failed to get vBNB staking balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to get slisBNB staking balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  async getAllClaimableBalances(
+    walletAddress: string,
+  ): Promise<{ address: string; tokens: StakingBalance[] }> {
+    try {
+      const claimableBalances = await this.factory.getUserWithdrawalRequests(walletAddress);
+
+      // Convert the result to an array of objects with natural numbers
+      const formattedBalances = claimableBalances.map((item: any) => {
+        const amount = ethers.formatEther(item[1]);
+
+        // Convert timestamp to days (seconds since epoch to days since request)
+        const currentTimeSeconds = Math.floor(Date.now() / 1000);
+
+        // Convert currentTimeSeconds to normal date
+        const currentDate = new Date(currentTimeSeconds * 1000);
+
+        // Set estimated time to current date + 8 days
+        const estimatedDate = new Date(currentDate);
+        estimatedDate.setDate(currentDate.getDate() + 8);
+
+        return {
+          claimableAmount: amount,
+          estimatedTime: estimatedDate,
+        };
+      });
+
+      return {
+        address: walletAddress,
+        tokens: formattedBalances,
+      };
+    } catch (error) {
+      console.error('Error getting claimable balances:', error);
+      throw new Error(
+        `Failed to get claimable balances: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
