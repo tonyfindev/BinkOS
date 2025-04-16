@@ -269,7 +269,22 @@ export class PlanningAgent extends Agent {
           __end__: END,
         },
       )
-      .addEdge('executor', 'planner')
+      .addConditionalEdges(
+        'executor',
+        state => {
+          const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
+          const isLastActivePlanRejected = activePlan?.status === 'rejected';
+          if (state.ended_by === 'reject_transaction' && isLastActivePlanRejected) {
+            return END;
+          } else {
+            return 'planner';
+          }
+        },
+        {
+          planner: 'planner',
+          __end__: END,
+        },
+      )
       .addEdge('basic_question', END);
 
     const checkpointer = new MemorySaver();
