@@ -94,7 +94,7 @@ async function main() {
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
     {
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1',
       temperature: 0,
     },
     wallet,
@@ -124,7 +124,7 @@ async function main() {
   // Initialize plugin with provider
   await walletPlugin.initialize({
     defaultChain: 'bnb',
-    providers: [alchemyProvider, birdeyeProvider, solanaProvider],
+    providers: [bnbProvider, alchemyProvider, birdeyeProvider, solanaProvider],
     supportedChains: ['bnb', 'solana'],
   });
 
@@ -146,7 +146,7 @@ async function main() {
   // Execute token transfer through natural language
   const result = await agent.execute({
     input:
-      'send 0.01 USDT(Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB) to wallet(HVaUqk8o6XoDTVBZ5RZFxYNjJTs8XCwNtkPoki87DQAi) on solana',
+      'send 0.01 USDT(Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB) to wallet() on solana',
   });
   console.log('🤖 Result:', result);
 }

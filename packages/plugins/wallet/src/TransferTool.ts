@@ -118,6 +118,11 @@ export class TransferTool extends BaseTool {
     const wallet = this.agent.getWallet();
     const userAddress = await wallet.getAddress(network);
 
+    // Check if user is sending to themselves
+    if (userAddress === toAddress) {
+      throw new Error('You cannot send tokens to yourself');
+    }
+
     // Validate network is supported
     const supportedNetworks = this.getSupportedNetworks();
     if (!supportedNetworks.includes(network)) {
@@ -260,7 +265,7 @@ export class TransferTool extends BaseTool {
             to: transferTx.to,
             data: transferTx.data,
             value: BigInt(transferTx.value),
-            lastValidBlockHeight: transferTx.lastValidBlockHeight,
+            ...(network === 'solana' && { lastValidBlockHeight: transferTx.lastValidBlockHeight }),
           });
 
           // Wait for transaction to be mined
