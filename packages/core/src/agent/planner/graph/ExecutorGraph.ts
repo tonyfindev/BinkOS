@@ -42,6 +42,8 @@ const StateAnnotation = Annotation.Root({
   active_plan_id: Annotation<string>,
   selected_task_indexes: Annotation<number[]>,
   next_node: Annotation<string>,
+  ended_by: Annotation<string>,
+  reject_transaction: Annotation<boolean>,
 });
 
 export class ExecutorGraph {
@@ -228,17 +230,47 @@ export class ExecutorGraph {
   }
 
   async executorTerminateNode(state: typeof StateAnnotation.State) {
-    const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
-    return {
-      executor_response_tools: [
-        ...this.getExecutorResponseTools(state.messages),
-        new ToolMessage({
-          tool_call_id: createToolCallId(),
-          name: 'executor',
-          content: lastMessage.tool_calls?.[0]?.args?.reason ?? '',
-        }),
-      ],
-    };
+    if (state.reject_transaction) {
+      const prompt = ChatPromptTemplate.fromMessages([
+        ['system', `The user has rejected the transaction. 
+          Inform them that the previous plan and its execution have been deleted. 
+          Let them know that their next input will create a new plan. 
+          Provide a helpful response about what happened and what they can do next.
+        `],
+        ['human', `reason terminated: {reason}`],
+        ['human', 'terminated plans: {plans}'],
+      ]);
+  
+      const response = await prompt
+        .pipe(
+          this.model.withConfig({
+            tags: ['final_node'],
+          }),
+        )
+        .invoke({
+          reason: state.messages[state.messages.length - 1]?.content ?? '',
+          plans: JSON.stringify(state.plans),
+        });
+
+      return { 
+        chat_history: [response],
+        answer: response.content,  
+        next_node: END,
+        ended_by: 'reject_transaction',
+      };
+    } else {
+      const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+      return {
+        executor_response_tools: [
+          ...this.getExecutorResponseTools(state.messages),
+          new ToolMessage({
+            tool_call_id: createToolCallId(),
+            name: 'executor',
+            content: lastMessage.tool_calls?.[0]?.args?.reason ?? '',
+          }),
+        ],
+      };
+    }
   }
 
   async askNode(state: typeof StateAnnotation.State) {
@@ -391,17 +423,19 @@ export class ExecutorGraph {
           });
           return new Command({ goto: 'executor_tools' });
         } else if (humanReview.action === 'reject') {
-          const askUserMessage = new ToolMessage({
-            content: `Transaction rejected by human review. 
-            Ask if user want to exit process and create new plan? 
-            Or continue to execute the current plan?`,
-            tool_call_id: toolCall.id ?? createToolCallId(),
-            name: toolCall.name,
-          });
+          
           this.logToolExecution('review_transaction', 'completed', {
             status: 'rejected',
           });
-          return new Command({ goto: 'executor_agent', update: { messages: [askUserMessage] } });
+          const currentPlan = state.plans.find(p => p.plan_id === state.active_plan_id);
+
+          if (currentPlan) {
+            currentPlan.status = 'rejected';
+            return new Command({ goto: 'executor_terminate', update: { plans: [currentPlan], reject_transaction: true } });
+          } else {
+            return new Command({ goto: 'executor_terminate', update: { reject_transaction: true } });
+          }
+
         } else if (humanReview.action === 'update') {
           if (!this.model.withStructuredOutput) {
             throw new Error('Model does not support structured output');

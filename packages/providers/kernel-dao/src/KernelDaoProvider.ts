@@ -328,12 +328,16 @@ export class KernelDaoProvider extends BaseStakingProvider {
     try {
       const bnbBalance = await this.factory.balanceOf(CONSTANTS.WRAPED_BNB_ADDRESS, walletAddress);
 
+      //formattedBnbBalance
+      const formattedBnbBalance = ethers.formatEther(bnbBalance);
+
       const bnbInfo = {
         tokenAddress: CONSTANTS.WRAPED_BNB_ADDRESS,
         symbol: 'WBNB',
         name: 'Wrapped BNB',
         decimals: 18,
-        balance: bnbBalance.toString(),
+        balance: formattedBnbBalance,
+        provider: this.getName(),
       };
 
       return {

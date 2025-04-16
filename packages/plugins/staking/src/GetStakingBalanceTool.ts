@@ -57,7 +57,7 @@ export class GetStakingBalanceTool extends BaseTool {
         combinedTokens.push(...balanceData.tokens);
       }
     });
-    
+
     return Promise.resolve(
       JSON.stringify({
         status: 'success',
@@ -186,7 +186,11 @@ export class GetStakingBalanceTool extends BaseTool {
           const combinedTokens: StakingBalance[] = [];
           allStakingBalances.forEach(balanceData => {
             if (balanceData.tokens && balanceData.tokens.length > 0) {
-              combinedTokens.push(...balanceData.tokens);
+              // Only add tokens with non-zero balances
+              const nonZeroTokens = balanceData.tokens.filter(
+                token => token.balance !== '0.0' && token.balance !== '0',
+              );
+              combinedTokens.push(...nonZeroTokens);
             }
           });
 
@@ -198,6 +202,7 @@ export class GetStakingBalanceTool extends BaseTool {
             if (Object.keys(errors).length > 0) {
               return JSON.stringify({
                 status: 'error',
+                data: { address, tokenStaking: [] },
                 message: `No staking balances found for ${address}`,
                 errors,
                 network,
@@ -208,7 +213,7 @@ export class GetStakingBalanceTool extends BaseTool {
             // Otherwise return empty result
             return JSON.stringify({
               status: 'success',
-              data: { address, tokens: [] },
+              data: { address, tokenStaking: [] },
               message: `No staking balances found for ${address}`,
               network,
               address,
@@ -230,7 +235,7 @@ export class GetStakingBalanceTool extends BaseTool {
 
           return JSON.stringify({
             status: 'success',
-            data: { address, tokens: combinedTokens },
+            data: { address, tokenStaking: combinedTokens },
             errors: Object.keys(errors).length > 0 ? errors : undefined,
             network,
             address,
