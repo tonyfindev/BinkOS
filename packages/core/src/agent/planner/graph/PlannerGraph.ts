@@ -268,10 +268,16 @@ export class PlannerGraph {
     // Check if active plan is complete
     const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
     const isLastActivePlanCompleted = activePlan?.status === 'completed';
+    const isLastActivePlanRejected = activePlan?.status === 'rejected';
 
     const wasEndedByPlanner = state.ended_by === 'planner_answer';
+    const wasEndedByRejectTransaction = state.ended_by === 'reject_transaction';
 
-    return isLastActivePlanCompleted && wasEndedByPlanner ? 'create_plan' : 'update_plan';
+    return (
+      (isLastActivePlanCompleted && wasEndedByPlanner) || 
+      (isLastActivePlanRejected && wasEndedByRejectTransaction)
+    ) ? 'create_plan' 
+      : 'update_plan';
   }
 
   async answerNode(state: typeof StateAnnotation.State) {
