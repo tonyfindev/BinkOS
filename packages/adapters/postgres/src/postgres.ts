@@ -316,11 +316,12 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
 
         // Flatten message data into values array
         messages.forEach(message => {
-          if (!message.user_id) {
-            throw new Error('user_id is required for message creation');
+          if (!message.content) {
+            throw new Error('content is required for message creation');
           }
+          // Ensure content is never null - use empty string as fallback
           values.push(
-            message.content,
+            message.content || '',
             message.user_id,
             message.message_type,
             JSON.stringify(message.metadata),
@@ -344,12 +345,17 @@ export class PostgresDatabaseAdapter extends DatabaseAdapter<Pool> {
   async createMessage(message: MessageEntity, threadId?: UUID): Promise<boolean> {
     return this.wrapDatabase(async () => {
       try {
+        if (!message.content) {
+          throw new Error('content is required for message creation');
+        }
+
         const thread_id = await this.createThreadIfNotExists(threadId, message?.content);
         await this.pool.query(
           `INSERT INTO messages (content, user_id, message_type, metadata, thread_id)
            VALUES ($1, $2, $3, $4, $5)`,
           [
-            message.content,
+            // Ensure content is never null - use empty string as fallback
+            message.content || '',
             message.user_id,
             message.message_type,
             JSON.stringify(message.metadata),
