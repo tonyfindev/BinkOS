@@ -17,7 +17,7 @@ export interface StakingQuote {
   currentSupply: number;
   liquidity: number;
   estimatedGas: string;
-  type: 'supply' | 'withdraw' | 'stake' | 'unstake';
+  type: 'supply' | 'withdraw' | 'stake' | 'unstake' | 'deposit';
   tx?: Transaction;
 }
 
@@ -33,7 +33,7 @@ export interface StakingParams {
   tokenB: string;
   amountA: string;
   amountB: string;
-  type: 'supply' | 'withdraw' | 'stake' | 'unstake';
+  type: 'supply' | 'withdraw' | 'stake' | 'unstake' | 'deposit';
 }
 
 export interface Transaction {
