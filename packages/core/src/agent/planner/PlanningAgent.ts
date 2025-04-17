@@ -178,8 +178,10 @@ export class PlanningAgent extends Agent {
       
       Following tips trading:
 
-        + Sell/Swap X/X% A to B (amount = X/calculate X% of current balance, amountType = input).
-        + Swap/Buy X/X% A from B (amount = X/calculate X% of current balance, amountType = ouput).
+        + Sell/Swap X/X% A to B on network X (amount = X/calculate X% of current balance, amountType = input).
+        + Swap/Buy X/X% A from B on network X (amount = X/calculate X% of current balance, amountType = ouput).
+
+      If you can't retrieve or reasoning A/B/X in user's request, ask user to provide more information.
       `;
 
     const updatePlanPrompt = `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
@@ -189,7 +191,7 @@ export class PlanningAgent extends Agent {
       NOTE: 
       - Create task ask user to provide more information if needed
       - Retrieve information in user's request and maintain it each task
-      - If tool swap success, update title of the plan to completed
+      - If swap/bridge/transfer/unstake/stake success, update title of the plan to completed
       `;
 
     let toolsStr = '';

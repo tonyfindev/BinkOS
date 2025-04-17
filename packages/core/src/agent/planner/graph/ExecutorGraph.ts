@@ -44,6 +44,7 @@ const StateAnnotation = Annotation.Root({
   next_node: Annotation<string>,
   ended_by: Annotation<string>,
   reject_transaction: Annotation<boolean>,
+  answer: Annotation<string>,
 });
 
 export class ExecutorGraph {
@@ -235,7 +236,7 @@ export class ExecutorGraph {
         ['system', `The user has rejected the transaction. 
           Inform them that the previous plan and its execution have been deleted. 
           Let them know that their next input will create a new plan. 
-          Provide a helpful response about what happened and what they can do next.
+          Provide a helpful response and short enough to be understood by the user.
         `],
         ['human', `reason terminated: {reason}`],
         ['human', 'terminated plans: {plans}'],
