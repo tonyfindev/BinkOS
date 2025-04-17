@@ -45,7 +45,10 @@ export class StakingTool extends BaseTool {
     const networks = Array.from(this.supportedNetworks).join(', ');
     let description = `Stake and unstake tokens from your wallet using various staking providers (${providers}). Supports networks: ${networks}. 
     
-Before using this tool, you should first check your staking balances using the get_staking_balance tool to see what tokens you have staked. This is especially important for unstake or withdraw operations, as you'll need to know the specific staked token addresses and available amounts. You should also check your wallet balance to ensure you have sufficient funds for staking operations. This tool will verify your wallet balance and handle any required token approvals automatically. You can specify either input amount (how much to stake) or output amount (how much to receive).`;
+Before using this tool, you should first check your staking balances using the get_staking_balance tool to see what tokens you have staked. This is especially important for unstake or withdraw operations, as you'll need to know the specific staked token addresses and available amounts. You should also check your wallet balance to ensure you have sufficient funds for staking operations. This tool will verify your wallet balance and handle any required token approvals automatically. You can specify either input amount (how much to stake) or output amount (how much to receive).
+Provider-specific tokens:
+- Venus: vBNB
+- KernelDao: WBNB`;
 
     // Add provider-specific prompts if they exist
     const providerPrompts = this.registry
@@ -92,9 +95,7 @@ Before using this tool, you should first check your staking balances using the g
       amountB: z.string().optional().describe('The amount of token B to stake'),
       type: z
         .enum(['supply', 'withdraw', 'stake', 'unstake'])
-        .describe(
-          'The type of staking operation to perform. For "unstake" or "withdraw" operations, you may need to use provider-specific tokens (e.g., for Venus, use "vBNB" to unstake BNB, "vBUSD" to unstake BUSD, etc.). Each provider has its own token representation for staked assets.',
-        ),
+        .describe('The type of staking operation to perform.'),
       network: z
         .enum(supportedNetworks as [string, ...string[]])
         // .default(this.defaultNetwork)
