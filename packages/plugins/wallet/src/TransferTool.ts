@@ -157,7 +157,10 @@ export class TransferTool extends BaseTool {
 
     return {
       selectedProvider,
-      quote,
+      quote: {
+        ...quote,
+        provider: selectedProvider.getName(),
+      },
       userAddress,
     };
   }

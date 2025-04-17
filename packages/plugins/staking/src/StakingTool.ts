@@ -246,7 +246,10 @@ Provider-specific tokens:
 
     return {
       selectedProvider,
-      quote,
+      quote: {
+        ...quote,
+        provider: selectedProvider.getName(),
+      },
       userAddress,
     };
   }

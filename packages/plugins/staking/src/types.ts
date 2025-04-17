@@ -5,6 +5,7 @@ import { Connection } from '@solana/web3.js';
 export type NetworkProvider = Provider | Connection;
 
 export interface StakingQuote {
+  provider?: string;
   network: NetworkName;
   quoteId: string;
   tokenA: Token;

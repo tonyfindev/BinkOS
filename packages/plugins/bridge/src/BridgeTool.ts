@@ -102,9 +102,7 @@ export class BridgeTool extends BaseTool {
           'The blockchain network to execute the bridge to or on symbor native token. Example: Solana similar SOL or on BNB',
         ),
       fromToken: z.string().describe('The address of send token'),
-      toToken: z
-        .string()
-        .describe(`The address of receive token`),
+      toToken: z.string().describe(`The address of receive token`),
       amount: z.string().describe('The amount of tokens to bridge'),
       amountType: z
         .enum(['input', 'output'])
@@ -285,7 +283,10 @@ export class BridgeTool extends BaseTool {
 
     return {
       selectedProvider,
-      quote,
+      quote: {
+        ...quote,
+        provider: selectedProvider.getName(),
+      },
       fromWalletAddress,
       toWalletAddress,
     };

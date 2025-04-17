@@ -370,7 +370,10 @@ export class SwapTool extends BaseTool {
 
     return {
       selectedProvider,
-      quote,
+      quote: {
+        ...quote,
+        provider: selectedProvider.getName(),
+      },
       userAddress,
     };
   }
