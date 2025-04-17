@@ -245,7 +245,10 @@ Before using this tool, you should first check your staking balances using the g
 
     return {
       selectedProvider,
-      quote,
+      quote: {
+        ...quote,
+        provider: selectedProvider.getName(),
+      },
       userAddress,
     };
   }

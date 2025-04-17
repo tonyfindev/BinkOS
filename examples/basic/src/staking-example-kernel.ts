@@ -177,7 +177,7 @@ async function main() {
   // Example 1: Very basic staking (explicit everything)
   console.log('💱 Example 1 [EASY]: Basic staking with explicit parameters');
   const basicStakeResult = await agent.execute({
-    input: `Withdraw 0.001 BNB on kernel dao protocol on BNB Chain`,
+    input: `withdraw 0.001 BNB on kernel dao protocol on BNB Chain`,
   });
   // console.log('✓ Basic staking result:', basicStakeResult, '\n');
 
