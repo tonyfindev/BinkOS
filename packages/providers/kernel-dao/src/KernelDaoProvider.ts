@@ -206,6 +206,7 @@ export class KernelDaoProvider extends BaseStakingProvider {
 
     return {
       network: params.network,
+
       quoteId,
       tokenA: tokenA,
       tokenB: tokenB || null,

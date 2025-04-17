@@ -17,6 +17,7 @@ export interface WalletInfo {
 }
 
 export interface TransferQuote {
+  provider?: string;
   network: NetworkName;
   quoteId: string;
   token: Token;
