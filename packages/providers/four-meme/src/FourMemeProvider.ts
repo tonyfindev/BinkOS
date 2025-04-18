@@ -11,6 +11,8 @@ const CONSTANTS = {
   QUOTE_EXPIRY: 5 * 60 * 1000, // 5 minutes in milliseconds
   FOUR_MEME_FACTORY_V3: '0xF251F83e40a78868FcfA3FA4599Dad6494E46034',
   FOUR_MEME_FACTORY_V2: '0x5c952063c7fc8610FFDB798152D69F0B9550762b',
+  USDC_ADDRESS: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+  USDT_ADDRESS: '0x55d398326f99059ff775485246999027b3197955',
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
   FOUR_MEME_API_BASE: process.env.FOUR_MEME_API_BASE || 'https://four.meme/meme-api/v1',
 } as const;
@@ -98,23 +100,29 @@ export class FourMemeProvider extends BaseSwapProvider {
   }
 
   protected async getToken(tokenAddress: string, network: NetworkName): Promise<Token> {
-    if (this.isNativeToken(tokenAddress)) {
-      return {
-        address: tokenAddress as `0x${string}`,
-        decimals: 18,
-        symbol: 'BNB',
+    try {
+      if (this.isNativeToken(tokenAddress)) {
+        return {
+          address: tokenAddress as `0x${string}`,
+          decimals: 18,
+          symbol: 'BNB',
+        };
+      }
+
+      const token = await super.getToken(tokenAddress, network);
+
+      const tokenInfo = {
+        chainId: this.chainId,
+        address: token.address.toLowerCase() as `0x${string}`,
+        decimals: token.decimals,
+        symbol: token.symbol,
       };
+      return tokenInfo;
+    } catch (error) {
+      throw new Error(
+        `Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
-
-    const token = await super.getToken(tokenAddress, network);
-
-    const tokenInfo = {
-      chainId: this.chainId,
-      address: token.address.toLowerCase() as `0x${string}`,
-      decimals: token.decimals,
-      symbol: token.symbol,
-    };
-    return tokenInfo;
   }
 
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
@@ -122,6 +130,10 @@ export class FourMemeProvider extends BaseSwapProvider {
       // check is valid limit order
       if (params?.limitPrice) {
         throw new Error('FourMeme does not support limit order for native token swaps');
+      }
+
+      if (params.type === 'output') {
+        throw new Error('FourMeme does not support output swaps');
       }
 
       const [tokenIn, tokenOut] = await Promise.all([
@@ -154,9 +166,12 @@ export class FourMemeProvider extends BaseSwapProvider {
           ? tokenOut.address
           : tokenIn.address;
 
+      if (needToken == CONSTANTS.USDC_ADDRESS || needToken == CONSTANTS.USDT_ADDRESS) {
+        throw new Error('Token is not supported');
+      }
+
       // Get token info from contract and convert to proper format
       const rawTokenInfo = await this.factory._tokenInfos(needToken);
-
       if (Number(rawTokenInfo.status) !== 0) {
         throw new Error('Token is not launched');
       }

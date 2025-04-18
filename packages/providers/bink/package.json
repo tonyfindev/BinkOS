@@ -1,6 +1,6 @@
 {
   "name": "@binkai/bink-provider",
-  "version": "0.1.13-alpha.0",
+  "version": "0.2.7-alpha.3",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -25,5 +25,10 @@
   "devDependencies": {
     "rimraf": "^5.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bink-AI/BinkOS"
+  },
+  "homepage": "https://bink.ai/"
 }

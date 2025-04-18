@@ -5,6 +5,7 @@
     "type": "git",
     "url": "https://github.com/Bink-AI/BinkOS"
   },
+  "homepage": "https://bink.ai/",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "clean": "find . -type d -name 'dist' -not -path '*/node_modules/*' -exec rm -rf {} + && find . -name 'tsconfig.tsbuildinfo' -type f -delete",
@@ -13,7 +14,8 @@
     "version": "lerna version --no-private --force-publish --yes",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "postinstall": "husky"
+    "prepare": "husky",
+    "langgraph": "langgraphjs dev"
   },
   "workspaces": [
     "packages/*",
@@ -27,7 +29,10 @@
       "prettier --write"
     ]
   },
-  "dependencies": {},
+  "dependencies": {
+    "@binkai/rpc-provider": "0.2.5-alpha.1",
+    "@solana/spl-token": "^0.4.0"
+  },
   "devDependencies": {
     "@commitlint/cli": "^19.7.1",
     "@commitlint/config-conventional": "^19.7.1",

@@ -1,7 +1,6 @@
 import { SwapQuote, SwapParams, BaseSwapProvider, NetworkProvider } from '@binkai/swap-plugin';
 import { ethers, Provider } from 'ethers';
 import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
-import { parseTokenAmount } from '@binkai/swap-plugin/src/utils/tokenUtils';
 
 // Core system constants
 const CONSTANTS = {
@@ -43,9 +42,6 @@ export class KyberProvider extends BaseSwapProvider {
   getSupportedNetworks(): NetworkName[] {
     return [NetworkName.BNB];
   }
-  // getPrompt(): string {
-  //   return `If you are using KyberSwap, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
-  // }
 
   protected isNativeToken(tokenAddress: string): boolean {
     return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();

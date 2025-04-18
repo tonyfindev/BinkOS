@@ -20,12 +20,23 @@ export class GetWalletAddressTool extends BaseTool {
     });
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        network: args.network,
+        address: args.address,
+      }),
+    );
+  }
   createTool(): DynamicStructuredTool {
     return new DynamicStructuredTool({
       name: this.getName(),
       description: this.getDescription(),
       schema: this.getSchema(),
       func: async ({ network }) => {
+        if (this.agent.isMockResponseTool()) {
+          return this.mockResponseTool({ network });
+        }
         return await this.agent.getWallet().getAddress(network);
       },
     });

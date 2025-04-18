@@ -174,8 +174,11 @@ async function main() {
 
   console.log('Example 1:get all limit orders via thena on bnb');
   const result1 = await agent.execute({
+    // input: `
+    //  get all limit orders via jupiter on solana
+    // `,
     input: `
-     get all limit orders via jupiter on solana
+     get all limit orders via thena on BNB
     `,
   });
   console.log('✓ limit order result:', result1, '\n');

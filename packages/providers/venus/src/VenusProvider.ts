@@ -263,7 +263,7 @@ export class VenusProvider extends BaseStakingProvider {
     routeData: VenusMarket,
     amountA: bigint,
     amountB: bigint,
-    type: 'stake' | 'unstake' | 'supply' | 'withdraw' = 'stake',
+    type: 'stake' | 'unstake' | 'supply' | 'withdraw' | 'deposit' = 'stake',
   ) {
     try {
       let txData: string;
@@ -442,6 +442,7 @@ export class VenusProvider extends BaseStakingProvider {
         name: 'Venus BNB',
         decimals: 8,
         balance: vBNBBalance.formattedBalance,
+        provider: this.getName(),
       };
 
       return {

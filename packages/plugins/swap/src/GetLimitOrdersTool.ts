@@ -34,7 +34,7 @@ export class GetLimitOrdersTool extends BaseTool {
   }
 
   getName(): string {
-    return 'getLimitOrders';
+    return 'get_limit_order';
   }
 
   getDescription(): string {
@@ -69,6 +69,14 @@ export class GetLimitOrdersTool extends BaseTool {
 
     // Return intersection of agent networks and provider supported networks
     return agentNetworks.filter(network => providerNetworks.includes(network));
+  }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
   }
 
   getSchema(): z.ZodObject<any> {

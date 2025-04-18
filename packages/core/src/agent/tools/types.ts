@@ -1,6 +1,6 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { IAgent } from '../types';
+import { AgentNodeTypes, IAgent } from '../types';
 import { CallbackManagerForToolRun } from '@langchain/core/callbacks/manager';
 import { RunnableConfig } from '@langchain/core/runnables';
 
@@ -18,7 +18,7 @@ export interface CustomDynamicStructuredTool {
     runManager?: CallbackManagerForToolRun,
     config?: RunnableConfig,
     onProgress?: (data: ToolProgress) => void,
-  ) => Promise<string>;
+  ) => Promise<any>;
   schema: z.ZodObject<any>;
   returnDirect?: boolean;
 }
@@ -31,4 +31,5 @@ export interface ITool {
   getSchema(): z.ZodObject<any>;
   createTool(): CustomDynamicStructuredTool;
   setAgent(agent: IAgent): void;
+  mockResponseTool(args: any): Promise<string>;
 }

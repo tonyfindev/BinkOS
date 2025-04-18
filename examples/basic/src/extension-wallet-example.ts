@@ -25,6 +25,7 @@ import { deBridgeProvider } from '@binkai/debridge-provider';
 import { Server } from 'socket.io';
 import { io as ioClient } from 'socket.io-client';
 import { JupiterProvider } from '@binkai/jupiter-provider';
+import { AlchemyProvider } from '@binkai/alchemy-provider';
 import {
   Connection,
   VersionedTransaction,
@@ -250,10 +251,14 @@ async function main() {
     rpcUrl: BNB_RPC,
   });
 
+  const alchemyProvider = new AlchemyProvider({
+    apiKey: settings.get('ALCHEMY_API_KEY'),
+  });
+
   // Initialize plugin with provider
   await walletPlugin.initialize({
     defaultChain: 'bnb',
-    providers: [bnbProvider, birdeye],
+    providers: [bnbProvider, alchemyProvider],
     supportedChains: ['bnb'],
   });
   // Configure the plugin with supported chains
@@ -323,7 +328,7 @@ async function main() {
   console.log('💱 Example 2: buy BINK from 10 USDC on solana');
   const result2 = await agent.execute({
     input: `
-   BUY TRUMP from 0.001 SOL
+   SELL all USDC to BNB on bnb chain
     `,
   });
 

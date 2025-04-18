@@ -13,11 +13,12 @@ import { JupiterProvider } from '@binkai/jupiter-provider';
 import { Connection } from '@solana/web3.js';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { WalletPlugin } from '@binkai/wallet-plugin';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
-const SOL_RPC = 'https://api.mainnet-beta.solana.com';
+const SOL_RPC = 'https://solana-rpc.debridge.finance';
 
 async function main() {
   console.log('🚀 Starting BinkOS swap on Solana example...\n');
@@ -65,7 +66,7 @@ async function main() {
       seedPhrase:
         settings.get('WALLET_MNEMONIC') ||
         'test test test test test test test test test test test junk',
-      index: 0,
+      index: 9,
     },
     network,
   );
@@ -117,6 +118,17 @@ async function main() {
   });
   console.log('✓ Swap plugin initialized\n');
 
+  // Create and configure the wallet plugin
+  console.log('🔄 Initializing wallet plugin...');
+  const walletPlugin = new WalletPlugin();
+
+  // Initialize wallet plugin with provider
+  await walletPlugin.initialize({
+    providers: [birdeye],
+    supportedChains: ['solana'],
+  });
+  console.log('✓ Wallet plugin initialized\n');
+
   console.log('🔌 Registering token plugin with agent...');
   await agent.registerPlugin(tokenPlugin);
   console.log('✓ Plugin registered\n');
@@ -126,10 +138,15 @@ async function main() {
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
 
+  // Register the wallet plugin with the agent
+  console.log('🔌 Registering wallet plugin with agent...');
+  await agent.registerPlugin(walletPlugin);
+  console.log('✓ Wallet plugin registered\n');
+
   console.log('💱 Example 1: Buy USDC from SOL');
   const inputResult = await agent.execute({
     input: `
-        buy 10 usdc from sol
+        swap all USDT(Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB) to SOL(So11111111111111111111111111111111111111111) via jupiter
     `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');

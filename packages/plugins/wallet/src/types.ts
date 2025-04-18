@@ -17,6 +17,7 @@ export interface WalletInfo {
 }
 
 export interface TransferQuote {
+  provider?: string;
   network: NetworkName;
   quoteId: string;
   token: Token;
@@ -40,6 +41,7 @@ export interface Transaction {
   value: string;
   gasLimit?: bigint;
   network: NetworkName;
+  lastValidBlockHeight?: number;
 }
 
 export interface IWalletProvider {

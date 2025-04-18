@@ -1,6 +1,12 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
+import {
+  AgentNodeTypes,
+  BaseTool,
+  CustomDynamicStructuredTool,
+  IToolConfig,
+  ToolProgress,
+} from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IBridgeProvider, BridgeQuote, BridgeParams, BasicToken } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
@@ -87,18 +93,16 @@ export class BridgeTool extends BaseTool {
     return z.object({
       fromNetwork: z
         .enum(supportedNetworks as [string, ...string[]])
-        .default(this.defaultNetwork)
+        // .default(this.defaultNetwork)
         .describe('The blockchain network to execute the bridge from'),
       toNetwork: z
         .enum(supportedNetworks as [string, ...string[]])
-        .default(this.defaultNetwork)
+        // .default(this.defaultNetwork)
         .describe(
           'The blockchain network to execute the bridge to or on symbor native token. Example: Solana similar SOL or on BNB',
         ),
-      fromToken: z.string().describe('The token address to bridge from. Example: from USDC'),
-      toToken: z
-        .string()
-        .describe(`The token address to bridge to or buy token with symbol. Example: buy BINK`),
+      fromToken: z.string().describe('The address of send token'),
+      toToken: z.string().describe(`The address of receive token`),
       amount: z.string().describe('The amount of tokens to bridge'),
       amountType: z
         .enum(['input', 'output'])
@@ -164,6 +168,154 @@ export class BridgeTool extends BaseTool {
     }, validQuotes[0]);
   }
 
+  async getQuote(
+    args: any,
+    onProgress?: (data: ToolProgress) => void,
+  ): Promise<{
+    selectedProvider: IBridgeProvider;
+    quote: BridgeQuote;
+    fromWalletAddress: string;
+    toWalletAddress: string;
+  }> {
+    const {
+      fromNetwork,
+      toNetwork,
+      fromToken,
+      toToken,
+      amount,
+      amountType,
+      provider: preferredProvider,
+    } = args;
+    // Validate token addresses
+    if (!validateTokenAddress(fromToken, fromNetwork)) {
+      throw new Error(`Invalid fromToken address for network ${fromNetwork}: ${fromToken}`);
+    }
+    if (!validateTokenAddress(toToken, toNetwork)) {
+      throw new Error(`Invalid toToken address for network ${toNetwork}: ${toToken}`);
+    }
+
+    if (fromNetwork === toNetwork) {
+      throw new Error('From and to networks cannot be the same');
+    }
+
+    if (fromToken === toToken) {
+      throw new Error('From and to tokens cannot be the same');
+    }
+
+    // Get agent's wallet and address
+    const wallet = this.agent.getWallet();
+    const fromWalletAddress = await wallet.getAddress(fromNetwork);
+    const toWalletAddress = await wallet.getAddress(toNetwork);
+
+    console.log('🚀 ~ BridgeTool ~ createTool ~ fromWalletAddress:', fromWalletAddress);
+    console.log('🚀 ~ BridgeTool ~ createTool ~ toWalletAddress:', toWalletAddress);
+
+    // Validate chain is supported
+    const supportedNetworks = this.getSupportedNetworks();
+    if (!supportedNetworks.includes(fromNetwork)) {
+      throw new Error(
+        `Network ${fromNetwork} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
+      );
+    }
+
+    const bridgeParams: BridgeParams = {
+      fromNetwork,
+      toNetwork,
+      fromToken: fromToken,
+      toToken: toToken,
+      amount: amount,
+      type: amountType,
+    };
+    console.log('🚀 ~ BridgeTool ~ func: ~ bridgeParams:', bridgeParams);
+
+    let selectedProvider: IBridgeProvider;
+    let quote: BridgeQuote;
+
+    onProgress?.({
+      progress: 0,
+      message: `Searching for the best bridge rate from ${fromNetwork} to ${toNetwork}.`,
+    });
+
+    if (preferredProvider) {
+      try {
+        selectedProvider = this.registry.getProvider(preferredProvider);
+        // Validate provider supports the chain
+        if (!selectedProvider.getSupportedNetworks().includes(fromNetwork)) {
+          throw new Error(`Provider ${preferredProvider} does not support network ${fromNetwork}`);
+        }
+        quote = await selectedProvider.getQuote(bridgeParams, fromWalletAddress, toWalletAddress);
+      } catch (error) {
+        console.warn(`Failed to get quote from preferred provider ${preferredProvider}:`, error);
+        const bestQuote = await this.findBestQuote(
+          {
+            ...bridgeParams,
+            network: fromNetwork,
+          },
+          fromWalletAddress,
+          toWalletAddress,
+        );
+        selectedProvider = bestQuote.provider;
+        quote = bestQuote.quote;
+      }
+    } else {
+      const bestQuote = await this.findBestQuote(
+        {
+          ...bridgeParams,
+          network: fromNetwork,
+        },
+        fromWalletAddress,
+        toWalletAddress,
+      );
+      selectedProvider = bestQuote.provider;
+      quote = bestQuote.quote;
+    }
+
+    onProgress?.({
+      progress: 10,
+      message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this bridge.`,
+    });
+
+    // Check user's balance before proceeding
+    const balanceCheck = await selectedProvider.checkBalance(quote, fromWalletAddress);
+    if (!balanceCheck.isValid) {
+      throw new Error(balanceCheck.message || 'Insufficient balance for bridge');
+    }
+
+    return {
+      selectedProvider,
+      quote: {
+        ...quote,
+        provider: selectedProvider.getName(),
+      },
+      fromWalletAddress,
+      toWalletAddress,
+    };
+  }
+
+  async simulateQuoteTool(args: any): Promise<BridgeQuote> {
+    if (this.agent.isMockResponseTool()) {
+      const mockResponse = await this.mockResponseTool(args);
+      return JSON.parse(mockResponse);
+    }
+    return (await this.getQuote(args)).quote;
+  }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        provider: args.provider,
+        fromToken: args.fromToken,
+        toToken: args.toToken,
+        fromAmount: args.amount,
+        toAmount: args.amount,
+        transactionHash: args.transactionHash,
+        priceImpact: args.priceImpact,
+        type: args.type,
+        fromNetwork: args.fromNetwork,
+        toNetwork: args.toNetwork,
+      }),
+    );
+  }
   createTool(): CustomDynamicStructuredTool {
     console.log('✓ Creating tool', this.getName());
     return {
@@ -188,110 +340,13 @@ export class BridgeTool extends BaseTool {
           } = args;
 
           console.log('🤖 Bridge Args:', args);
-
-          // Validate token addresses
-          if (!validateTokenAddress(fromToken, fromNetwork)) {
-            throw new Error(`Invalid fromToken address for network ${fromNetwork}: ${fromToken}`);
-          }
-          if (!validateTokenAddress(toToken, toNetwork)) {
-            throw new Error(`Invalid toToken address for network ${toNetwork}: ${toToken}`);
+          if (this.agent.isMockResponseTool()) {
+            return this.mockResponseTool(args);
           }
 
-          if (fromNetwork === toNetwork) {
-            throw new Error('From and to networks cannot be the same');
-          }
-
-          if (fromToken === toToken) {
-            throw new Error('From and to tokens cannot be the same');
-          }
-
-          // Get agent's wallet and address
+          const { selectedProvider, quote, fromWalletAddress, toWalletAddress } =
+            await this.getQuote(args, onProgress);
           const wallet = this.agent.getWallet();
-          const fromWalletAddress = await wallet.getAddress(fromNetwork);
-          const toWalletAddress = await wallet.getAddress(toNetwork);
-
-          console.log('🚀 ~ BridgeTool ~ createTool ~ fromWalletAddress:', fromWalletAddress);
-          console.log('🚀 ~ BridgeTool ~ createTool ~ toWalletAddress:', toWalletAddress);
-
-          // Validate chain is supported
-          const supportedNetworks = this.getSupportedNetworks();
-          if (!supportedNetworks.includes(fromNetwork)) {
-            throw new Error(
-              `Network ${fromNetwork} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
-            );
-          }
-
-          const bridgeParams: BridgeParams = {
-            fromNetwork,
-            toNetwork,
-            fromToken: fromToken,
-            toToken: toToken,
-            amount: amount,
-            type: amountType,
-          };
-          console.log('🚀 ~ BridgeTool ~ func: ~ bridgeParams:', bridgeParams);
-
-          let selectedProvider: IBridgeProvider;
-          let quote: BridgeQuote;
-
-          onProgress?.({
-            progress: 0,
-            message: `Searching for the best bridge rate from ${fromNetwork} to ${toNetwork}.`,
-          });
-
-          if (preferredProvider) {
-            try {
-              selectedProvider = this.registry.getProvider(preferredProvider);
-              // Validate provider supports the chain
-              if (!selectedProvider.getSupportedNetworks().includes(fromNetwork)) {
-                throw new Error(
-                  `Provider ${preferredProvider} does not support network ${fromNetwork}`,
-                );
-              }
-              quote = await selectedProvider.getQuote(
-                bridgeParams,
-                fromWalletAddress,
-                toWalletAddress,
-              );
-            } catch (error) {
-              console.warn(
-                `Failed to get quote from preferred provider ${preferredProvider}:`,
-                error,
-              );
-              const bestQuote = await this.findBestQuote(
-                {
-                  ...bridgeParams,
-                  network: fromNetwork,
-                },
-                fromWalletAddress,
-                toWalletAddress,
-              );
-              selectedProvider = bestQuote.provider;
-              quote = bestQuote.quote;
-            }
-          } else {
-            const bestQuote = await this.findBestQuote(
-              {
-                ...bridgeParams,
-                network: fromNetwork,
-              },
-              fromWalletAddress,
-              toWalletAddress,
-            );
-            selectedProvider = bestQuote.provider;
-            quote = bestQuote.quote;
-          }
-
-          onProgress?.({
-            progress: 10,
-            message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this bridge.`,
-          });
-
-          // Check user's balance before proceeding
-          const balanceCheck = await selectedProvider.checkBalance(quote, fromWalletAddress);
-          if (!balanceCheck.isValid) {
-            throw new Error(balanceCheck.message || 'Insufficient balance for bridge');
-          }
 
           onProgress?.({
             progress: 30,

@@ -1,12 +1,12 @@
 import { DynamicStructuredTool, DynamicStructuredToolInput } from '@langchain/core/tools';
 import { z } from 'zod';
-import { IAgent } from '../types';
+import { IAgent, AgentNodeTypes } from '../types';
 import { CustomDynamicStructuredTool, ITool, IToolConfig } from './types';
 import {
   StructuredError,
   createStructuredError,
   logStructuredError,
-  generateEnhancedSuggestion,
+  // generateEnhancedSuggestion,
   ToolType,
   ErrorStep,
 } from '../../utils';
@@ -66,19 +66,19 @@ export abstract class BaseTool implements ITool {
   /**
    * Generate enhanced suggestion for errors
    */
-  protected generateSuggestion(structuredError: StructuredError, commandOrParams?: any): string {
-    return generateEnhancedSuggestion(structuredError, {
-      toolType: this.getToolType(),
-      commandOrParams,
-    });
-  }
+  // protected generateSuggestion(structuredError: StructuredError, commandOrParams?: any): string {
+  //   return generateEnhancedSuggestion(structuredError, {
+  //     toolType: this.getToolType(),
+  //     commandOrParams,
+  //   });
+  // }
 
   /**
    * Format error response as JSON
    */
   protected formatErrorResponse(structuredError: StructuredError, args: any): string {
     const errorStep = structuredError.step;
-    const suggestion = this.generateSuggestion(structuredError, args);
+    // const suggestion = this.generateSuggestion(structuredError, args);
 
     return JSON.stringify({
       status: 'error',
@@ -91,7 +91,7 @@ export abstract class BaseTool implements ITool {
         errorStep.replace(/_/g, ' ').slice(1),
       message: structuredError.message,
       details: structuredError.details,
-      suggestion: suggestion,
+      // suggestion: suggestion,
       parameters: args,
     });
   }
@@ -139,4 +139,6 @@ export abstract class BaseTool implements ITool {
 
     return this.formatErrorResponse(structuredError, args);
   }
+
+  abstract mockResponseTool(args: any): Promise<string>;
 }

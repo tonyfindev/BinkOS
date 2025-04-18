@@ -30,14 +30,14 @@ export class deBridgeProvider extends BaseBridgeProvider {
   private fromChainId: ChainID;
   private toChainId: ChainID;
   constructor(
-    provider: Provider,
+    provider: [Provider, Connection],
     fromChainId: ChainID = ChainID.BNB,
     toChainId: ChainID = ChainID.SOLANA,
   ) {
     // Create a Map with BNB network and the provider
     const providerMap = new Map<NetworkName, NetworkProvider>();
-    providerMap.set(NetworkName.BNB, provider);
-    providerMap.set(NetworkName.SOLANA, new Connection('https://api.mainnet-beta.solana.com'));
+    providerMap.set(NetworkName.BNB, provider[0]);
+    providerMap.set(NetworkName.SOLANA, provider[1]);
 
     super(providerMap);
     this.fromChainId = fromChainId;
@@ -206,16 +206,6 @@ export class deBridgeProvider extends BaseBridgeProvider {
       const srcChainRefundAddress = senderAddress;
       const allowedTaker = MAPPING_TOKEN_TAKER[params.fromNetwork as SupportedTokenTaker];
 
-      console.log(
-        '🚀 ~ deBridgeProvider ~ after data: from: ',
-        srcChainId,
-        srcChainTokenInAmount,
-        'to: ',
-        dstChainId,
-        senderAddress,
-        allowedTaker,
-      );
-
       const url = `https://deswap.debridge.finance/v1.0/dln/order/create-tx?srcChainId=${srcChainId}&srcChainTokenIn=${srcChainTokenIn}&srcChainTokenInAmount=${srcChainTokenInAmount}&dstChainId=${dstChainId}&dstChainTokenOut=${dstChainTokenOut}&dstChainTokenOutRecipient=${dstChainTokenOutRecipient}&senderAddress=${senderAddress}&srcChainOrderAuthorityAddress=${srcChainOrderAuthorityAddress}&srcChainRefundAddress=${srcChainRefundAddress}&dstChainOrderAuthorityAddress=${dstChainOrderAuthorityAddress}&enableEstimate=false&prependOperatingExpenses=true&additionalTakerRewardBps=0&allowedTaker=${allowedTaker}&deBridgeApp=DESWAP&ptp=false&tab=1739871311714`;
 
       const response = await axios.get(url);
@@ -224,18 +214,24 @@ export class deBridgeProvider extends BaseBridgeProvider {
       let dataTx;
       let lastValidBlockHeight;
       if (params.fromNetwork === 'solana') {
-        const connection = new Connection('https://api.mainnet-beta.solana.com');
+        const provider = this.getSolanaProviderForNetwork(NetworkName.SOLANA);
         const txBuffer = Buffer.from(data.tx.data.slice(2), 'hex');
         const versionedTx = VersionedTransaction.deserialize(txBuffer);
         // add blockhash to versionedTx
         const { blockhash, lastValidBlockHeight: lastValidBlockHeightSolana } =
-          await connection.getLatestBlockhash('confirmed');
+          await provider.getLatestBlockhash('confirmed');
         versionedTx.message.recentBlockhash = blockhash;
         dataTx = Buffer.from(versionedTx.serialize()).toString('base64');
         lastValidBlockHeight = lastValidBlockHeightSolana;
         // Update blockhash!
       } else {
         dataTx = data.tx.data;
+      }
+
+      if (!lastValidBlockHeight && params.fromNetwork === 'solana') {
+        const provider = this.getSolanaProviderForNetwork(NetworkName.SOLANA);
+        const latestBlockhash = await provider.getLatestBlockhash('confirmed');
+        lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
       }
 
       return {

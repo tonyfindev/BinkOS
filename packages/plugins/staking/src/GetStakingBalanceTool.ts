@@ -49,6 +49,28 @@ export class GetStakingBalanceTool extends BaseTool {
     return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    let allStakingBalances: { address: string; tokens: StakingBalance[] }[] = [];
+    const combinedTokens: StakingBalance[] = [];
+    allStakingBalances.forEach(balanceData => {
+      if (balanceData.tokens && balanceData.tokens.length > 0) {
+        combinedTokens.push(...balanceData.tokens);
+      }
+    });
+
+    return Promise.resolve(
+      JSON.stringify({
+        status: 'success',
+        data: {
+          address: args.address,
+          token: combinedTokens,
+        },
+        network: args.network,
+        address: args.address,
+      }),
+    );
+  }
+
   getSchema(): z.ZodObject<any> {
     const supportedNetworks = this.getSupportedNetworks();
     if (supportedNetworks.length === 0) {
@@ -61,7 +83,7 @@ export class GetStakingBalanceTool extends BaseTool {
         .optional()
         .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
       network: z
-        .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon'])
+        .enum(['bnb', 'solana', 'ethereum'])
         .default('bnb')
         .describe('The blockchain to query the staking balances on.'),
     });
@@ -80,6 +102,10 @@ export class GetStakingBalanceTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
+          if (this.agent.isMockResponseTool()) {
+            return this.mockResponseTool(args);
+          }
+
           const network = args.network;
           let address = args.address;
           console.log(`🔍 Getting staking balances for ${address || 'agent wallet'} on ${network}`);
@@ -160,7 +186,11 @@ export class GetStakingBalanceTool extends BaseTool {
           const combinedTokens: StakingBalance[] = [];
           allStakingBalances.forEach(balanceData => {
             if (balanceData.tokens && balanceData.tokens.length > 0) {
-              combinedTokens.push(...balanceData.tokens);
+              // Only add tokens with non-zero balances
+              const nonZeroTokens = balanceData.tokens.filter(
+                token => token.balance !== '0.0' && token.balance !== '0',
+              );
+              combinedTokens.push(...nonZeroTokens);
             }
           });
 
@@ -172,6 +202,7 @@ export class GetStakingBalanceTool extends BaseTool {
             if (Object.keys(errors).length > 0) {
               return JSON.stringify({
                 status: 'error',
+                data: { address, tokenStaking: [] },
                 message: `No staking balances found for ${address}`,
                 errors,
                 network,
@@ -182,7 +213,7 @@ export class GetStakingBalanceTool extends BaseTool {
             // Otherwise return empty result
             return JSON.stringify({
               status: 'success',
-              data: { address, tokens: [] },
+              data: { address, tokenStaking: [] },
               message: `No staking balances found for ${address}`,
               network,
               address,
@@ -204,7 +235,7 @@ export class GetStakingBalanceTool extends BaseTool {
 
           return JSON.stringify({
             status: 'success',
-            data: { address, tokens: combinedTokens },
+            data: { address, tokenStaking: combinedTokens },
             errors: Object.keys(errors).length > 0 ? errors : undefined,
             network,
             address,

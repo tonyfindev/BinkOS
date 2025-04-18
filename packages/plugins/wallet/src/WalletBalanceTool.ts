@@ -1,14 +1,17 @@
 import { z } from 'zod';
 import {
+  AgentNodeTypes,
   BaseTool,
   CustomDynamicStructuredTool,
   IToolConfig,
   ToolProgress,
   ErrorStep,
   StructuredError,
+  NetworkName,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, WalletInfo } from './types';
+import { defaultTokens } from '@binkai/token-plugin';
 
 export interface WalletToolConfig extends IToolConfig {
   defaultNetwork?: string;
@@ -50,6 +53,10 @@ export function mergeObjects<T extends Record<string, any>>(obj1: T, obj2: T): T
 }
 
 export class GetWalletBalanceTool extends BaseTool {
+  public readonly agentNodeSupports: AgentNodeTypes[] = [
+    AgentNodeTypes.PLANNER,
+    AgentNodeTypes.EXECUTOR,
+  ];
   public registry: ProviderRegistry;
   private supportedNetworks: Set<string>;
 
@@ -62,7 +69,7 @@ export class GetWalletBalanceTool extends BaseTool {
   registerProvider(provider: IWalletProvider): void {
     this.registry.registerProvider(provider);
     console.log('🔌 Provider registered:', provider.constructor.name);
-    provider.getSupportedNetworks().forEach(network => {
+    provider?.getSupportedNetworks().forEach(network => {
       this.supportedNetworks.add(network);
     });
   }
@@ -74,17 +81,29 @@ export class GetWalletBalanceTool extends BaseTool {
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    return `Get detailed information about tokens and native currencies in a wallet of all network (Solana, Etherum, BNB), including token balances, token addresses, symbols, and decimals. Supports networks: ${networks}. Available providers: ${providers}. Use this tool when you need to check what tokens or coins a wallet contains, their balances, and detailed token information.`;
+
+    return `Returns token and native coin balances for a wallet. If no network is specified, all supported networks will be queried. If no address is provided, the agent's wallet address is used.
+  
+  Supported networks: ${networks || 'none registered yet'}.
+  Available providers: ${providers || 'none registered yet'}.`;
   }
 
-  private getsupportedNetworks(): string[] {
+  private getSupportedNetworks(): string[] {
     const agentNetworks = Object.keys(this.agent.getNetworks());
     const providerNetworks = Array.from(this.supportedNetworks);
     return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
+  }
+
   getSchema(): z.ZodObject<any> {
-    const supportedNetworks = this.getsupportedNetworks();
+    const supportedNetworks = this.getSupportedNetworks();
     if (supportedNetworks.length === 0) {
       throw new Error('No supported networks available');
     }
@@ -93,11 +112,33 @@ export class GetWalletBalanceTool extends BaseTool {
       address: z
         .string()
         .optional()
-        .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
+        .describe(
+          "The wallet address to query. If not provided, the agent's wallet address will be used automatically.",
+        ),
       network: z
-        .enum(['bnb', 'solana', 'ethereum', 'arbitrum', 'base', 'optimism', 'polygon'])
-        .describe('The blockchain to query the wallet on.'),
+        .enum(['bnb', 'solana', 'ethereum'])
+        .optional()
+        .describe('The blockchain network to query the wallet on.'),
     });
+  }
+
+  private addAddressToNativeBalance(results: WalletInfo, network: NetworkName): WalletInfo {
+    if (results?.nativeBalance && !results.nativeBalance.tokenAddress) {
+      const nativeSymbol = results.nativeBalance.symbol;
+
+      // Find the native token address from defaultTokens
+      if (defaultTokens && defaultTokens[network]) {
+        // Look for the native token in defaultTokens
+        for (const address in defaultTokens[network]) {
+          const token = defaultTokens[network][address];
+          if (token.symbol === nativeSymbol) {
+            results.nativeBalance.tokenAddress = address;
+            break;
+          }
+        }
+      }
+    }
+    return results;
   }
 
   createTool(): CustomDynamicStructuredTool {
@@ -118,7 +159,7 @@ export class GetWalletBalanceTool extends BaseTool {
           console.log(`🔍 Getting wallet balance for ${address || 'agent wallet'} on ${network}`);
 
           // STEP 1: Validate network
-          const supportedNetworks = this.getsupportedNetworks();
+          const supportedNetworks = this.getSupportedNetworks();
           if (!supportedNetworks.includes(network)) {
             console.error(`❌ Network ${network} is not supported`);
             throw this.createError(
@@ -206,14 +247,17 @@ export class GetWalletBalanceTool extends BaseTool {
             message: `Successfully retrieved wallet information for ${address}`,
           });
 
+          // Add address to nativeBalance if it exists
+          results = this.addAddressToNativeBalance(results, network);
+
           console.log(`✅ Returning wallet balance data for ${address}`);
 
-          if (results.tokens && Array.isArray(results.tokens)) {
+          if (results?.tokens && Array.isArray(results?.tokens)) {
             results.tokens = results.tokens.filter(token => {
-              if (token.symbol === 'BNB' || token.symbol === 'ETH' || token.symbol === 'SOL') {
+              if (token?.symbol === 'BNB' || token?.symbol === 'ETH' || token?.symbol === 'SOL') {
                 return true;
               }
-              return Number(token.balance) > 0.00001;
+              return Number(token?.balance) > 0.00001;
             });
           }
 
