@@ -24,6 +24,7 @@
     "@langchain/core": "^0.3.32",
     "@solana/web3.js": "1.98.0",
     "ethers": "^6.0.0",
+    "vitest": "^3.0.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {

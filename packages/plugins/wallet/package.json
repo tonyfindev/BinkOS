@@ -27,6 +27,7 @@
     "@binkai/token-plugin": "workspace:*",
     "@langchain/core": "^0.3.42",
     "ethers": "^6.0.0",
+    "vitest": "^3.0.5",
     "zod": "^3.22.0"
   },
   "devDependencies": {

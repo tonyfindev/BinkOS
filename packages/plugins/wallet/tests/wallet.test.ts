@@ -88,7 +88,7 @@ describe('WalletPlugin', () => {
     );
 
     // Mock invokeTool to return expected results without actually calling providers
-    agent.invokeTool = vi.fn().mockImplementation((tool, params) => {
+    agent.invokeTool = vi.fn().mockImplementation((tool: string, params: any) => {
       if (tool === 'get_wallet_balance') {
         return {
           address: userAddress,

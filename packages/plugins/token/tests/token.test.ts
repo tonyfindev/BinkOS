@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { Agent, Network, NetworkName, NetworksConfig, settings } from '@binkai/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Wallet } from '@binkai/core';
