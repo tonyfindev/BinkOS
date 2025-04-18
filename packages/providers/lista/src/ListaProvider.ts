@@ -211,9 +211,10 @@ export class ListaProvider extends BaseStakingProvider {
     }
   }
 
-  async buildClaimTransaction(uuid: bigint): Promise<Transaction> {
+  async buildClaimTransaction(uuid: string): Promise<Transaction> {
     try {
-      const txData = this.factory.interface.encodeFunctionData('claimWithdraw', [uuid]);
+      const uuidBigInt = BigInt(uuid);
+      const txData = this.factory.interface.encodeFunctionData('claimWithdraw', [uuidBigInt]);
 
       return {
         to: CONSTANTS.LISTA_CONTRACT_ADDRESS,
@@ -393,6 +394,9 @@ export class ListaProvider extends BaseStakingProvider {
 
       // Convert the result to an array of objects with natural numbers
       const formattedBalances = claimableBalances.map((item: any) => {
+        //uuid
+        const uuid = item[0]?.toString();
+
         const amount = ethers.formatEther(item[1]);
 
         // Convert timestamp to days (seconds since epoch to days since request)
@@ -406,6 +410,7 @@ export class ListaProvider extends BaseStakingProvider {
         estimatedDate.setDate(currentDate.getDate() + 8);
 
         return {
+          uuid: uuid,
           claimableAmount: amount,
           estimatedTime: estimatedDate,
         };
