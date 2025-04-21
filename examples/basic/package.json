@@ -18,6 +18,7 @@
     "staking-venus": "ts-node src/staking-example-venus.ts",
     "staking-kernel": "ts-node src/staking-example-kernel.ts",
     "staking-lista": "ts-node src/staking-example-lista.ts",
+    "staking": "ts-node src/staking-example.ts",
     "token": "ts-node src/token-example.ts",
     "create-token": "ts-node src/create-token-example.ts",
     "create-image": "ts-node src/create-image-example.ts",
@@ -30,7 +31,8 @@
     "limit-order-thena": "ts-node src/limit-order-example-thena.ts",
     "limit-order": "ts-node src/limit-order-example.ts",
     "get-limit-order": "ts-node src/get-limit-order-example.ts",
-    "cancel-limit-order": "ts-node src/cancel-limit-order-example.ts"
+    "cancel-limit-order": "ts-node src/cancel-limit-order-example.ts",
+    "claim": "ts-node src/claim-example.ts"
   },
   "dependencies": {
     "@binkai/alchemy-provider": "workspace:*",
@@ -57,6 +59,7 @@
     "@binkai/kernel-dao-provider": "workspace:*",
     "@binkai/lista-provider": "workspace:*",
     "@binkai/wallet-plugin": "workspace:*",
+    "@binkai/claim-plugin": "workspace:*",
     "@coral-xyz/anchor": "^0.30.1",
     "@langchain/community": "^0.3.36",
     "@langchain/core": "^0.3.42",
