@@ -31,9 +31,9 @@ export interface StakingResult extends StakingQuote {
 export interface StakingParams {
   network: NetworkName;
   tokenA: string;
-  tokenB: string;
+  tokenB?: string;
   amountA: string;
-  amountB: string;
+  amountB?: string;
   type: 'supply' | 'withdraw' | 'stake' | 'unstake' | 'deposit';
 }
 

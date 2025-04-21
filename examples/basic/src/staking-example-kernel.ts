@@ -17,6 +17,8 @@ import { WalletPlugin } from '@binkai/wallet-plugin';
 import { BnbProvider } from '@binkai/rpc-provider';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
+// import { ListaProvider } from '@binkai/lista-provider';
+// import { VenusProvider } from '@binkai/venus-provider';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
@@ -157,7 +159,8 @@ async function main() {
 
   // Create providers with proper chain IDs
   const kernelDao = new KernelDaoProvider(provider, 56);
-
+  // const venusStaking = new VenusProvider(provider, 56);
+  // const listaStaking = new ListaProvider(provider, 56);
   // Configure the plugin with supported chains
   await stakingPlugin.initialize({
     defaultSlippage: 0.5,
@@ -177,9 +180,9 @@ async function main() {
   // Example 1: Very basic staking (explicit everything)
   console.log('💱 Example 1 [EASY]: Basic staking with explicit parameters');
   const basicStakeResult = await agent.execute({
-    input: `withdraw 0.001 BNB on kernel dao protocol on BNB Chain`,
+    input: `Which protocol has the highest APY for BNB Staking?`,
   });
-  // console.log('✓ Basic staking result:', basicStakeResult, '\n');
+  console.log('✓ Basic staking result:', basicStakeResult, '\n');
 
   // const myBalanceStaked = await agent.execute({
   //   input: `Get my BNB staked on kernel dao protocol on BNB Chain`,
