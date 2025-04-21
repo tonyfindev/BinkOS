@@ -266,12 +266,12 @@ export class PlannerGraph {
 
     if (state.thread_id && this._processedThreads) {
       isNewThread = !this._processedThreads.has(state.thread_id);
+    }
 
-      // Track that we've processed this thread
-      if (isNewThread) {
-        this._processedThreads.add(state.thread_id);
-        return 'create_plan';
-      }
+    // Track that we've processed this thread
+    if (isNewThread) {
+      this._processedThreads.add(state.thread_id);
+      return 'create_plan';
     }
 
     // Check if no plans exist
