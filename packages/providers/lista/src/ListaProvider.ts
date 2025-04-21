@@ -130,8 +130,12 @@ export class ListaProvider extends BaseStakingProvider {
         if (adjustedAmount !== params.amountA) {
           console.log(`🤖 Lista adjusted input amount from ${params.amountA} to ${adjustedAmount}`);
         }
+      } else if (
+        params.type === StakingOperationType.WITHDRAW ||
+        params.type === StakingOperationType.UNSTAKE
+      ) {
+        adjustedAmount = Number(adjustedAmount).toFixed(7);
       }
-
       // Calculate input amount based on decimals
       const swapAmountA = BigInt(Math.floor(Number(adjustedAmount) * 10 ** tokenA.decimals));
       console.log('🚀 ~ ListaProvider ~ getQuote ~ swapAmountA:', swapAmountA);
