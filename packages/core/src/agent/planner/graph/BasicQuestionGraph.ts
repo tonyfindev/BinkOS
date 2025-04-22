@@ -30,6 +30,17 @@ const StateAnnotation = Annotation.Root({
     }[]
   >,
   answer: Annotation<string>,
+  active_plan_id: Annotation<string>,
+  ended_by: Annotation<string>,
+  pending_transaction: Annotation<{
+    pending_plan_id: string;
+    status: string;
+    latest_request: string;
+    tool_name: string;
+    tool_args: any;
+    pending_quote: any;
+    tool_call_id: string;
+  } | null>,
 });
 
 export class BasicQuestionGraph {
@@ -58,19 +69,19 @@ export class BasicQuestionGraph {
     if (!lastMessage?.tool_calls?.length) {
       return END;
     }
+
+    if (state.ended_by === 'basic_question') {
+      return END;
+    }
     // Otherwise if there are tool calls, we continue to execute them
     return 'tools';
   }
 
   async agentNode(state: typeof StateAnnotation.State) {
-    const prompt = ChatPromptTemplate.fromMessages([
-      ['system', this.prompt],
-      new MessagesPlaceholder('chat_history'),
-      ['human', '{input}'],
-      new MessagesPlaceholder('messages'),
-    ]);
-
     let modelWithTools;
+    let prompt;
+    let input;
+
     if (shouldBindTools(this.model, this.tools)) {
       if (!('bindTools' in this.model) || typeof this.model.bindTools !== 'function') {
         throw new Error(`llm ${this.model} must define bindTools method.`);
@@ -82,6 +93,33 @@ export class BasicQuestionGraph {
       modelWithTools = this.model;
     }
 
+    const interruptedPrompt = `You are answering a question during a transaction review. Inform user this is the only time you can answer questions.
+    Inform user you can only answer questions about checking wallet balances and token information.
+    If user ask other questions, inform user you can only answer questions about checking wallet balances and token information.
+      `
+
+    if (state.ended_by === 'stash_transaction') {
+      prompt = ChatPromptTemplate.fromMessages([
+        ['system', interruptedPrompt],
+        new MessagesPlaceholder('chat_history'),
+        ['human', '{input}'],
+        new MessagesPlaceholder('messages'),
+      ]);
+
+      input = state.pending_transaction?.latest_request;
+
+    
+    } else {
+      prompt = ChatPromptTemplate.fromMessages([
+        ['system', this.prompt],
+        new MessagesPlaceholder('chat_history'),
+        ['human', '{input}'],
+        new MessagesPlaceholder('messages'),
+      ]);
+      
+      input = state.input;
+    }
+
     const agent = prompt.pipe(
       modelWithTools.withConfig({
         tags: ['final_node'],
@@ -89,15 +127,30 @@ export class BasicQuestionGraph {
     );
 
     const responseMessage = await agent.invoke({
-      input: state.input,
+      input: input,
       messages: [...(state.messages ?? [])],
       chat_history: [...(state.chat_history ?? [])],
     });
 
+    
+
+
     if (responseMessage.tool_calls?.length) {
-      return { messages: [responseMessage] };
-    } else {
-      return { messages: [responseMessage], answer: responseMessage.content };
+      return { 
+        messages: [responseMessage],
+      };
+    }
+    else {
+      if (state.ended_by === 'stash_transaction') {
+        return { 
+          answer: responseMessage.content,
+          ended_by: 'basic_question',
+        };
+      } else {
+        return { 
+          answer: responseMessage.content,
+        };
+      }
     }
   }
 

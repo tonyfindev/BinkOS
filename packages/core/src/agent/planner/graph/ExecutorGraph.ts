@@ -46,6 +46,14 @@ const StateAnnotation = Annotation.Root({
   reject_transaction: Annotation<boolean>,
   answer: Annotation<string>,
   thread_id: Annotation<string>,
+  pending_transaction: Annotation<{
+    pending_plan_id: string;
+    latest_request: string;
+    tool_name: string;
+    tool_args: any;
+    pending_quote: any;
+    tool_call_id: string;
+  } | null>,
 });
 
 export class ExecutorGraph {
@@ -97,6 +105,10 @@ export class ExecutorGraph {
       return 'end';
     }
 
+    if (state.ended_by === 'basic_question') {
+      return 'transaction_decision';
+    }
+
     if (state.thread_id && !this._processedThreads.has(state.thread_id)) {
       return 'executor_terminate';
     }
@@ -107,6 +119,10 @@ export class ExecutorGraph {
 
     if (lastMessage?.tool_calls?.length && lastMessage?.tool_calls[0]?.name === 'ask_user') {
       return 'ask_user';
+    }
+
+    if (lastMessage?.tool_calls?.length && lastMessage?.tool_calls[0]?.name === 'transaction_decision') {
+      return 'transaction_decision';
     }
 
     if (lastMessage?.tool_calls?.length && this.agent.config.isHumanReview) {
@@ -249,11 +265,13 @@ export class ExecutorGraph {
           Inform them that the previous plan and its execution have been deleted. 
           Let them know that their next input will create a new plan. 
           Provide a helpful response and short enough to be understood by the user.
-        `,
+          `,
         ],
         ['human', `reason terminated: {reason}`],
         ['human', 'terminated plans: {plans}'],
       ]);
+
+      const reason = state.messages[state.messages.length - 1]?.content ?? '';
 
       const response = await prompt
         .pipe(
@@ -262,7 +280,7 @@ export class ExecutorGraph {
           }),
         )
         .invoke({
-          reason: state.messages[state.messages.length - 1]?.content ?? '',
+          reason: reason,
           plans: JSON.stringify(state.plans),
         });
 
@@ -288,6 +306,7 @@ export class ExecutorGraph {
   }
 
   async askNode(state: typeof StateAnnotation.State) {
+
     const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
     const toolCallId = lastMessage.tool_calls?.[0].id ?? createToolCallId();
     const question = lastMessage.tool_calls?.[0]?.args?.question ?? '';
@@ -324,6 +343,159 @@ export class ExecutorGraph {
         }),
       ],
     };
+  }
+
+  async transactionDecisionNode(state: typeof StateAnnotation.State) {
+    let question = '';
+    let modelWithStructure: any;
+
+    const promptDescription = `
+        You are analyzing a human review response for a transaction approval system.
+        Your task is to determine if the human wants to:
+        1. continue_transaction: Continue with current transaction
+        2. cancel_transaction: Cancel current transaction
+        3. stash_transaction: Store current transaction
+
+        Based solely on the human's response, classify their intent into one of these three categories.
+        Next is the human's response:
+      `;
+
+    if (!this.model.withStructuredOutput) {
+      throw new Error('Model does not support structured output');
+    }
+
+    if (state.ended_by === 'basic_question') {
+
+      question = ` ${String(state.answer)}\n\n\n` +
+        `So what’s the play? I’ve already pulled the request you gave me, and just a heads-up — you can’t update this TX anymore.\n\n` +
+`Wanna <i>lock it in</i> as-is? Type <b>ok</b> and we’re off. No edits, no rewinds.\n\n` +
+`Need changes? Type <b>cancel</b> and we’ll start fresh — your move, strategist.\n\n` +
+`Clock’s ticking.`;
+
+      
+      modelWithStructure = this.model.withStructuredOutput(
+        z.object({
+          action: z.enum(['continue_transaction', 'cancel_transaction']),
+        }),
+      );
+
+    } else {
+      // Get the last AI message which should contain the tool call
+      const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+      question = lastMessage.tool_calls?.[0]?.args?.question ?? '';
+
+      modelWithStructure = this.model.withStructuredOutput(
+        z.object({
+          action: z.enum(['continue_transaction', 'cancel_transaction', 'stash_transaction']),
+        }),
+      );
+    }
+    
+    // Set ask user state and use interrupt
+    if (!this.agent.isAskUser) {
+      this.agent.setAskUser(true);
+      this.agent.notifyAskUser({
+        question,
+        timestamp: Date.now(),
+      });
+    }
+
+    
+    // Interrupt and get user's response
+    const warningMessage = interrupt({ question });
+    this.agent.setAskUser(false);
+    
+    // Process user response
+    const userResponse = String(warningMessage.input).trim().toLowerCase();
+    const systemMessage = new SystemMessage(promptDescription);
+
+    if (!this.model.withStructuredOutput) {
+      throw new Error('Model does not support structured output');
+    }
+
+    const response = await modelWithStructure.invoke([
+      systemMessage,
+      new HumanMessage(userResponse),
+    ]);
+
+    let updatedPlans;
+
+    // Handle user decision
+    if (response.action === 'continue_transaction') {
+      // User wants to continue with transaction
+      if (!state.pending_transaction) {
+        throw new Error('Pending transaction is not found');
+      }
+
+      const toolCallMessage = new AIMessage({
+        content: '',
+        tool_calls: [
+          {
+            id: state.pending_transaction.tool_call_id || createToolCallId(),
+            name: state.pending_transaction.tool_name,
+            args: state.pending_transaction.tool_args,
+          },
+        ],
+      });
+      
+      return new Command({ 
+        goto: 'executor_tools', 
+        update: { 
+          messages: [toolCallMessage],
+          pending_transaction: null // Clear saved transaction info
+        } 
+      });
+    
+    } else if (response.action === 'cancel_transaction') {
+      // Create termination message
+      const terminateMessage = new AIMessage({
+        content: 'User requested to cancel the transaction',
+        tool_calls: [
+          {
+            id: createToolCallId(),
+            name: 'terminate',
+            args: { reason: 'User requested to cancel the transaction' },
+          },
+        ],
+      });
+
+        
+      if (Array.isArray(state.plans)) {
+        const currentPlan = state.plans.find(p => p.plan_id === state.active_plan_id);
+        if (currentPlan) {
+          currentPlan.status = 'rejected';
+          updatedPlans = [...state.plans]; 
+        }
+      }
+      
+      return new Command({ 
+        goto: 'executor_terminate', 
+        update: { 
+          messages: [terminateMessage],
+          reject_transaction: true,
+          ended_by: 'reject_transaction',
+          plans: updatedPlans,
+          pending_transaction: null,  // Clear saved transaction info
+        } 
+      });
+
+    } else if (response.action === 'stash_transaction') {
+      if (Array.isArray(state.plans)) {
+        const currentPlan = state.plans.find(p => p.plan_id === state.active_plan_id);
+        if (currentPlan) {
+          currentPlan.status = 'pending';
+          updatedPlans = [...state.plans]; 
+        }
+      }
+
+      return new Command({
+        goto: 'executor_terminate',
+        update: {
+          ended_by: 'stash_transaction',
+          plans: updatedPlans,
+        }
+      });
+    }
   }
 
   async reviewTransactionNode(state: typeof StateAnnotation.State) {
@@ -381,9 +553,11 @@ export class ExecutorGraph {
           if you want to update the transaction, please update the parameters and quote`,
           quote: quote,
         });
-        this.agent.setAskUser(false);
+        
 
         if (humanReview.input) {
+          this.agent.setAskUser(false);
+
           //TODO: use model to detect if the human review is approve or reject
           if (!this.model.withStructuredOutput) {
             throw new Error('Model does not support structured output');
@@ -396,6 +570,7 @@ export class ExecutorGraph {
             1. APPROVE the transaction (proceed with execution)
             2. REJECT the transaction (cancel execution)
             3. UPDATE the transaction (update current transaction with user's modified parameters)
+            4. OTHER (other action from user)
 
             Based solely on the human's response, classify their intent into one of these three categories.
             Next is the human's response:
@@ -407,7 +582,7 @@ export class ExecutorGraph {
           // Then use withStructuredOutput without the problematic description parameter
           const modelWithStructure = this.model.withStructuredOutput(
             z.object({
-              action: z.enum(['approve', 'reject', 'update']),
+              action: z.enum(['approve', 'reject', 'update', 'other']),
             }),
           );
 
@@ -436,6 +611,7 @@ export class ExecutorGraph {
             status: 'approved',
           });
           return new Command({ goto: 'executor_tools' });
+          
         } else if (humanReview.action === 'reject') {
           this.logToolExecution('review_transaction', 'completed', {
             status: 'rejected',
@@ -454,6 +630,7 @@ export class ExecutorGraph {
               update: { reject_transaction: true },
             });
           }
+
         } else if (humanReview.action === 'update') {
           if (!this.model.withStructuredOutput) {
             throw new Error('Model does not support structured output');
@@ -520,12 +697,55 @@ export class ExecutorGraph {
             status: 'updated',
           });
           return new Command({ goto: 'executor_agent', update: { messages: [updateMessage] } });
+          
+        } else if (humanReview.action === 'other') {
+          // Save current transaction state
+          const currentTransaction = {
+            pending_plan_id: state.active_plan_id,
+            latest_request: humanReview.input,
+            tool_name: toolCall.name,
+            tool_args: toolCall.args,
+            pending_quote: quote,
+            tool_call_id: toolCall.id
+          };
+
+          // Create an ask_user message with the question
+          const warningMessage = new AIMessage({
+            content: '',
+            tool_calls: [
+              {
+                id: createToolCallId(),
+                name: 'transaction_decision',
+                args: { 
+                  question: `Heads up, fam – TX is on pause. Here's the game plan:\n\n` +
+  `⚠️ First things first: the moment you pick, there's no going back. So choose wisely.\n\n` +
+  `You've got 3 plays:\n\n` +
+  `• Wanna <i>send it as-is</i>? Type <code>continue</code> and I’ll push the current transaction forward. No edits, no take-backs.\n\n` +
+  `• Wanna <i>scrap this one</i> and let me spin up a fresh TX? Type <code>cancel</code> — and you’re free to ask, tweak, and brainstorm as much as you like. Blank slate vibes.\n\n` +
+  `• (<b>${humanReview.input}</b>) Ohhh I see — you’re not ready to pull the trigger, just wanna check a few things before locking it in. Respect. Type <code>stash</code> and I’ll hold onto this TX while you ask about balance or token info. Just this once though <b>AND JUST BALANCE AND TOKEN INFO</b> — no edits allowed, and no replays. That’s the deal.\n\n` +
+  `Your move. Let’s ride.`,
+                },
+              },
+            ],
+          });
+          
+          // Add information about the current transaction to the state before moving to askNode
+          return new Command({ 
+            goto: 'transaction_decision', 
+            update: { 
+              messages: [warningMessage],
+              pending_transaction: currentTransaction
+            } 
+          });
         }
-      }
+      
+
       this.logToolExecution('review_transaction', 'completed', {
         status: 'No simulateQuoteTool found',
       });
+
       return new Command({ goto: 'executor_tools' });
+      }
     }
   }
 
@@ -535,6 +755,9 @@ export class ExecutorGraph {
       .addNode('executor_tools', new ToolNode(this.tools))
       .addNode('executor_terminate', this.executorTerminateNode.bind(this))
       .addNode('ask_user', this.askNode.bind(this))
+      .addNode('transaction_decision', this.transactionDecisionNode.bind(this), {
+        ends: ['executor_tools', 'executor_terminate'],
+      })
       .addNode('review_transaction', this.reviewTransactionNode.bind(this), {
         ends: ['executor_tools', 'executor_agent'],
       })
@@ -546,6 +769,7 @@ export class ExecutorGraph {
         end: 'end',
         ask_user: 'ask_user',
         review_transaction: 'review_transaction',
+        transaction_decision: 'transaction_decision',
         executor_tools: 'executor_tools',
         executor_terminate: 'executor_terminate',
       })

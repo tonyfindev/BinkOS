@@ -51,6 +51,14 @@ const StateAnnotation = Annotation.Root({
   answer: Annotation<string>,
   ended_by: Annotation<string>,
   thread_id: Annotation<string>,
+  pending_transaction: Annotation<{
+    pending_plan_id: string;
+    latest_request: string;
+    tool_name: string;
+    tool_args: any;
+    pending_quote: any;
+    tool_call_id: string;
+  } | null>,
 });
 
 export class PlanningAgent extends Agent {
@@ -179,10 +187,10 @@ export class PlanningAgent extends Agent {
       
       Following tips trading:
 
-        + Sell/Swap X/X% A to B on network X (amount = X/calculate X% of current balance, amountType = input).
-        + Swap/Buy X/X% A from B on network X (amount = X/calculate X% of current balance, amountType = ouput).
+        + Sell/Swap X/X% A to B on network Y (amount = X/calculate X% of current balance, amountType = input).
+        + Swap/Buy X/X% A from B on network Y (amount = X/calculate X% of current balance, amountType = ouput).
 
-      If you can't retrieve or reasoning A/B/X in user's request, ask user to provide more information.
+      If you can't retrieve or reasoning A/B/X/Y in user's request, ask user to provide more information.
       `;
 
     const updatePlanPrompt = `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
@@ -277,18 +285,36 @@ export class PlanningAgent extends Agent {
         state => {
           const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
           const isLastActivePlanRejected = activePlan?.status === 'rejected';
+          const isLastActivePlanStashed = activePlan?.status === 'pending';
+
           if (state.ended_by === 'reject_transaction' && isLastActivePlanRejected) {
             return END;
+          } else if (state.ended_by === 'stash_transaction' && isLastActivePlanStashed) {
+            return 'basic_question';
           } else {
             return 'planner';
           }
         },
         {
           planner: 'planner',
+          basic_question: 'basic_question',
           __end__: END,
         },
       )
-      .addEdge('basic_question', END);
+      .addConditionalEdges(
+        'basic_question',
+        state => {
+          if (state.ended_by === 'basic_question') {
+            return 'executor';
+          } else {
+            return END;
+          }
+        },
+        {
+          executor: 'executor',
+          __end__: END,
+        },
+      )
 
     const checkpointer = new MemorySaver();
 
