@@ -19,7 +19,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "ts-node tests/planning.test.ts",
+    "test": "vitest run tests/planning.test.ts",
     "test:watch": "jest --watch"
   },
   "dependencies": {
