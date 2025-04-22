@@ -115,6 +115,7 @@ describe('Planning Agent', () => {
 
     // Initialize provider
     const provider = new ethers.JsonRpcProvider(BNB_RPC);
+    const solanaProvider = new Connection(SOL_RPC);
 
     // Initialize a new wallet
     wallet = new Wallet(
@@ -122,7 +123,7 @@ describe('Planning Agent', () => {
         seedPhrase:
           settings.get('WALLET_MNEMONIC') ||
           'test test test test test test test test test test test junk',
-        index: 0,
+        index: 9,
       },
       network,
     );
@@ -132,8 +133,6 @@ describe('Planning Agent', () => {
       {
         model: 'gpt-4o',
         temperature: 0,
-        systemPrompt:
-          'You are a BINK AI agent. You are able to perform swaps, bridges and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge or swap.',
       },
       wallet,
       networks,
@@ -155,7 +154,7 @@ describe('Planning Agent', () => {
     const bnbProvider = new BnbProvider({
       rpcUrl: BNB_RPC,
     });
-    const solanaProvider = new Connection(SOL_RPC);
+
     const pancakeswap = new PancakeSwapProvider(provider, 56);
     const jupiter = new JupiterProvider(solanaProvider);
     const thena = new ThenaProvider(provider, 56);
@@ -163,20 +162,21 @@ describe('Planning Agent', () => {
 
     // Initialize plugins with providers
     await walletPlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [bnbProvider, birdeye],
-      supportedChains: ['bnb'],
+      providers: [birdeye],
+      supportedChains: ['solana'],
     });
 
     await tokenPlugin.initialize({
       defaultChain: 'bnb',
       providers: [birdeye],
-      supportedChains: ['solana', 'bnb'],
+      supportedChains: ['solana'],
     });
 
     await swapPlugin.initialize({
-      providers: [pancakeswap, jupiter, thena],
-      supportedChains: ['bnb', 'ethereum', 'solana'],
+      defaultSlippage: 0.5,
+      defaultChain: 'solana',
+      providers: [jupiter],
+      supportedChains: ['solana'],
     });
 
     await bridgePlugin.initialize({
@@ -186,10 +186,10 @@ describe('Planning Agent', () => {
     });
 
     // Register plugins with agent
-    await agent.registerPlugin(swapPlugin as unknown as IPlugin);
-    await agent.registerPlugin(walletPlugin as unknown as IPlugin);
-    await agent.registerPlugin(tokenPlugin as unknown as IPlugin);
-    await agent.registerPlugin(bridgePlugin as unknown as IPlugin);
+    await agent.registerPlugin(swapPlugin);
+    await agent.registerPlugin(walletPlugin);
+    await agent.registerPlugin(tokenPlugin);
+    await agent.registerPlugin(bridgePlugin);
   }, 30000); // Increase timeout for beforeEach
 
   it('should get balance on Solana', async () => {
@@ -197,24 +197,58 @@ describe('Planning Agent', () => {
       input: 'get my balance on solana',
       threadId: '123e4567-e89b-12d3-a456-426614174000',
     });
-    console.log('🚀 ~ it ~ result 1:', result);
+    const expectedResponse = {
+      sol: {
+        amount: 0.123114135,
+        value: 17.18,
+      },
+      jup: {
+        amount: 1.707124,
+        value: 0.69,
+      },
+      usdt: {
+        amount: 0.645075,
+        value: 0.65,
+      },
+      usdc: {
+        amount: 0.08512,
+        value: 0.09,
+      },
+      walletAddress: 'JjKTAVWetK6sefLMFdGJE3DrCcZxurhJdbNa41AYcz4',
+    };
+
+    console.log('🔍 result 1:', result);
 
     expect(result).toBeDefined();
+    expect(result.toLowerCase()).toContain(
+      (await wallet.getAddress(NetworkName.SOLANA)).toLowerCase(),
+    );
+    expect(result.toLowerCase()).toContain('sol');
   }, 30000); // Increase timeout for this test
 
-  it('should handle chat history', async () => {
-    const chatHistory = [
-      new HumanMessage('Buy BINK'),
-      new AIMessage('Please provide the amount of BNB you want to spend'),
-    ];
-
+  it('Example 3: swap token on jupiter', async () => {
     const result = await agent.execute({
-      input: '0.0001 BNB with 0.5% slippage on bnb chain.',
-      history: chatHistory,
+      input: 'swap 0.01 SOL to USDC',
       threadId: '987fcdeb-a123-45e6-7890-123456789abc',
     });
-    console.log('🔍 Result 2:', result);
 
     expect(result).toBeDefined();
-  }, 50000); // Increase timeout for this test
+    console.log('🔍 Result 3:', result);
+    expect(result.toLowerCase()).toContain('successfully');
+    expect(result.toLowerCase()).toContain('swap');
+    expect(result.toLowerCase()).toContain('sol');
+    expect(result.toLowerCase()).toContain('usdc');
+    expect(result.toLowerCase()).toContain('0.01');
+
+    if (result && typeof result === 'object' && 'data' in result) {
+      console.log('go to here:');
+      expect(result.data).toBeDefined();
+      expect(result.data.transactionHash).toBeDefined();
+      expect(result.data.amount).toBe(0.01);
+      expect(result.data.from).toBeDefined();
+      expect(result.data.to).toBeDefined();
+      expect(result.data.network).toBeDefined();
+      expect(result.data.provider).toBeDefined();
+    }
+  }, 90000);
 });
