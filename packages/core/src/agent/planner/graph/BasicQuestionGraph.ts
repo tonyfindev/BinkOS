@@ -95,8 +95,11 @@ export class BasicQuestionGraph {
 
     const interruptedPrompt = `You are answering a question during a transaction review. Inform user this is the only time you can answer questions.
     Inform user you can only answer questions about checking wallet balances and token information.
+    If user ask question about check balance, check all networks.
+    If user ask question about token information, check all networks.
     If user ask other questions, inform user you can only answer questions about checking wallet balances and token information.
-      `
+    Answer in HTML telegram format.
+      `;
 
     if (state.ended_by === 'stash_transaction') {
       prompt = ChatPromptTemplate.fromMessages([
@@ -107,8 +110,6 @@ export class BasicQuestionGraph {
       ]);
 
       input = state.pending_transaction?.latest_request;
-
-    
     } else {
       prompt = ChatPromptTemplate.fromMessages([
         ['system', this.prompt],
@@ -116,7 +117,7 @@ export class BasicQuestionGraph {
         ['human', '{input}'],
         new MessagesPlaceholder('messages'),
       ]);
-      
+
       input = state.input;
     }
 
@@ -132,22 +133,18 @@ export class BasicQuestionGraph {
       chat_history: [...(state.chat_history ?? [])],
     });
 
-    
-
-
     if (responseMessage.tool_calls?.length) {
-      return { 
+      return {
         messages: [responseMessage],
       };
-    }
-    else {
+    } else {
       if (state.ended_by === 'stash_transaction') {
-        return { 
+        return {
           answer: responseMessage.content,
           ended_by: 'basic_question',
         };
       } else {
-        return { 
+        return {
           answer: responseMessage.content,
         };
       }
