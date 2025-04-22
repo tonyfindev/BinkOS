@@ -251,4 +251,46 @@ describe('Planning Agent', () => {
       expect(result.data.provider).toBeDefined();
     }
   }, 90000);
+
+  it('Example 4: should fail when swapping with insufficient balance', async () => {
+    const result = await agent.execute({
+      input: 'swap 1000 SOL to USDC', // Large amount that exceeds balance
+      threadId: '456bcdef-7890-12a3-b456-789012345def',
+    });
+    if (result) {
+      expect(result).toBeDefined();
+      console.log('🔍 Result 4:', result);
+      expect(result.toLowerCase()).not.toContain('successfully');
+    } else {
+      expect(result).toBeNull();
+    }
+  }, 90000);
+
+  it('should handle bridge request between chains', async () => {
+    const result = await agent.execute({
+      input: 'bridge 0.1 SOL to BNB chain',
+      threadId: '123e4567-e89b-12d3-a456-426614174002',
+    });
+    console.log('🔍 Result 6:', result);
+    expect(result).toBeDefined();
+    expect(result.toLowerCase()).toContain('successfully');
+    expect(result.toLowerCase()).toContain('bridge');
+    expect(result.toLowerCase()).toContain('sol');
+    expect(result.toLowerCase()).toContain('bnb');
+  }, 90000);
+
+  it('should handle invalid token symbol gracefully', async () => {
+    const result = await agent.execute({
+      input: 'swap 0.1 INVALIDTOKEN to USDC',
+      threadId: '123e4567-e89b-12d3-a456-426614174003',
+    });
+    console.log('🔍 Result 7:', result);
+    if (result) {
+      expect(result).toBeDefined();
+      expect(result.toLowerCase()).toContain('invalid');
+      expect(result.toLowerCase()).toContain('token');
+    } else {
+      expect(result).toBeNull();
+    }
+  }, 30000);
 });
