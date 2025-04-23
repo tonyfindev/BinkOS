@@ -192,6 +192,8 @@ describe('Planning Agent', () => {
     await agent.registerPlugin(bridgePlugin);
   }, 30000); // Increase timeout for beforeEach
 
+  // === GET INFO ===
+
   it('should get balance on Solana', async () => {
     const result = await agent.execute({
       input: 'get my balance on solana',
@@ -225,6 +227,8 @@ describe('Planning Agent', () => {
     );
     expect(result.toLowerCase()).toContain('sol');
   }, 30000); // Increase timeout for this test
+
+  // === SWAP ===
 
   it('Example 3: swap token on jupiter', async () => {
     const result = await agent.execute({
@@ -266,20 +270,7 @@ describe('Planning Agent', () => {
     }
   }, 90000);
 
-  it('should handle bridge request between chains', async () => {
-    const result = await agent.execute({
-      input: 'bridge 0.1 SOL to BNB chain',
-      threadId: '123e4567-e89b-12d3-a456-426614174002',
-    });
-    console.log('🔍 Result 6:', result);
-    expect(result).toBeDefined();
-    expect(result.toLowerCase()).toContain('successfully');
-    expect(result.toLowerCase()).toContain('bridge');
-    expect(result.toLowerCase()).toContain('sol');
-    expect(result.toLowerCase()).toContain('bnb');
-  }, 90000);
-
-  it('should handle invalid token symbol gracefully', async () => {
+  it('Example 5: should handle invalid token symbol gracefully', async () => {
     const result = await agent.execute({
       input: 'swap 0.1 INVALIDTOKEN to USDC',
       threadId: '123e4567-e89b-12d3-a456-426614174003',
@@ -293,4 +284,82 @@ describe('Planning Agent', () => {
       expect(result).toBeNull();
     }
   }, 30000);
+
+  it('Example 5b: should swap tokens via PancakeSwap on BNB Chain', async () => {
+    const result = await agent.execute({
+      input: 'swap 0.01 BNB to CAKE on BNB chain using pancakeswap',
+      threadId: '123e4567-e89b-12d3-a456-426614174004',
+    });
+    console.log('🔍 Result 5b:', result);
+    if (result) {
+      expect(result).toBeDefined();
+      expect(result.toLowerCase()).toContain('successfully');
+      expect(result.toLowerCase()).toContain('swap');
+      expect(result.toLowerCase()).toContain('bnb');
+      expect(result.toLowerCase()).toContain('cake');
+      expect(result.toLowerCase()).toContain('pancakeswap');
+
+      if (typeof result === 'object' && 'data' in result) {
+        expect(result.data).toBeDefined();
+        expect(result.data.transactionHash).toBeDefined();
+        expect(result.data.amount).toBe(0.01);
+        expect(result.data.from).toBeDefined();
+        expect(result.data.to).toBeDefined();
+        expect(result.data.network).toBe('bnb');
+        expect(result.data.provider).toBe('pancakeswap');
+      }
+    } else {
+      expect(result).toBeNull();
+    }
+  }, 90000);
+
+  // === BRIDGE ===
+
+  it('Example 6: should handle bridge request between chains', async () => {
+    const result = await agent.execute({
+      input: 'bridge 0.1 SOL to BNB chain',
+      threadId: '123e4567-e89b-12d3-a456-426614174002',
+    });
+    console.log('🔍 Result 6:', result);
+    if (result) {
+      expect(result).toBeDefined();
+      expect(result.toLowerCase()).toContain('successfully');
+      expect(result.toLowerCase()).toContain('bridge');
+      expect(result.toLowerCase()).toContain('sol');
+      expect(result.toLowerCase()).toContain('bnb');
+    } else {
+      expect(result).toBeNull();
+    }
+  }, 90000);
+
+  it('Example 7:should handle bridge with specific amount and token', async () => {
+    const result = await agent.execute({
+      input: 'bridge 10 BNB to SOL ',
+      threadId: '123e4567-e89b-12d3-a456-426614174005',
+    });
+    console.log('🔍 Result 9:', result);
+    if (result) {
+      expect(result).toBeDefined();
+      expect(result.toLowerCase()).toContain('successfully');
+      expect(result.toLowerCase()).toContain('usdc');
+      expect(result.toLowerCase()).toContain('10');
+    } else {
+      expect(result).toBeNull();
+    }
+  }, 90000);
+
+  it('Example 8:should handle bridge with insufficient liquidity', async () => {
+    const result = await agent.execute({
+      input: 'bridge 1000000 SOL to BNB chain', // Very large amount to trigger liquidity error
+      threadId: '123e4567-e89b-12d3-a456-426614174006',
+    });
+    console.log('🔍 Result 10:', result);
+    if (result) {
+      expect(result).toBeDefined();
+      expect(result.toLowerCase()).toContain('liquidity');
+      expect(result.toLowerCase()).toContain('insufficient');
+    } else {
+      expect(result).toBeNull();
+    }
+  }, 90000);
 });
