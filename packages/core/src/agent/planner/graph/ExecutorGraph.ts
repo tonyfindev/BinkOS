@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { AskTool } from '../tools/AskTool';
 import { BaseAgent } from '../../BaseAgent';
 import { PlanningAgent } from '../PlanningAgent';
-import { update } from 'lodash';
+import { set } from 'lodash';
 
 const createToolCallId = () => {
   // random 5 characters
@@ -470,65 +470,50 @@ export class ExecutorGraph {
 
           const updateSchema = this.model.withStructuredOutput(
             z.object({
-              updates: z
-                .array(
-                  z.object({
-                    path: z
-                      .string()
-                      .describe('The path of the parameter to update in the quote object'),
-                    value: z.string().describe('The new value to set at this path'),
-                  }),
-                )
-                .describe('List of updates to apply to the quote'),
+              updates: z.array(
+                z.object({
+                  parameter: z
+                    .string()
+                    .describe('The path of the parameter to update in the quote object'),
+                  update_to: z.string().describe('The new value to set at this path'),
+                }),
+              ),
             }),
           );
 
-          // Create a system message with clear instructions
-          const extractPrompt = `
-            You are a helpful assistant that extracts structured information from user requests.
-            Based on the user's input and the current quote details, identify all parameters
-            they want to update in the quote. For each parameter:
-            1. Determine the exact path in the quote object
-            2. Extract the new value they want to set
-            
-            Return a list of updates with path and value for each change requested.
-          `;
-
-          const systemMessage = new SystemMessage(extractPrompt);
+          const originalArgs = toolCall.args;
 
           // Invoke with system message first, then the human message
           const response = await updateSchema.invoke([
-            systemMessage,
             new HumanMessage(
-              `I want to update the following in this quote: ${humanReview.input}
-              
-              Current quote: ${JSON.stringify(quote, null, 2)}
-              
-              Extract all the specific parameters I want to change and their new values.
-              DO NOT change the structure of the quote, only update the value of the parameters.`,
+              `Update current args based on the following request: ${humanReview.input}
+              Extract all the specific parameters user want to change and their new values.
+              Current args: ${JSON.stringify(originalArgs, null, 2)}
+              `,
             ),
           ]);
 
-          const updatedQuote = { ...quote }; // Create a copy to avoid mutating the original
+          const updatedArgs = JSON.parse(JSON.stringify(originalArgs));
+          for (const updateItem of response.updates) {
+            set(updatedArgs, updateItem.parameter, updateItem.update_to);
+          }
 
-          // Apply each update in the response array
-          response.updates.forEach(updateItem => {
-            update(updatedQuote, updateItem.path, function () {
-              return updateItem.value;
-            });
-          });
-
-          const updateMessage = new ToolMessage({
+          const toolMessage = new ToolMessage({
             name: toolCall.name,
-            content: `updated quote: ${JSON.stringify(updatedQuote, null, 2)}
-            Updated parameters: 
-            ${response.updates.map(updateItem => `- ${updateItem.path} = ${updateItem.value}`).join('\n            ')}`,
+            content: `Parameters updated: ${JSON.stringify(updatedArgs, null, 2)}`,
             tool_call_id: toolCall.id ?? createToolCallId(),
           });
+
           this.logToolExecution('review_transaction', 'completed', {
             status: 'updated',
           });
-          return new Command({ goto: 'executor_agent', update: { messages: [updateMessage] } });
+          return new Command({
+            goto: 'executor_agent',
+            update: {
+              executor_input: `${toolCall.name} with args: ${JSON.stringify(updatedArgs, null, 2)}`,
+              messages: [toolMessage],
+            },
+          });
         } else if (humanReview.action === 'other') {
           const currentPlan = state.plans.find(p => p.plan_id === state.active_plan_id);
 
