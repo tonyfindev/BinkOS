@@ -146,7 +146,7 @@ async function main() {
   console.log('💱 Example 1: Buy USDC from SOL');
   const inputResult = await agent.execute({
     input: `
-        swap all USDT(Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB) to SOL(So11111111111111111111111111111111111111111) via jupiter
+        swap 0.02 SOL to WHALES(GTH3wG3NErjwcf7VGCoXEXkgXSHvYhx5gtATeeM5JAS1) via jupiter
     `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');
