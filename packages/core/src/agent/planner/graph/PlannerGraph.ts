@@ -31,14 +31,7 @@ const StateAnnotation = Annotation.Root({
   ask_question: Annotation<string>,
   ended_by: Annotation<string>,
   thread_id: Annotation<string>,
-  pending_transaction: Annotation<{
-    pending_plan_id: string;
-    latest_request: string;
-    tool_name: string;
-    tool_args: any;
-    pending_quote: any;
-    tool_call_id: string;
-  } | null>,
+  interrupted_request: Annotation<string>,
 });
 
 export class PlannerGraph {
@@ -281,18 +274,19 @@ export class PlannerGraph {
       return 'create_plan';
     }
 
-
     // Check if active plan is complete or rejected
     const activePlan = state.plans.find(plan => plan.plan_id === state.active_plan_id);
-    
+
     // Create new plan if:
     // 1. Completed plan ended by planner_answer OR
     // 2. Rejected plan ended by reject_transaction
-    if ((activePlan?.status === 'completed' && state.ended_by === 'planner_answer') || 
-        (activePlan?.status === 'rejected' && state.ended_by === 'reject_transaction')) {
+    if (
+      (activePlan?.status === 'completed' && state.ended_by === 'planner_answer') ||
+      activePlan?.status === 'rejected'
+    ) {
       return 'create_plan';
     }
-    
+
     // Default to update_plan for all other cases
     return 'update_plan';
   }

@@ -51,14 +51,7 @@ const StateAnnotation = Annotation.Root({
   answer: Annotation<string>,
   ended_by: Annotation<string>,
   thread_id: Annotation<string>,
-  pending_transaction: Annotation<{
-    pending_plan_id: string;
-    latest_request: string;
-    tool_name: string;
-    tool_args: any;
-    pending_quote: any;
-    tool_call_id: string;
-  } | null>,
+  interrupted_request: Annotation<string>,
 });
 
 export class PlanningAgent extends Agent {
@@ -141,8 +134,10 @@ export class PlanningAgent extends Agent {
 
     const planAgent = prompt.pipe(modelWithTools);
 
+    const input = state.interrupted_request || state.input;
+
     const response = (await planAgent.invoke({
-      input: state.input,
+      input: input,
     })) as any;
 
     if (response?.tool_calls) {
@@ -285,36 +280,22 @@ export class PlanningAgent extends Agent {
         state => {
           const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
           const isLastActivePlanRejected = activePlan?.status === 'rejected';
-          const isLastActivePlanStashed = activePlan?.status === 'pending';
 
-          if (state.ended_by === 'reject_transaction' && isLastActivePlanRejected) {
+          if (state.ended_by === 'other_action') {
+            return 'supervisor';
+          } else if (state.ended_by === 'reject_transaction' && isLastActivePlanRejected) {
             return END;
-          } else if (state.ended_by === 'stash_transaction' && isLastActivePlanStashed) {
-            return 'basic_question';
           } else {
             return 'planner';
           }
         },
         {
+          supervisor: 'supervisor',
           planner: 'planner',
-          basic_question: 'basic_question',
           __end__: END,
         },
       )
-      .addConditionalEdges(
-        'basic_question',
-        state => {
-          if (state.ended_by === 'basic_question') {
-            return 'executor';
-          } else {
-            return END;
-          }
-        },
-        {
-          executor: 'executor',
-          __end__: END,
-        },
-      )
+      .addEdge('basic_question', END);
 
     const checkpointer = new MemorySaver();
 

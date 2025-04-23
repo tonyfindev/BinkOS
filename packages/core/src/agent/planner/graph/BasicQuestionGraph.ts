@@ -32,15 +32,7 @@ const StateAnnotation = Annotation.Root({
   answer: Annotation<string>,
   active_plan_id: Annotation<string>,
   ended_by: Annotation<string>,
-  pending_transaction: Annotation<{
-    pending_plan_id: string;
-    status: string;
-    latest_request: string;
-    tool_name: string;
-    tool_args: any;
-    pending_quote: any;
-    tool_call_id: string;
-  } | null>,
+  interrupted_request: Annotation<string>,
 });
 
 export class BasicQuestionGraph {
@@ -79,7 +71,6 @@ export class BasicQuestionGraph {
 
   async agentNode(state: typeof StateAnnotation.State) {
     let modelWithTools;
-    let prompt;
     let input;
 
     if (shouldBindTools(this.model, this.tools)) {
@@ -93,33 +84,14 @@ export class BasicQuestionGraph {
       modelWithTools = this.model;
     }
 
-    const interruptedPrompt = `You are answering a question during a transaction review. Inform user this is the only time you can answer questions.
-    Inform user you can only answer questions about checking wallet balances and token information.
-    If user ask question about check balance, check all networks.
-    If user ask question about token information, check all networks.
-    If user ask other questions, inform user you can only answer questions about checking wallet balances and token information.
-    Answer in HTML telegram format.
-      `;
+    const prompt = ChatPromptTemplate.fromMessages([
+      ['system', this.prompt],
+      new MessagesPlaceholder('chat_history'),
+      ['human', '{input}'],
+      new MessagesPlaceholder('messages'),
+    ]);
 
-    if (state.ended_by === 'stash_transaction') {
-      prompt = ChatPromptTemplate.fromMessages([
-        ['system', interruptedPrompt],
-        new MessagesPlaceholder('chat_history'),
-        ['human', '{input}'],
-        new MessagesPlaceholder('messages'),
-      ]);
-
-      input = state.pending_transaction?.latest_request;
-    } else {
-      prompt = ChatPromptTemplate.fromMessages([
-        ['system', this.prompt],
-        new MessagesPlaceholder('chat_history'),
-        ['human', '{input}'],
-        new MessagesPlaceholder('messages'),
-      ]);
-
-      input = state.input;
-    }
+    input = state.interrupted_request || state.input;
 
     const agent = prompt.pipe(
       modelWithTools.withConfig({
@@ -138,16 +110,9 @@ export class BasicQuestionGraph {
         messages: [responseMessage],
       };
     } else {
-      if (state.ended_by === 'stash_transaction') {
-        return {
-          answer: responseMessage.content,
-          ended_by: 'basic_question',
-        };
-      } else {
-        return {
-          answer: responseMessage.content,
-        };
-      }
+      return {
+        answer: responseMessage.content,
+      };
     }
   }
 
