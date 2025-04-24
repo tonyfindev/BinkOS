@@ -48,9 +48,9 @@ export abstract class BaseSwapProvider implements ISwapProvider {
     [NetworkName.ARBITRUM]: ethers.parseEther('0.001'), // 0.001 ETH
     [NetworkName.OPTIMISM]: ethers.parseEther('0.001'), // 0.001 ETH
     [NetworkName.BNB]: ethers.parseEther('0.0001'), // 0.001 BNB
-    [NetworkName.SOLANA]: BigInt(10000000), // 0.001 SOL in lamports
+    [NetworkName.SOLANA]: BigInt(1000000), // 0.001 SOL in lamports
     [NetworkName.SEPOLIA]: ethers.parseEther('0.001'), // 0.001 ETH
-    [NetworkName.SOLANA_DEVNET]: BigInt(10000000), // 0.001 SOL in lamports
+    [NetworkName.SOLANA_DEVNET]: BigInt(1000000), // 0.001 SOL in lamports
   };
 
   constructor(providerConfig: Map<NetworkName, NetworkProvider>) {
