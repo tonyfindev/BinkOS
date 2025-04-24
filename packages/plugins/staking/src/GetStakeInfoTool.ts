@@ -177,10 +177,23 @@ export class GetStakeInfoTool extends BaseTool {
             address,
           );
 
-          console.log('Best quote:', bestQuote);
+          const simplifiedQuotes = bestQuote.map(({ provider, quote }) => ({
+            provider: provider.getName(),
+            currentAPY: String(quote.currentAPY),
+            averageAPY: String(quote.averageAPY),
+            maxSupply: String(quote.maxSupply),
+            currentSupply: String(quote.currentSupply),
+            liquidity: String(quote.liquidity),
+            type: quote.type,
+            network: quote.network,
+            unstakingPeriod: provider.getName().toLowerCase() === 'lista' ? '7 days' : undefined,
+          }));
+
           return JSON.stringify({
             status: 'success',
-            data: { bestQuote: bestQuote },
+            data: { bestQuotes: simplifiedQuotes },
+            network: args.network,
+            address: address,
           });
         } catch (error) {
           console.error(
