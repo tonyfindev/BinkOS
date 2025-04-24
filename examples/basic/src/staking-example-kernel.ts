@@ -17,8 +17,8 @@ import { WalletPlugin } from '@binkai/wallet-plugin';
 import { BnbProvider } from '@binkai/rpc-provider';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
-// import { ListaProvider } from '@binkai/lista-provider';
-// import { VenusProvider } from '@binkai/venus-provider';
+import { ListaProvider } from '@binkai/lista-provider';
+import { VenusProvider } from '@binkai/venus-provider';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
@@ -159,13 +159,13 @@ async function main() {
 
   // Create providers with proper chain IDs
   const kernelDao = new KernelDaoProvider(provider, 56);
-  // const venusStaking = new VenusProvider(provider, 56);
-  // const listaStaking = new ListaProvider(provider, 56);
+  const venusStaking = new VenusProvider(provider, 56);
+  const listaStaking = new ListaProvider(provider, 56);
   // Configure the plugin with supported chains
   await stakingPlugin.initialize({
     defaultSlippage: 0.5,
     defaultChain: 'bnb',
-    providers: [kernelDao],
+    providers: [kernelDao, venusStaking, listaStaking],
     supportedChains: ['bnb'], // These will be intersected with agent's networks
   });
   console.log('✓ Staking plugin initialized\n');
