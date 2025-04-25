@@ -111,6 +111,7 @@ export class BasicQuestionGraph {
       };
     } else {
       return {
+        messages: [responseMessage],
         answer: responseMessage.content,
       };
     }
