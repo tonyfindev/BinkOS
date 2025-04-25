@@ -1,5 +1,6 @@
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { ethers } from 'ethers';
+import { AlchemyProvider } from '../../../providers/alchemy/src/AlchemyProvider';
 import {
   IToolExecutionCallback,
   Network,
@@ -24,6 +25,8 @@ import { ThenaProvider } from '../../../providers/thena/src/ThenaProvider';
 import { JupiterProvider } from '../../../providers/jupiter/src/JupiterProvider';
 import { deBridgeProvider } from '../../../providers/deBridge/src/deBridgeProvider';
 import { PancakeSwapProvider } from '../../../providers/pancakeswap/src/PancakeSwapProvider';
+import { VenusProvider } from '../../../providers/venus/src/VenusProvider';
+import { StakingPlugin } from '../src/StakingPlugin';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -70,7 +73,7 @@ class ToolArgsCallback implements IToolExecutionCallback {
   onToolExecution(data: ToolExecutionData): void {
     if (data.input && typeof data.input === 'object') {
       const input = data.input;
-      if ('fromToken' in input && 'toToken' in input && 'amount' in input) {
+      if ('tokenA' in input && 'amountA' in input) {
         this.toolArgs = input;
         console.log('🔍 Captured Tool Args ---------:', this.toolArgs);
       }
@@ -168,6 +171,9 @@ describe('Planning Agent', () => {
     const bnbProvider = new BnbProvider({
       rpcUrl: BNB_RPC,
     });
+    const alchemyProvider = new AlchemyProvider({
+      apiKey: settings.get('ALCHEMY_API_KEY'),
+    });
 
     const pancakeswap = new PancakeSwapProvider(provider, 56);
     const jupiter = new JupiterProvider(solanaProvider);
@@ -176,14 +182,14 @@ describe('Planning Agent', () => {
 
     // Initialize plugins with providers
     await walletPlugin.initialize({
-      providers: [birdeye],
-      supportedChains: ['solana'],
+      providers: [bnbProvider, birdeye, alchemyProvider],
+      supportedChains: ['solana', 'bnb', 'ethereum'],
     });
 
     await tokenPlugin.initialize({
       defaultChain: 'bnb',
-      providers: [birdeye],
-      supportedChains: ['solana'],
+      providers: [alchemyProvider, birdeye],
+      supportedChains: ['solana', 'bnb', 'ethereum'],
     });
 
     await swapPlugin.initialize({
@@ -199,11 +205,22 @@ describe('Planning Agent', () => {
       supportedChains: ['bnb', 'solana'],
     });
 
+    const stakingPlugin = new StakingPlugin();
+    const venus = new VenusProvider(provider, 56);
+
+    await stakingPlugin.initialize({
+      defaultSlippage: 0.5,
+      defaultChain: 'bnb',
+      providers: [venus],
+      supportedChains: ['bnb', 'ethereum'],
+    });
+
     // Register plugins with agent
     await agent.registerPlugin(swapPlugin);
     await agent.registerPlugin(walletPlugin);
     await agent.registerPlugin(tokenPlugin);
     await agent.registerPlugin(bridgePlugin);
+    await agent.registerPlugin(stakingPlugin);
   }, 30000); // Increase timeout for beforeEach
 
   // === GET INFO ===
@@ -224,4 +241,60 @@ describe('Planning Agent', () => {
   }, 30000); // Increase timeout for this test
 
   // === STAKING ===
+
+  it('Example 1: should handle stake request', async () => {
+    await agent.execute({
+      input: 'unstake 0.0012 BNB on Venus',
+      threadId: '123e4567-e89b-12d3-a456-426614174007',
+    });
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 1 Captured Stake Args:', capturedArgs);
+    if (capturedArgs) {
+      expect(capturedArgs).toBeDefined();
+      expect(capturedArgs.tokenA).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+      expect(capturedArgs.amountA).toBe('0.0012');
+      expect(capturedArgs.type).toBe('supply');
+      expect(capturedArgs.network).toBe('bnb');
+      expect(capturedArgs.provider).toBe('venus');
+    } else {
+      expect(capturedArgs).toBeNull();
+    }
+  }, 90000);
+
+  it('Example 2: should handle stake BNB request', async () => {
+    await agent.execute({
+      input: 'unstake 0.0013 BNB on Venus',
+      threadId: '123e4567-e89b-12d3-a456-426614174008',
+    });
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 2 Captured Stake BNB Args:', capturedArgs);
+    if (capturedArgs) {
+      expect(capturedArgs).toBeDefined();
+      expect(capturedArgs.tokenA).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+      expect(capturedArgs.amountA).toBe('0.0013');
+      expect(capturedArgs.type).toBe('supply');
+      expect(capturedArgs.network).toBe('bnb');
+      expect(capturedArgs.provider).toBe('venus');
+    } else {
+      expect(capturedArgs).toBeNull();
+    }
+  }, 90000);
+
+  it('Example 3: should handle unstake BNB request', async () => {
+    await agent.execute({
+      input: 'unstake all BNB from Venus',
+      threadId: '123e4567-e89b-12d3-a456-426614174009',
+    });
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 3 Captured Unstake BNB Args:', capturedArgs);
+    if (capturedArgs) {
+      expect(capturedArgs).toBeDefined();
+      expect(capturedArgs.tokenA).toBe('0xA07c5b74C9B40447a954e1466938b865b6BBea36');
+      expect(capturedArgs.type).toBe('withdraw');
+      expect(capturedArgs.network).toBe('bnb');
+      expect(capturedArgs.provider).toBe('venus');
+    } else {
+      expect(capturedArgs).toBeNull();
+    }
+  }, 90000);
 });
