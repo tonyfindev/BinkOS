@@ -16,7 +16,8 @@
     "access": "public"
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run tests/bridge.test.ts",
+    "test-ai": "vitest run tests/bridge.ai.test.ts",
     "build": "tsc",
     "clean": "rimraf dist"
   },
