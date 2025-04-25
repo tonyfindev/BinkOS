@@ -1,6 +1,6 @@
 import { StakingTool } from './StakingTool';
 import { GetStakingBalanceTool } from './GetStakingBalanceTool';
-import { GetBestHighestAPYTool } from './GetBestHighestAPY';
+import { GetStakeInfoTool } from './GetStakeInfoTool';
 import { IStakingProvider } from './types';
 import { ProviderRegistry } from './ProviderRegistry';
 import { BaseTool, IPluginConfig, BasePlugin, NetworkName } from '@binkai/core';
@@ -15,7 +15,7 @@ export class StakingPlugin extends BasePlugin {
   public registry: ProviderRegistry;
   private stakingTool!: StakingTool;
   private getStakingBalanceTool!: GetStakingBalanceTool;
-  private getBestHighestAPYTool!: GetBestHighestAPYTool;
+  private getStakeInfoTool!: GetStakeInfoTool;
   private supportedNetworks: Set<string>;
 
   constructor() {
@@ -45,7 +45,7 @@ export class StakingPlugin extends BasePlugin {
       supportedNetworks: Array.from(this.supportedNetworks),
     });
 
-    this.getBestHighestAPYTool = new GetBestHighestAPYTool({
+    this.getStakeInfoTool = new GetStakeInfoTool({
       defaultNetwork: config.defaultNetwork,
       supportedNetworks: Array.from(this.supportedNetworks),
     });
@@ -62,7 +62,7 @@ export class StakingPlugin extends BasePlugin {
     return [
       this.stakingTool as unknown as BaseTool,
       this.getStakingBalanceTool as unknown as BaseTool,
-      this.getBestHighestAPYTool as unknown as BaseTool,
+      this.getStakeInfoTool as unknown as BaseTool,
     ];
   }
 
@@ -73,7 +73,7 @@ export class StakingPlugin extends BasePlugin {
     this.registry.registerProvider(provider);
     this.stakingTool.registerProvider(provider);
     this.getStakingBalanceTool.registerProvider(provider);
-    this.getBestHighestAPYTool.registerProvider(provider);
+    this.getStakeInfoTool.registerProvider(provider);
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach((network: NetworkName) => {
       this.supportedNetworks.add(network);
