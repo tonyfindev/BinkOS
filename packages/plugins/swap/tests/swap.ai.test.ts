@@ -1,34 +1,32 @@
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { ethers } from 'ethers';
+
+import { Connection } from '@solana/web3.js';
+import { BnbProvider } from '@binkai/rpc-provider';
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import {
-  Agent,
-  Wallet,
-  Network,
-  settings,
-  NetworkType,
-  NetworksConfig,
-  NetworkName,
   IToolExecutionCallback,
+  Network,
+  NetworkName,
+  NetworksConfig,
+  NetworkType,
+  PlanningAgent,
+  settings,
+  Wallet,
   ToolExecutionData,
   ToolExecutionState,
-  PlanningAgent,
-  IAgent,
-  BaseTool,
-  IPlugin,
-} from '../dist';
-import { Connection } from '@solana/web3.js';
-import { SwapPlugin } from '../../plugins/swap/dist';
-import { BridgePlugin } from '../../plugins/bridge/dist';
-import { TokenPlugin } from '../../plugins/token/dist';
-import { BnbProvider } from '@binkai/rpc-provider';
-import { BirdeyeProvider } from '../../providers/birdeye/dist/BirdeyeProvider';
-import { WalletPlugin } from '../../plugins/wallet/dist/WalletPlugin';
-import { PancakeSwapProvider } from '../../providers/pancakeswap/dist/PancakeSwapProvider';
-import { JupiterProvider } from '../../providers/jupiter/dist/JupiterProvider';
-import { ThenaProvider } from '../../providers/thena/dist/ThenaProvider';
-import { deBridgeProvider } from '../../providers/deBridge/dist/deBridgeProvider';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LangGraphRunnableConfig } from '@langchain/langgraph';
+} from '@binkai/core';
+import { SwapPlugin } from '../src/SwapPlugin';
+import { TokenPlugin } from '@binkai/token-plugin';
+import { BridgePlugin } from '../../bridge/src/BridgePlugin';
+import { BirdeyeProvider } from '../../../providers/birdeye/src/BirdeyeProvider';
+import { JupiterProvider } from '../../../providers/jupiter/src/JupiterProvider';
+import { WalletPlugin } from '../../wallet/src/WalletPlugin';
+import { PancakeSwapProvider } from '../../../providers/pancakeswap/src/PancakeSwapProvider';
+import { ThenaProvider } from '../../../providers/thena/src/ThenaProvider';
+import { deBridgeProvider } from '../../../providers/deBridge/src/deBridgeProvider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -311,66 +309,6 @@ describe('Planning Agent', () => {
       expect(capturedArgs.amountType).toBe('input');
       expect(capturedArgs.network).toBe('bnb');
       expect(capturedArgs.provider).toBe('pancakeswap');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
-
-  // // === BRIDGE ===
-
-  it('Example 6: should handle bridge request between chains', async () => {
-    const result = await agent.execute({
-      input: 'bridge 0.1 SOL to BNB chain',
-      threadId: '123e4567-e89b-12d3-a456-426614174002',
-    });
-    console.log('🔍 Result 6:', result);
-    if (result) {
-      expect(result).toBeDefined();
-      expect(result.toLowerCase()).toContain('successfully');
-      expect(result.toLowerCase()).toContain('bridge');
-      expect(result.toLowerCase()).toContain('sol');
-      expect(result.toLowerCase()).toContain('bnb');
-    } else {
-      expect(result).toBeNull();
-    }
-  }, 90000);
-
-  it('Example 7:should handle bridge with specific amount and token', async () => {
-    await agent.execute({
-      input: 'bridge 10 BNB to SOL using debridge',
-      threadId: '123e4567-e89b-12d3-a456-426614174005',
-    });
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Bridge Args 77777777:', capturedArgs);
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
-      expect(capturedArgs.toToken).toBe('So11111111111111111111111111111111111111111');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('bnb');
-      expect(capturedArgs.provider).toBe('deBridge');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
-
-  it('Example 8:should handle bridge with insufficient liquidity', async () => {
-    const result = await agent.execute({
-      input: 'bridge 111 SOL to BNB chain', // Very large amount to trigger liquidity error
-      threadId: '123e4567-e89b-12d3-a456-426614174006',
-    });
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Bridge Args 33333333:', capturedArgs);
-    console.log('🔍 Result 10:', result);
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromNetwork).toBe('solana');
-      expect(capturedArgs.toNetwork).toBe('bnb');
-      expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
-      expect(capturedArgs.toToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
-      // expect(capturedArgs.amount).toBe('0.0001');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.provider).toBe('deBridge');
     } else {
       expect(capturedArgs).toBeNull();
     }

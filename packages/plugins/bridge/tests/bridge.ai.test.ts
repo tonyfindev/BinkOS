@@ -1,34 +1,28 @@
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
 import { ethers } from 'ethers';
-import {
-  Agent,
-  Wallet,
-  Network,
-  settings,
-  NetworkType,
-  NetworksConfig,
-  NetworkName,
-  IToolExecutionCallback,
-  ToolExecutionData,
-  ToolExecutionState,
-  PlanningAgent,
-  IAgent,
-  BaseTool,
-  IPlugin,
-} from '../dist';
+
 import { Connection } from '@solana/web3.js';
-import { SwapPlugin } from '../../plugins/swap/dist';
-import { BridgePlugin } from '../../plugins/bridge/dist';
-import { TokenPlugin } from '../../plugins/token/dist';
 import { BnbProvider } from '@binkai/rpc-provider';
-import { BirdeyeProvider } from '../../providers/birdeye/dist/BirdeyeProvider';
-import { WalletPlugin } from '../../plugins/wallet/dist/WalletPlugin';
-import { PancakeSwapProvider } from '../../providers/pancakeswap/dist/PancakeSwapProvider';
-import { JupiterProvider } from '../../providers/jupiter/dist/JupiterProvider';
-import { ThenaProvider } from '../../providers/thena/dist/ThenaProvider';
-import { deBridgeProvider } from '../../providers/deBridge/dist/deBridgeProvider';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LangGraphRunnableConfig } from '@langchain/langgraph';
+import {
+  IToolExecutionCallback,
+  Network,
+  NetworkName,
+  NetworksConfig,
+  NetworkType,
+  PlanningAgent,
+  settings,
+  Wallet,
+} from '@binkai/core';
+import { ToolExecutionData } from '@binkai/core';
+import { ToolExecutionState } from '@binkai/core';
+import { SwapPlugin } from '../../swap/dist/SwapPlugin';
+import { BridgePlugin } from '../src/BridgePlugin';
+import { TokenPlugin } from '../../token/src/TokenPlugin';
+import { WalletPlugin } from '../../wallet/src/WalletPlugin';
+import { BirdeyeProvider } from '../../../providers/birdeye/src/BirdeyeProvider';
+import { deBridgeProvider } from '../../../providers/deBridge/src/deBridgeProvider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -174,9 +168,6 @@ describe('Planning Agent', () => {
       rpcUrl: BNB_RPC,
     });
 
-    const pancakeswap = new PancakeSwapProvider(provider, 56);
-    const jupiter = new JupiterProvider(solanaProvider);
-    const thena = new ThenaProvider(provider, 56);
     const debridge = new deBridgeProvider([provider, solanaProvider]);
 
     // Initialize plugins with providers
@@ -188,13 +179,6 @@ describe('Planning Agent', () => {
     await tokenPlugin.initialize({
       defaultChain: 'bnb',
       providers: [birdeye],
-      supportedChains: ['solana'],
-    });
-
-    await swapPlugin.initialize({
-      defaultSlippage: 0.5,
-      defaultChain: 'solana',
-      providers: [jupiter],
       supportedChains: ['solana'],
     });
 
@@ -210,111 +194,6 @@ describe('Planning Agent', () => {
     await agent.registerPlugin(tokenPlugin);
     await agent.registerPlugin(bridgePlugin);
   }, 30000); // Increase timeout for beforeEach
-
-  // === GET INFO ===
-
-  it('should get balance on Solana', async () => {
-    const result = await agent.execute({
-      input: 'get my balance on solana',
-      threadId: '123e4567-e89b-12d3-a456-426614174000',
-    });
-
-    console.log('🔍 result 1:', result);
-
-    expect(result).toBeDefined();
-    expect(result.toLowerCase()).toContain(
-      (await wallet.getAddress(NetworkName.SOLANA)).toLowerCase(),
-    );
-    expect(result.toLowerCase()).toContain('sol');
-  }, 30000); // Increase timeout for this test
-
-  // === SWAP ===
-
-  it('Example 3: swap token on jupiter', async () => {
-    await agent.execute({
-      input: 'swap 0.0001 SOL to USDC',
-      threadId: '987fcdeb-a123-45e6-7890-123456789abc',
-    });
-
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Swap Args:', capturedArgs);
-
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
-      expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
-      // expect(capturedArgs.amount).toBe('0.0001');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('solana');
-      expect(capturedArgs.provider).toBe('jupiter');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
-
-  it('Example 4: should fail when swapping with insufficient balance', async () => {
-    await agent.execute({
-      input: 'swap 0.0002 SOL to USDC', // Large amount that exceeds balance
-      threadId: '456bcdef-7890-12a3-b456-789012345def',
-    });
-
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Swap Args:', capturedArgs);
-
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
-      expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
-      // expect(capturedArgs.amount).toBe('0.0001');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('solana');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
-
-  it('Example 5: should handle invalid token symbol gracefully', async () => {
-    await agent.execute({
-      input: 'swap 0.03 INVALIDTOKEN to USDC',
-      threadId: '123e4567-e89b-12d3-a456-426614174003',
-    });
-
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Swap Args:', capturedArgs);
-
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('INVALIDTOKEN');
-      expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
-      // expect(capturedArgs.amount).toBe('0.0001');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('solana');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 30000);
-
-  it('Example 5b: should swap tokens via PancakeSwap on BNB Chain', async () => {
-    await agent.execute({
-      input: 'swap 0.01 BNB to CAKE on BNB chain using pancakeswap',
-      threadId: '123e4567-e89b-12d3-a456-426614174004',
-    });
-
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Swap Args:', capturedArgs);
-
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
-      expect(capturedArgs.toToken).toBe('0x0e09fabb73bd3ae120f0902e54560ff690412c03');
-      // expect(capturedArgs.amount).toBe('0.01');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('bnb');
-      expect(capturedArgs.provider).toBe('pancakeswap');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
 
   // // === BRIDGE ===
 
