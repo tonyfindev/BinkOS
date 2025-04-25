@@ -62,9 +62,6 @@ export class BasicQuestionGraph {
       return END;
     }
 
-    if (state.ended_by === 'basic_question') {
-      return END;
-    }
     // Otherwise if there are tool calls, we continue to execute them
     return 'tools';
   }
@@ -111,7 +108,10 @@ export class BasicQuestionGraph {
       };
     } else {
       return {
+        messages: [responseMessage],
         answer: responseMessage.content,
+        ended_by: 'basic_question',
+        interrupted_request: '', // reset interrupted_request
       };
     }
   }

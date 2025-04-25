@@ -90,7 +90,7 @@ export class PlanningAgent extends Agent {
     const supervisorPrompt = `You are a supervisor. You need to decide if the user's request is a blockchain execution or other. 
     NOTE: 
     - Blockchain execution: Execute a transaction on blockchain like transfer, swap, bridge, lending, staking, cross-chain
-    - Other: Other request like checking balance, checking transaction, etc.`;
+    - Other: Other request like checking balance, checking stake information, checking transaction, etc.`;
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', supervisorPrompt],
       ['human', `User's request: {input}`],
@@ -193,7 +193,9 @@ export class PlanningAgent extends Agent {
       - If one same tool is failed many times but provided required info to complete the task, take info of that tool id and continue next tasks
       - If swap/bridge/transfer task success, update the plan status to completed
       NOTE: 
-      - Create task ask user to provide more information if needed
+      - Add task ask user to provide more information if needed
+      - Add new task in list tasks if previous task is failed (try to make the task more specific to resolve error)
+      - Add new task to execute plan title if current task not enough to complete plan title
       - Retrieve information in user's request and maintain it each task
       - If swap/bridge/transfer/unstake/stake success, update title of the plan to completed
       `;
@@ -265,6 +267,7 @@ export class PlanningAgent extends Agent {
           ) {
             return END;
           } else if (state.ended_by === 'planner_answer' && !isLastActivePlanCompleted) {
+            this._isAskUser = false;
             return 'executor';
           } else {
             return 'executor';
@@ -280,10 +283,11 @@ export class PlanningAgent extends Agent {
         state => {
           const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
           const isLastActivePlanRejected = activePlan?.status === 'rejected';
-
+          
           if (state.ended_by === 'other_action') {
             return 'supervisor';
           } else if (state.ended_by === 'reject_transaction' && isLastActivePlanRejected) {
+            this._isAskUser = false;
             return END;
           } else {
             return 'planner';
