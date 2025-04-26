@@ -108,7 +108,7 @@ export class BnbProvider implements IWalletProvider {
         .getFeeData()
         .then(data => data.gasPrice || ethers.parseUnits('5', 'gwei'));
       const gasLimit = ethers.parseUnits('21000', 'wei'); // Standard transfer gas
-      const gasCost = (gasPrice * gasLimit * 30n) / 10n;
+      const gasCost = gasPrice * gasLimit * (30n / 10n);
 
       // If balance is less than amount + gas, adjust the amount
       if (balance < amountBigInt + gasCost) {
