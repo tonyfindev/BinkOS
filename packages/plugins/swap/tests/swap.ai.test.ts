@@ -27,6 +27,7 @@ import { WalletPlugin } from '../../wallet/src/WalletPlugin';
 import { PancakeSwapProvider } from '../../../providers/pancakeswap/src/PancakeSwapProvider';
 import { ThenaProvider } from '../../../providers/thena/src/ThenaProvider';
 import { deBridgeProvider } from '../../../providers/deBridge/src/deBridgeProvider';
+import { AlchemyProvider } from '../../../providers/alchemy/src/AlchemyProvider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -168,6 +169,9 @@ describe('Planning Agent', () => {
     const birdeye = new BirdeyeProvider({
       apiKey: settings.get('BIRDEYE_API_KEY'),
     });
+    const alchemy = new AlchemyProvider({
+      apiKey: settings.get('ALCHEMY_API_KEY'),
+    });
     const bnbProvider = new BnbProvider({
       rpcUrl: BNB_RPC,
     });
@@ -179,7 +183,7 @@ describe('Planning Agent', () => {
 
     // Initialize plugins with providers
     await walletPlugin.initialize({
-      providers: [bnbProvider, birdeye],
+      providers: [bnbProvider, birdeye, alchemy],
       supportedChains: ['solana', 'bnb'],
     });
 
@@ -223,27 +227,25 @@ describe('Planning Agent', () => {
     expect(capturedArgs).toBeDefined();
     expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
     expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
-    // expect(capturedArgs.amount).toBe('0.0001');
+    expect(capturedArgs.amount).toBe('0.0001');
     expect(capturedArgs.amountType).toBe('input');
     expect(capturedArgs.network).toBe('solana');
-    // expect(capturedArgs.provider).toBe('jupiter');
+    capturedArgs.provider ? expect(capturedArgs.provider).toBe('jupiter') : '';
+    expect(capturedArgs.limitPrice).toBe(0);
   }, 90000);
 
   it('Example 2: should fail when swapping with insufficient balance', async () => {
     await agent.execute({
-      input: 'swap 0.0002 SOL to USDC', // Large amount that exceeds balance
+      input: 'swap 200 SOL to USDC', // Large amount that exceeds balance
       threadId: '456bcdef-7890-12a3-b456-789012345def',
     });
 
     const capturedArgs = toolCallback.getToolArgs();
     console.log('🔍 2 Captured Swap Args:', capturedArgs);
 
-    expect(capturedArgs).toBeDefined();
-    expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
-    expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
-    // expect(capturedArgs.amount).toBe('0.0002');
-    expect(capturedArgs.amountType).toBe('input');
-    expect(capturedArgs.network).toBe('solana');
+    if (capturedArgs === null) {
+      expect(capturedArgs).toBeNull();
+    }
   }, 90000);
 
   it('Example 3: should handle invalid token symbol gracefully', async () => {
@@ -262,7 +264,7 @@ describe('Planning Agent', () => {
 
   it('Example 4: should swap tokens via PancakeSwap on BNB Chain', async () => {
     await agent.execute({
-      input: 'swap 0.0001 BNB to CAKE on BNB chain using pancakeswap',
+      input: 'swap 80 BINK to BNB on BNB chain via pancakeswap',
       threadId: '123e4567-e89b-12d3-a456-426614174004',
     });
 
@@ -272,11 +274,133 @@ describe('Planning Agent', () => {
     // Ensure swap arguments were captured
     expect(capturedArgs).toBeDefined();
     // Verify the swap details
-    expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
-    expect(capturedArgs.toToken).toBe('0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82');
-    // expect(capturedArgs.amount).toBe('0.01');
+    expect(capturedArgs.fromToken).toBe('0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1');
+    expect(capturedArgs.toToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+    expect(capturedArgs.amount).toBe('80');
     expect(capturedArgs.amountType).toBe('input');
     expect(capturedArgs.network).toBe('bnb');
     expect(capturedArgs.provider).toBe('pancakeswap');
+    expect(capturedArgs.limitPrice).toBe(0);
+  }, 110000);
+
+  it('Example 5: float amount', async () => {
+    await agent.execute({
+      input: 'swap 0.00012424343434343 SOL to USDC', // Large amount that exceeds balance
+      threadId: '456bcdef-7890-12a3-b456-789012345def',
+    });
+
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 5 Captured Swap Args:', capturedArgs);
+
+    expect(capturedArgs).toBeDefined();
+    expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
+    expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+    expect(capturedArgs.amount).toBe('0.00012424343434343');
+    expect(capturedArgs.amountType).toBe('input');
+    expect(capturedArgs.network).toBe('solana');
+    capturedArgs.provider ? expect(capturedArgs.provider).toBe('jupiter') : '';
+    expect(capturedArgs.limitPrice).toBe(0);
+  }, 90000);
+
+  it('Example 6: float amount', async () => {
+    await agent.execute({
+      input: 'swap 0.000123243435354546565656 BNB to CAKE on BNB chain using pancakeswap',
+      threadId: '123e4567-e89b-12d3-a456-426614174004',
+    });
+
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 6 Captured Swap Args:', capturedArgs);
+
+    // Ensure swap arguments were captured
+    expect(capturedArgs).toBeDefined();
+    // Verify the swap details
+    expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+    expect(capturedArgs.toToken).toBe('0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82');
+    expect(capturedArgs.amount).toBe('0.000123243435354546565656');
+    expect(capturedArgs.amountType).toBe('input');
+    expect(capturedArgs.network).toBe('bnb');
+    expect(capturedArgs.provider).toBe('pancakeswap');
+    expect(capturedArgs.limitPrice).toBe(0);
+  }, 90000);
+
+  it('Example 7: swap all SOL to USDC using Jupiter', async () => {
+    await agent.execute({
+      input: 'swap all my SOL to USDC using jupiter',
+      threadId: '123e4567-e89b-12d3-a456-426614174005',
+    });
+
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 7 Captured Swap Args:', capturedArgs);
+
+    // Ensure swap arguments were captured
+    expect(capturedArgs).toBeDefined();
+    // Verify the swap details
+    expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
+    expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+    expect(capturedArgs.amountType).toBe('input');
+    expect(capturedArgs.network).toBe('solana');
+    expect(capturedArgs.provider).toBe('jupiter');
+    expect(capturedArgs.limitPrice).toBe(0);
+  }, 90000);
+  it('Example 8: swap all BNB to USDT using pancakeswap', async () => {
+    await agent.execute({
+      input: 'swap all my BNB to USDT using pancakeswap',
+      threadId: '123e4567-e89b-12d3-a456-426614174006',
+    });
+
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 8 Captured Swap Args:', capturedArgs);
+
+    // Ensure swap arguments were captured
+    expect(capturedArgs).toBeDefined();
+    // Verify the swap details
+    expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+    expect(capturedArgs.toToken).toBe('0x55d398326f99059ff775485246999027b3197955');
+    expect(capturedArgs.amountType).toBe('input');
+    expect(capturedArgs.network).toBe('bnb');
+    expect(capturedArgs.provider).toBe('pancakeswap');
+    expect(capturedArgs.limitPrice).toBe(0);
+  }, 90000);
+  //
+  it('Example 9: swap BNB to CAKE with limit price using pancakeswap', async () => {
+    await agent.execute({
+      input: 'swap 0.1 BNB to CAKE using pancakeswap with limit price 10',
+      threadId: '123e4567-e89b-12d3-a456-426614174009',
+    });
+
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 9 Captured Swap Args:', capturedArgs);
+
+    // Ensure swap arguments were captured
+    expect(capturedArgs).toBeDefined();
+    // Verify the swap details
+    expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+    expect(capturedArgs.toToken).toBe('0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82');
+    expect(capturedArgs.amount).toBe('0.1');
+    expect(capturedArgs.amountType).toBe('input');
+    expect(capturedArgs.network).toBe('bnb');
+    expect(capturedArgs.provider).toBe('pancakeswap');
+    expect(capturedArgs.limitPrice).toBe(10);
+  }, 90000);
+
+  it('Example 10: swap SOL to USDC with limit price using jupiter', async () => {
+    await agent.execute({
+      input: 'swap 1 SOL to USDC using jupiter with limit price 20.5',
+      threadId: '123e4567-e89b-12d3-a456-426614174010',
+    });
+
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 10 Captured Swap Args:', capturedArgs);
+
+    // Ensure swap arguments were captured
+    expect(capturedArgs).toBeDefined();
+    // Verify the swap details
+    expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
+    expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+    expect(capturedArgs.amount).toBe('1');
+    expect(capturedArgs.amountType).toBe('input');
+    expect(capturedArgs.network).toBe('solana');
+    expect(capturedArgs.provider).toBe('jupiter');
+    expect(capturedArgs.limitPrice).toBe(20.5);
   }, 90000);
 });

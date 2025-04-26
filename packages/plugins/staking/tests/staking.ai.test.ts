@@ -25,8 +25,9 @@ import { ThenaProvider } from '../../../providers/thena/src/ThenaProvider';
 import { JupiterProvider } from '../../../providers/jupiter/src/JupiterProvider';
 import { deBridgeProvider } from '../../../providers/deBridge/src/deBridgeProvider';
 import { PancakeSwapProvider } from '../../../providers/pancakeswap/src/PancakeSwapProvider';
-import { VenusProvider } from '../../../providers/venus/src/VenusProvider';
+
 import { StakingPlugin } from '../src/StakingPlugin';
+import { VenusProvider } from '../../../providers/venus/src/VenusProvider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -211,7 +212,7 @@ describe('Planning Agent', () => {
     await stakingPlugin.initialize({
       defaultSlippage: 0.5,
       defaultChain: 'bnb',
-      providers: [venus],
+      providers: [venus as any],
       supportedChains: ['bnb', 'ethereum'],
     });
 
