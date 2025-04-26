@@ -19,7 +19,7 @@
     "build": "tsc",
     "clean": "rimraf dist",
     "test": "vitest run tests/staking.test.ts",
-    "test-ai": "vitest run tests/staking-ai.test.ts",
+    "test-ai": "vitest run tests/staking.ai.test.ts",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage"
   },

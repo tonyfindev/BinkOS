@@ -1,5 +1,5 @@
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
-import { ethers } from 'ethers';
+import { AlchemyProvider, ethers } from 'ethers';
 import {
   Agent,
   Wallet,
@@ -29,6 +29,10 @@ import { ThenaProvider } from '../../providers/thena/dist/ThenaProvider';
 import { deBridgeProvider } from '../../providers/deBridge/dist/deBridgeProvider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LangGraphRunnableConfig } from '@langchain/langgraph';
+import { StakingPlugin } from '../../plugins/staking/dist/StakingPlugin';
+import { VenusProvider } from '../../providers/venus/dist/VenusProvider';
+// import { AlchemyProvider } from '../../providers/alchemy/dist/AlchemyProvider';
+// import { SolanaProvider } from '../../providers/solana/dist/SolanaProvider';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -77,7 +81,10 @@ class ToolArgsCallback implements IToolExecutionCallback {
       const input = data.input;
       if ('fromToken' in input && 'toToken' in input && 'amount' in input) {
         this.toolArgs = input;
-        console.log('🔍 Captured Tool Args ---------:', this.toolArgs);
+        console.log('🔍 Captured Args:', this.toolArgs);
+      } else if ('tokenA' in input && 'amountA' in input) {
+        this.toolArgs = input;
+        console.log('🔍 Captured Args:', this.toolArgs);
       }
     }
   }
@@ -163,6 +170,7 @@ describe('Planning Agent', () => {
     // Initialize plugins
     const swapPlugin = new SwapPlugin();
     const bridgePlugin = new BridgePlugin();
+    const stakingPlugin = new StakingPlugin();
     const tokenPlugin = new TokenPlugin();
     const walletPlugin = new WalletPlugin();
 
@@ -178,17 +186,19 @@ describe('Planning Agent', () => {
     const jupiter = new JupiterProvider(solanaProvider);
     const thena = new ThenaProvider(provider, 56);
     const debridge = new deBridgeProvider([provider, solanaProvider]);
+    const venus = new VenusProvider(provider, 56);
 
     // Initialize plugins with providers
     await walletPlugin.initialize({
-      providers: [birdeye],
-      supportedChains: ['solana'],
+      defaultChain: 'bnb',
+      providers: [bnbProvider, birdeye],
+      supportedChains: ['bnb', 'solana', 'ethereum'],
     });
 
     await tokenPlugin.initialize({
       defaultChain: 'bnb',
       providers: [birdeye],
-      supportedChains: ['solana'],
+      supportedChains: ['solana', 'bnb'],
     });
 
     await swapPlugin.initialize({
@@ -204,11 +214,19 @@ describe('Planning Agent', () => {
       supportedChains: ['bnb', 'solana'],
     });
 
+    await stakingPlugin.initialize({
+      defaultSlippage: 0.5,
+      defaultChain: 'bnb',
+      providers: [venus],
+      supportedChains: ['bnb', 'ethereum'],
+    });
+
     // Register plugins with agent
     await agent.registerPlugin(swapPlugin);
     await agent.registerPlugin(walletPlugin);
     await agent.registerPlugin(tokenPlugin);
     await agent.registerPlugin(bridgePlugin);
+    await agent.registerPlugin(stakingPlugin);
   }, 30000); // Increase timeout for beforeEach
 
   // === GET INFO ===
@@ -237,7 +255,7 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Swap Args:', capturedArgs);
+    console.log('🔍 3 Captured Swap Args:', capturedArgs);
 
     if (capturedArgs) {
       expect(capturedArgs).toBeDefined();
@@ -259,7 +277,7 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Swap Args:', capturedArgs);
+    console.log('🔍 4 Captured Swap Args:', capturedArgs);
 
     if (capturedArgs) {
       expect(capturedArgs).toBeDefined();
@@ -280,7 +298,7 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Swap Args:', capturedArgs);
+    console.log('🔍 5 Captured Swap Args:', capturedArgs);
 
     if (capturedArgs) {
       expect(capturedArgs).toBeDefined();
@@ -301,7 +319,7 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Swap Args:', capturedArgs);
+    console.log('🔍 5b Captured Swap Args:', capturedArgs);
 
     if (capturedArgs) {
       expect(capturedArgs).toBeDefined();
@@ -323,7 +341,8 @@ describe('Planning Agent', () => {
       input: 'bridge 0.1 SOL to BNB chain',
       threadId: '123e4567-e89b-12d3-a456-426614174002',
     });
-    console.log('🔍 Result 6:', result);
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 6 Captured Bridge Args:', capturedArgs);
     if (result) {
       expect(result).toBeDefined();
       expect(result.toLowerCase()).toContain('successfully');
@@ -341,7 +360,7 @@ describe('Planning Agent', () => {
       threadId: '123e4567-e89b-12d3-a456-426614174005',
     });
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Bridge Args 77777777:', capturedArgs);
+    console.log('🔍 7 Captured Bridge Args:', capturedArgs);
     if (capturedArgs) {
       expect(capturedArgs).toBeDefined();
       expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
@@ -360,7 +379,7 @@ describe('Planning Agent', () => {
       threadId: '123e4567-e89b-12d3-a456-426614174006',
     });
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 Captured Bridge Args 33333333:', capturedArgs);
+    console.log('🔍 8 Captured Bridge Args:', capturedArgs);
     console.log('🔍 Result 10:', result);
     if (capturedArgs) {
       expect(capturedArgs).toBeDefined();
@@ -371,6 +390,63 @@ describe('Planning Agent', () => {
       // expect(capturedArgs.amount).toBe('0.0001');
       expect(capturedArgs.amountType).toBe('input');
       expect(capturedArgs.provider).toBe('deBridge');
+    } else {
+      expect(capturedArgs).toBeNull();
+    }
+  }, 90000);
+
+  // STAKE
+  it('Example 9: should handle stake request', async () => {
+    await agent.execute({
+      input: 'stake 0.001 BNB on Venus',
+      threadId: '123e4567-e89b-12d3-a456-426614174007',
+    });
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 9 Captured Stake Args:', capturedArgs);
+    if (capturedArgs) {
+      expect(capturedArgs).toBeDefined();
+      expect(capturedArgs.tokenA).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+      expect(capturedArgs.amountA).toBe('0.001');
+      expect(capturedArgs.type).toBe('supply');
+      expect(capturedArgs.network).toBe('bnb');
+      expect(capturedArgs.provider).toBe('venus');
+    } else {
+      expect(capturedArgs).toBeNull();
+    }
+  }, 90000);
+
+  it('Example 10: should handle stake BNB request', async () => {
+    await agent.execute({
+      input: 'stake 0.001 BNB on Venus',
+      threadId: '123e4567-e89b-12d3-a456-426614174008',
+    });
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 10 Captured Stake BNB Args:', capturedArgs);
+    if (capturedArgs) {
+      expect(capturedArgs).toBeDefined();
+      expect(capturedArgs.tokenA).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
+      expect(capturedArgs.amountA).toBe('0.001');
+      expect(capturedArgs.type).toBe('supply');
+      expect(capturedArgs.network).toBe('bnb');
+      expect(capturedArgs.provider).toBe('venus');
+    } else {
+      expect(capturedArgs).toBeNull();
+    }
+  }, 90000);
+
+  it('Example 11: should handle unstake BNB request', async () => {
+    await agent.execute({
+      input: 'unstake all BNB from Venus',
+      threadId: '123e4567-e89b-12d3-a456-426614174009',
+    });
+    const capturedArgs = toolCallback.getToolArgs();
+    console.log('🔍 11 Captured Unstake BNB Args:', capturedArgs);
+    if (capturedArgs) {
+      expect(capturedArgs).toBeDefined();
+      expect(capturedArgs.tokenA).toBe('0xA07c5b74C9B40447a954e1466938b865b6BBea36');
+      expect(capturedArgs.type).toBe('withdraw');
+      expect(capturedArgs.network).toBe('bnb');
+      expect(capturedArgs.provider).toBe('venus');
     } else {
       expect(capturedArgs).toBeNull();
     }
