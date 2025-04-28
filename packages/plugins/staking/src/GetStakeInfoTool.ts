@@ -3,16 +3,16 @@ import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from
 import { ProviderRegistry } from './ProviderRegistry';
 import { IStakingProvider, StakingBalance, StakingQuote, StakingParams } from './types';
 
-export interface GetBestHighestAPYToolConfig extends IToolConfig {
+export interface GetStakeInfoToolConfig extends IToolConfig {
   defaultNetwork?: string;
   supportedNetworks?: string[];
 }
 
-export class GetBestHighestAPYTool extends BaseTool {
+export class GetStakeInfoTool extends BaseTool {
   public registry: ProviderRegistry;
   private supportedNetworks: Set<string>;
 
-  constructor(config: GetBestHighestAPYToolConfig) {
+  constructor(config: GetStakeInfoToolConfig) {
     super(config);
     this.registry = new ProviderRegistry();
     this.supportedNetworks = new Set<string>(config.supportedNetworks || []);
@@ -27,13 +27,13 @@ export class GetBestHighestAPYTool extends BaseTool {
   }
 
   getName(): string {
-    return 'get_best_highest_apy';
+    return 'get_stake_info';
   }
 
   getDescription(): string {
     const providers = this.registry.getProviderNames().join(', ');
     const networks = Array.from(this.supportedNetworks).join(', ');
-    return `Get the highest APY for staking a token across all supported networks. Supports networks: ${networks}. Available providers: ${providers}. Use this tool when you need to find the best APY for staking a token.`;
+    return `Get Information about the staking like currentAPY for a token across all supported networks. Supports networks: ${networks}. Available providers: ${providers}.`;
   }
 
   private getSupportedNetworks(): string[] {
@@ -74,7 +74,9 @@ export class GetBestHighestAPYTool extends BaseTool {
       address: z
         .string()
         .optional()
-        .describe('The wallet address to query (optional - uses agent wallet if not provided)'),
+        .describe(
+          'The wallet address to query staking info (optional - uses agent wallet if not provided)',
+        ),
       network: z
         .enum(['bnb', 'solana', 'ethereum'])
         .default('bnb')
@@ -82,15 +84,16 @@ export class GetBestHighestAPYTool extends BaseTool {
     });
   }
 
-  private async findBestAPY(
+  private async findAllProviders(
     params: StakingParams & { network: string },
     userAddress: string,
-  ): Promise<{ provider: IStakingProvider; quote: StakingQuote }> {
+  ): Promise<{ provider: IStakingProvider; quote: StakingQuote }[]> {
     // Validate network is supported
     const providers = this.registry.getProvidersByNetwork(params.network);
     if (providers.length === 0) {
       throw new Error(`No providers available for network ${params.network}`);
     }
+
     const quotes = await Promise.all(
       providers.map(async (provider: IStakingProvider) => {
         try {
@@ -104,22 +107,9 @@ export class GetBestHighestAPYTool extends BaseTool {
         }
       }),
     );
-
-    type QuoteResult = { provider: IStakingProvider; quote: StakingQuote };
-    const validQuotes = quotes.filter((q): q is QuoteResult => q !== null);
-    if (validQuotes.length === 0) {
-      throw new Error('No valid quotes found');
-    }
-
-    // Find the best quote based on highest APY
-    const best = validQuotes.reduce((best, current) => {
-      return current.quote.currentAPY > best.quote.currentAPY ? current : best;
-    }, validQuotes[0]);
-
-    return {
-      provider: best.provider,
-      quote: best.quote,
-    };
+    return quotes.filter(
+      (q): q is { provider: IStakingProvider; quote: StakingQuote } => q !== null,
+    );
   }
 
   createTool(): CustomDynamicStructuredTool {
@@ -150,8 +140,8 @@ export class GetBestHighestAPYTool extends BaseTool {
             amountA: '0.1',
             type: 'stake',
           };
-          let selectedProvider: IStakingProvider;
-          let quote: StakingQuote;
+          // let selectedProvider: IStakingProvider;
+          // let quote: StakingQuote;
 
           // STEP 1: Validate network
           // Validate network is supported
@@ -176,22 +166,34 @@ export class GetBestHighestAPYTool extends BaseTool {
 
           onProgress?.({
             progress: 50,
-            message: `Searching for the best APY for ${address} on ${args.network}.`,
+            message: `Searching for the information stake for ${address} on ${args.network}.`,
           });
 
-          const bestQuote = await this.findBestAPY(
+          const bestQuote = await this.findAllProviders(
             {
               ...stakingParams,
               network: args.network,
             },
             address,
           );
-          selectedProvider = bestQuote.provider;
-          quote = bestQuote.quote;
+
+          const simplifiedQuotes = bestQuote.map(({ provider, quote }) => ({
+            provider: provider.getName(),
+            currentAPY: String(quote.currentAPY),
+            averageAPY: String(quote.averageAPY),
+            maxSupply: String(quote.maxSupply),
+            currentSupply: String(quote.currentSupply),
+            liquidity: String(quote.liquidity),
+            type: quote.type,
+            network: quote.network,
+            unstakingPeriod: provider.getName().toLowerCase() === 'lista' ? '7 days' : undefined,
+          }));
 
           return JSON.stringify({
             status: 'success',
-            data: { provider: selectedProvider.getName(), highestAPY: quote.currentAPY },
+            data: { bestQuotes: simplifiedQuotes },
+            network: args.network,
+            address: address,
           });
         } catch (error) {
           console.error(
