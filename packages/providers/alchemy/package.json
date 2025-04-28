@@ -1,6 +1,6 @@
 {
   "name": "@binkai/alchemy-provider",
-  "version": "0.2.9-alpha.3",
+  "version": "0.2.10-alpha.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
