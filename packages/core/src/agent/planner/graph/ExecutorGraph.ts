@@ -255,6 +255,7 @@ export class ExecutorGraph {
             `The user has rejected the transaction. 
             Inform them that the previous plan and its execution have been deleted. 
             Let them know that their next input will create a new plan. 
+            Inform user to wait some second for the system to cool down.
             Provide a helpful response and short enough to be understood by the user.`,
           ],
           ['human', `reason terminated: {reason}`],
