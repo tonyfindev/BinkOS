@@ -282,8 +282,7 @@ export class PlannerGraph {
     // 2. Rejected plan ended by reject_transaction
     if (
       (activePlan?.status === 'completed' && state.ended_by === 'planner_answer') ||
-      (activePlan?.status === 'rejected' && state.ended_by === 'reject_transaction') ||
-      (activePlan?.status === 'rejected' && state.ended_by === 'other_action')
+      (activePlan?.status === 'rejected')
     ) {
       return 'create_plan';
     }
