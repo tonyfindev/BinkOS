@@ -124,7 +124,7 @@ async function main() {
   // Initialize plugin with provider
   await walletPlugin.initialize({
     defaultChain: 'bnb',
-    providers: [bnbProvider, alchemyProvider, birdeyeProvider, solanaProvider],
+    providers: [alchemyProvider, birdeyeProvider, solanaProvider],
     supportedChains: ['bnb', 'solana'],
   });
 

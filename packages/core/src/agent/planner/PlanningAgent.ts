@@ -50,6 +50,8 @@ const StateAnnotation = Annotation.Root({
   input: Annotation<string>,
   answer: Annotation<string>,
   ended_by: Annotation<string>,
+  thread_id: Annotation<string>,
+  interrupted_request: Annotation<string>,
 });
 
 export class PlanningAgent extends Agent {
@@ -57,7 +59,7 @@ export class PlanningAgent extends Agent {
   public graph!: CompiledStateGraph<any, any, any, any, any, any>;
   private _isAskUser = false;
   private askUserTimeout: NodeJS.Timeout | null = null;
-
+  private _processedThreads: Set<string> = new Set();
   constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
     super(config, wallet, networks);
   }
@@ -88,7 +90,7 @@ export class PlanningAgent extends Agent {
     const supervisorPrompt = `You are a supervisor. You need to decide if the user's request is a blockchain execution or other. 
     NOTE: 
     - Blockchain execution: Execute a transaction on blockchain like transfer, swap, bridge, lending, staking, cross-chain
-    - Other: Other request like checking balance, checking transaction, etc.`;
+    - Other: Other request like checking balance, checking stake information, checking transaction, etc.`;
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', supervisorPrompt],
       ['human', `User's request: {input}`],
@@ -132,8 +134,10 @@ export class PlanningAgent extends Agent {
 
     const planAgent = prompt.pipe(modelWithTools);
 
+    const input = state.interrupted_request || state.input;
+
     const response = (await planAgent.invoke({
-      input: state.input,
+      input: input,
     })) as any;
 
     if (response?.tool_calls) {
@@ -178,10 +182,10 @@ export class PlanningAgent extends Agent {
       
       Following tips trading:
 
-        + Sell/Swap X/X% A to B on network X (amount = X/calculate X% of current balance, amountType = input).
-        + Swap/Buy X/X% A from B on network X (amount = X/calculate X% of current balance, amountType = ouput).
+        + Sell/Swap X/X% A to B on network Y (amount = X/calculate X% of current balance, amountType = input).
+        + Swap/Buy X/X% A from B on network Y (amount = X/calculate X% of current balance, amountType = ouput).
 
-      If you can't retrieve or reasoning A/B/X in user's request, ask user to provide more information.
+      If you can't retrieve or reasoning A/B/X/Y in user's request, ask user to provide more information.
       `;
 
     const updatePlanPrompt = `You are a blockchain planner. Your goal is to update the current plans based on the active plan and selected tasks. 
@@ -189,7 +193,9 @@ export class PlanningAgent extends Agent {
       - If one same tool is failed many times but provided required info to complete the task, take info of that tool id and continue next tasks
       - If swap/bridge/transfer task success, update the plan status to completed
       NOTE: 
-      - Create task ask user to provide more information if needed
+      - Add task ask user to provide more information if needed
+      - Add new task in list tasks if previous task is failed (try to make the task more specific to resolve error)
+      - Add new task to execute plan title if current task not enough to complete plan title
       - Retrieve information in user's request and maintain it each task
       - If swap/bridge/transfer/unstake/stake success, update title of the plan to completed
       `;
@@ -261,6 +267,7 @@ export class PlanningAgent extends Agent {
           ) {
             return END;
           } else if (state.ended_by === 'planner_answer' && !isLastActivePlanCompleted) {
+            this._isAskUser = false;
             return 'executor';
           } else {
             return 'executor';
@@ -276,13 +283,18 @@ export class PlanningAgent extends Agent {
         state => {
           const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
           const isLastActivePlanRejected = activePlan?.status === 'rejected';
-          if (state.ended_by === 'reject_transaction' && isLastActivePlanRejected) {
+
+          if (state.ended_by === 'other_action') {
+            return 'supervisor';
+          } else if (state.ended_by === 'reject_transaction' && isLastActivePlanRejected) {
+            this._isAskUser = false;
             return END;
           } else {
             return 'planner';
           }
         },
         {
+          supervisor: 'supervisor',
           planner: 'planner',
           __end__: END,
         },
@@ -308,13 +320,41 @@ export class PlanningAgent extends Agent {
       };
     }
 
+    let isNewThread = false;
+    if (commandOrParams.threadId) {
+      isNewThread = !this._processedThreads.has(commandOrParams.threadId);
+      if (isNewThread) {
+        this._processedThreads.add(commandOrParams.threadId);
+      }
+    }
+
+    // Reset _isAskUser when set new thread
+    if (isNewThread) {
+      this._isAskUser = false;
+      // Cancel timer if it exists
+      if (this.askUserTimeout) {
+        clearTimeout(this.askUserTimeout);
+        this.askUserTimeout = null;
+      }
+    }
+
     if (this._isAskUser && typeof commandOrParams !== 'string') {
       let result = '';
       if (onStream) {
         const eventStream = await this.graph.streamEvents(
           commandOrParams.action
-            ? new Command({ resume: { action: commandOrParams.action } })
-            : new Command({ resume: { input: commandOrParams.input } }),
+            ? new Command({
+                resume: {
+                  action: commandOrParams.action,
+                  thread_id: commandOrParams.threadId,
+                },
+              })
+            : new Command({
+                resume: {
+                  input: commandOrParams.input,
+                  thread_id: commandOrParams.threadId,
+                },
+              }),
           {
             version: 'v2',
             configurable: {
@@ -394,7 +434,7 @@ export class PlanningAgent extends Agent {
     let response = '';
     if (onStream) {
       const eventStream = await this.graph.streamEvents(
-        { input, chat_history },
+        { input, chat_history, thread_id: commandOrParams.threadId },
         {
           version: 'v2',
           configurable: {
@@ -420,6 +460,7 @@ export class PlanningAgent extends Agent {
           {
             input,
             chat_history: history,
+            thread_id: commandOrParams.threadId,
           },
           {
             configurable: {
