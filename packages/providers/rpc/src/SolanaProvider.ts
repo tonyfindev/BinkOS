@@ -207,7 +207,7 @@ export class SolanaProvider implements IWalletProvider {
       throw new Error('Quote sender does not match wallet address');
     }
 
-    const blockhash = await this.connection.getLatestBlockhash('confirmed');
+    const blockhash = await this.connection.getLatestBlockhash('finalized');
 
     if (!blockhash) {
       throw new Error('Transaction simulation failed 1: Blockhash not found');
