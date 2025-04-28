@@ -36,19 +36,7 @@ describe('BridgePlugin', () => {
           },
         },
       },
-      ethereum: {
-        type: 'evm',
-        config: {
-          chainId: 1,
-          rpcUrl: ETH_RPC,
-          name: 'Ethereum',
-          nativeCurrency: {
-            name: 'Ether',
-            symbol: 'ETH',
-            decimals: 18,
-          },
-        },
-      },
+
       [NetworkName.SOLANA]: {
         type: 'solana',
         config: {
@@ -182,7 +170,7 @@ describe('BridgePlugin', () => {
     const params = {
       fromToken: BNB_NATIVE_TOKEN_ADDRESS, // BNB token address
       toToken: SOL_NATIVE_TOKEN_ADDRESS, // SOL token address
-      amount: '0.05',
+      amount: '0.01',
       amountType: 'input', // Using amountType as per schema
       fromNetwork: NetworkName.BNB,
       toNetwork: NetworkName.SOLANA,
@@ -191,6 +179,7 @@ describe('BridgePlugin', () => {
     };
 
     const result = await agent.invokeTool('bridge', params);
+    console.log('🚀 ~ it ~ result:', result);
 
     expect(result).toBeDefined();
     expect(result.status).toBe('success');
@@ -217,6 +206,7 @@ describe('BridgePlugin', () => {
     };
 
     const result = await agent.invokeTool('bridge', params);
+    console.log('🚀 ~ it ~ result:', result);
 
     expect(result).toBeDefined();
     expect(result.status).toBe('error');
@@ -235,6 +225,7 @@ describe('BridgePlugin', () => {
     };
 
     const result = await agent.invokeTool('bridge', params);
+    console.log('🚀 ~ it ~ result:', result);
 
     expect(result).toBeDefined();
     expect(result.status).toBe('error');
@@ -253,6 +244,7 @@ describe('BridgePlugin', () => {
     };
 
     const result = await agent.invokeTool('bridge', params);
+    console.log('🚀 ~ it ~ result:', result);
 
     expect(result).toBeDefined();
     expect(result.status).toBe('error');
@@ -271,32 +263,62 @@ describe('BridgePlugin', () => {
     };
 
     const result = await agent.invokeTool('bridge', params);
+    console.log('🚀 ~ it ~ result:', result);
 
     expect(result).toBeDefined();
     expect(result.status).toBe('success');
     expect(parseFloat(result.toAmount)).toBe(parseFloat(params.amount));
+    expect(result.fromToken.address).toBe(BNB_NATIVE_TOKEN_ADDRESS);
+    expect(result.toToken.address).toBe(SOL_NATIVE_TOKEN_ADDRESS);
+    expect(result.provider).toBe('deBridge');
   });
 
-  it('should bridge between two EVM networks', async () => {
+  it('should bridge sol and BNB', async () => {
     const params = {
-      fromToken: BNB_NATIVE_TOKEN_ADDRESS, // BNB token address
-      toToken: ETH_NATIVE_TOKEN_ADDRESS, // ETH token address
-      amount: '0.05',
+      fromToken: SOL_NATIVE_TOKEN_ADDRESS, // BNB token address
+      toToken: BNB_NATIVE_TOKEN_ADDRESS, // ETH token address
+      amount: '0.01',
       amountType: 'input',
-      fromNetwork: NetworkName.BNB,
-      toNetwork: NetworkName.ETHEREUM,
+      fromNetwork: NetworkName.SOLANA,
+      toNetwork: NetworkName.BNB,
       provider: 'deBridge',
       slippage: 0.5,
     };
 
     const result = await agent.invokeTool('bridge', params);
+    console.log('🚀 ~ //it ~ result:', result);
 
     expect(result).toBeDefined();
     expect(result.status).toBe('success');
     expect(result.provider).toBe('deBridge');
-    expect(result.fromToken.address).toBe(BNB_NATIVE_TOKEN_ADDRESS);
-    expect(result.toToken.address).toBe(ETH_NATIVE_TOKEN_ADDRESS);
-    expect(result.fromNetwork).toBe(NetworkName.BNB);
-    expect(result.toNetwork).toBe(NetworkName.ETHEREUM);
+    expect(result.fromToken.address).toBe(SOL_NATIVE_TOKEN_ADDRESS);
+    expect(result.toToken.address).toBe(BNB_NATIVE_TOKEN_ADDRESS);
+    expect(result.fromNetwork).toBe(NetworkName.SOLANA);
+    expect(result.toNetwork).toBe(NetworkName.BNB);
+  });
+
+  it('should bridge sol and BNB with large amount', async () => {
+    const params = {
+      fromToken: SOL_NATIVE_TOKEN_ADDRESS, // BNB token address
+      toToken: BNB_NATIVE_TOKEN_ADDRESS, // ETH token address
+      amount: '0.01112231112222',
+      amountType: 'input',
+      fromNetwork: NetworkName.SOLANA,
+      toNetwork: NetworkName.BNB,
+      provider: 'deBridge',
+      slippage: 0.5,
+    };
+
+    const result = await agent.invokeTool('bridge', params);
+    console.log('🚀 ~ it ~ result:', result);
+
+    expect(result).toBeDefined();
+    expect(result.status).toBe('success');
+    expect(result.provider).toBe('deBridge');
+    expect(result.fromToken.address).toBe(SOL_NATIVE_TOKEN_ADDRESS);
+    expect(result.toToken.address).toBe(BNB_NATIVE_TOKEN_ADDRESS);
+    expect(result.fromNetwork).toBe(NetworkName.SOLANA);
+    expect(result.toNetwork).toBe(NetworkName.BNB);
+    expect(result.fromAmount).toBe('0.01112231112222');
   });
 });
