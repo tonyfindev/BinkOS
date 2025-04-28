@@ -154,6 +154,12 @@ export class GetTokenInfoTool extends BaseTool {
       } else {
         return { symbol: 'WBTC', network: network as NetworkName };
       }
+    } else if (normalizedSymbol === 'ETH') {
+      if (network === 'null') {
+        return { symbol: 'WETH', network: NetworkName.ETHEREUM };
+      } else {
+        return { symbol: 'WETH', network: network as NetworkName };
+      }
     }
 
     // Return original symbol if no conversion needed
