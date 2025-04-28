@@ -5,19 +5,26 @@ import { Wallet } from '@binkai/core';
 import { Connection } from '@solana/web3.js';
 import { SwapPlugin } from '../src';
 import { JupiterProvider } from '../../../providers/jupiter/src/JupiterProvider';
+import { KyberProvider } from '../../../providers/kyber/src/KyberProvider';
+import { PancakeSwapProvider } from '../../../providers/pancakeswap/src/PancakeSwapProvider';
+import { OkuProvider } from '../../../providers/oku/src/OkuProvider';
+import { ThenaProvider } from '../../../providers/thena/src/ThenaProvider';
 
 describe('SwapPlugin', () => {
   let swapPlugin: SwapPlugin;
   let wallet: Wallet;
   let network: Network;
   let jupiterProvider: JupiterProvider;
+  let bnbProvider: ethers.JsonRpcProvider;
   let agent: Agent;
   let networks: NetworksConfig['networks'];
 
   const BNB_RPC = 'https://binance.llamarpc.com';
   const ETH_RPC = 'https://eth.llamarpc.com';
   const SOL_RPC = 'https://api.mainnet-beta.solana.com';
-  const SOL_NATIVE_TOKEN_ADDRESS = 'So11111111111111111111111111111111111111112';
+  const SOL_NATIVE_TOKEN_ADDRESS = 'So11111111111111111111111111111111111111111';
+  const WSOL_NATIVE_TOKEN_ADDRESS = 'So11111111111111111111111111111111111111112';
+  const USDC_TOKEN_ADDRESS = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
   beforeEach(async () => {
     // Setup test environment
@@ -31,19 +38,6 @@ describe('SwapPlugin', () => {
           nativeCurrency: {
             name: 'BNB',
             symbol: 'BNB',
-            decimals: 18,
-          },
-        },
-      },
-      ethereum: {
-        type: 'evm',
-        config: {
-          chainId: 1,
-          rpcUrl: ETH_RPC,
-          name: 'Ethereum',
-          nativeCurrency: {
-            name: 'Ether',
-            symbol: 'ETH',
             decimals: 18,
           },
         },
@@ -76,12 +70,17 @@ describe('SwapPlugin', () => {
     console.log('👛 Wallet ', await wallet.getAddress(NetworkName.SOLANA));
 
     jupiterProvider = new JupiterProvider(new Connection(SOL_RPC));
+    bnbProvider = new ethers.JsonRpcProvider(BNB_RPC);
+    const kyber = new KyberProvider(bnbProvider, 56);
+    const pancakeswap = new PancakeSwapProvider(bnbProvider, 56);
+    const oku = new OkuProvider(bnbProvider, 56);
+    const thena = new ThenaProvider(bnbProvider, 56);
 
     swapPlugin = new SwapPlugin();
     await swapPlugin.initialize({
       defaultNetwork: NetworkName.SOLANA,
-      providers: [new JupiterProvider(new Connection(SOL_RPC))],
-      supportedNetworks: [NetworkName.SOLANA],
+      providers: [new JupiterProvider(new Connection(SOL_RPC)), kyber, pancakeswap, oku, thena],
+      supportedNetworks: [NetworkName.SOLANA, NetworkName.BNB],
     });
 
     agent = new Agent(
@@ -98,9 +97,9 @@ describe('SwapPlugin', () => {
 
   it('Test 1: should execute a swap on Solana network', async () => {
     const params = {
-      fromToken: 'So11111111111111111111111111111111111111111', // SOL token address
-      toToken: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // USDC token address
-      amount: '0.05',
+      fromToken: SOL_NATIVE_TOKEN_ADDRESS, // SOL token address
+      toToken: USDC_TOKEN_ADDRESS, // USDC token address
+      amount: '0.01',
       amountType: 'input',
       network: NetworkName.SOLANA,
       provider: 'jupiter',
@@ -115,13 +114,18 @@ describe('SwapPlugin', () => {
     expect(parsedResult).toMatchObject({
       status: 'success',
     });
+    expect(parsedResult.fromToken.address).toBe(WSOL_NATIVE_TOKEN_ADDRESS);
+    expect(parsedResult.toToken.address).toBe(USDC_TOKEN_ADDRESS);
+    expect(parsedResult.fromAmount).toBe('0.01');
+    expect(parsedResult.type).toBe('input');
+    expect(parsedResult.network).toBe('solana');
   });
 
   it('Test 2: should fail with invalid token addresses', async () => {
     const params = {
       fromToken: 'InvalidThisTokenAddress',
       toToken: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-      amount: '0.05',
+      amount: '0.01',
       amountType: 'input',
       network: NetworkName.SOLANA,
       provider: 'jupiter',
@@ -132,7 +136,7 @@ describe('SwapPlugin', () => {
     const result = await agent.invokeTool('swap', params);
     // Parse the JSON string response
     const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
-    //console.log('🚀 ~ Test 2 ~ parsedResult:', parsedResult);
+    console.log('🚀 ~ Test 2 ~ parsedResult:', parsedResult);
     expect(parsedResult).toBeDefined();
     expect(parsedResult).toMatchObject({
       status: 'error',
@@ -167,7 +171,7 @@ describe('SwapPlugin', () => {
     const params = {
       fromToken: 'So11111111111111111111111111111111111111111',
       toToken: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-      amount: '1',
+      amount: '0.12322434344',
       amountType: 'output',
       network: NetworkName.SOLANA,
       provider: 'jupiter',
@@ -177,28 +181,14 @@ describe('SwapPlugin', () => {
 
     const result = await agent.invokeTool('swap', params);
     const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
-    console.log('🚀 ~ Test 4 ~ parsedResult:', parsedResult);
+    //console.log('🚀 ~ Test 4 ~ parsedResult:', parsedResult);
     expect(parsedResult).toBeDefined();
     expect(parsedResult.status).toBe('success');
-  });
-
-  it('Test 5: swap with float amount', async () => {
-    const params = {
-      fromToken: 'So11111111111111111111111111111111111111111',
-      toToken: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-      amount: '0.00123243435354546565656',
-      amountType: 'input',
-      network: NetworkName.SOLANA,
-      provider: 'jupiter',
-      slippage: 0.5,
-      limitPrice: 0,
-    };
-
-    const result = await agent.invokeTool('swap', params);
-    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
-    //console.log('🚀 ~ Test 5 ~ parsedResult:', parsedResult);
-    expect(parsedResult).toBeDefined();
-    expect(parsedResult.status).toBe('success');
+    expect(parsedResult.fromToken.address).toBe(WSOL_NATIVE_TOKEN_ADDRESS);
+    expect(parsedResult.toToken.address).toBe(USDC_TOKEN_ADDRESS);
+    expect(parsedResult.toAmount).toBe('0.123224');
+    expect(parsedResult.type).toBe('output');
+    expect(parsedResult.network).toBe('solana');
   });
 
   it('Test 6: limit order', async () => {
@@ -218,5 +208,116 @@ describe('SwapPlugin', () => {
     console.log('🚀 ~ Test 6 ~ parsedResult:', parsedResult);
     expect(parsedResult).toBeDefined();
     expect(parsedResult.status).toBe('success');
+    expect(parsedResult.fromToken.address).toBe(WSOL_NATIVE_TOKEN_ADDRESS);
+    expect(parsedResult.toToken.address).toBe(USDC_TOKEN_ADDRESS);
+    expect(parsedResult.toAmount).toBe('0.001232434');
+    expect(parsedResult.type).toBe('output');
+    expect(parsedResult.network).toBe('solana');
   });
+
+  // === BNB CHAIN ===
+  it('Test 7: swap bink to usdt on the BNB chain via kyber', async () => {
+    const params = {
+      fromToken: '0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1',
+      toToken: '0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82',
+      amount: '1.122234555',
+      amountType: 'input',
+      network: NetworkName.BNB,
+      provider: 'kyber',
+      slippage: 0.5,
+      limitPrice: 0,
+    };
+
+    const result = await agent.invokeTool('swap', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ Test 7 ~ parsedResult:', parsedResult);
+    expect(parsedResult).toBeDefined();
+    expect(parsedResult.status).toBe('success');
+    expect(parsedResult.fromToken.address).toBe('0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1');
+    expect(parsedResult.toToken.address).toBe('0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82');
+    expect(parsedResult.provider).toBe('kyber');
+  });
+
+  it('Test 8: swap bink to usdt on the BNB chain via pancakeswap', async () => {
+    const params = {
+      fromToken: '0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1',
+      toToken: '0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82',
+      amount: '1.122234555',
+      amountType: 'input',
+      network: NetworkName.BNB,
+      provider: 'pancakeswap',
+      slippage: 0.5,
+      limitPrice: 0,
+    };
+
+    const result = await agent.invokeTool('swap', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ Test 8 ~ parsedResult:', parsedResult);
+    expect(parsedResult).toBeDefined();
+    expect(parsedResult.status).toBe('success');
+    expect(parsedResult.fromToken.address).toBe('0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1');
+    expect(parsedResult.toToken.address).toBe('0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82');
+    expect(parsedResult.provider).toBe('pancakeswap');
+  });
+
+  it('Test 9: swap bink to usdt on the BNB chain via oku', async () => {
+    const params = {
+      fromToken: '0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1',
+      toToken: '0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82',
+      amount: '1.122234555',
+      amountType: 'input',
+      network: NetworkName.BNB,
+      provider: 'oku',
+      slippage: 0.5,
+      limitPrice: 0,
+    };
+
+    const result = await agent.invokeTool('swap', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ Test 9 ~ parsedResult:', parsedResult);
+    expect(parsedResult).toBeDefined();
+    expect(parsedResult.status).toBe('success');
+    expect(parsedResult.fromToken.address).toBe('0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1');
+    expect(parsedResult.toToken.address).toBe('0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82');
+    expect(parsedResult.fromAmount).toBe('1.122234555');
+    expect(parsedResult.provider).toBe('oku');
+  });
+
+  it('Test 10: should faild another stable', async () => {
+    const params = {
+      fromToken: '0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1',
+      toToken: '0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82',
+      amount: '1.122234555',
+      amountType: 'input',
+      network: NetworkName.BNB,
+      provider: 'thena',
+      slippage: 0.5,
+      limitPrice: 1110,
+    };
+
+    const result = await agent.invokeTool('swap', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ Test 9 ~ parsedResult:', parsedResult);
+    expect(parsedResult).toBeDefined();
+    expect(parsedResult.status).toBe('error');
+  });
+
+  it('Test 11: limir oder bink to usdt with thena', async () => {
+    const params = {
+      fromToken: '0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1',
+      toToken: '0x55d398326f99059ff775485246999027b3197955',
+      amount: '1.1',
+      amountType: 'input',
+      network: NetworkName.BNB,
+      provider: 'thena',
+      slippage: 0.5,
+      limitPrice: 1.2,
+    };
+
+    const result = await agent.invokeTool('swap', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ Test 11 ~ parsedResult:', parsedResult);
+    expect(parsedResult).toBeDefined();
+    expect(parsedResult.status).toBe('success');
+  }, 90000);
 });
