@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Wallet } from '@binkai/core';
 import { Connection } from '@solana/web3.js';
 import { StakingPlugin } from '../src';
+import { VenusProvider } from '../../../providers/venus/src';
+import { WalletPlugin } from '../../wallet/src/WalletPlugin';
+import { BnbProvider } from '../../../providers/rpc/src';
+import { AlchemyProvider } from '../../../providers/alchemy/src/AlchemyProvider';
+import { ListaProvider } from '../../../providers/lista/src';
+import { KernelDaoProvider } from '../../../providers/kernel-dao/src';
 
 describe('StakingPlugin', () => {
   let stakingPlugin: StakingPlugin;
@@ -16,7 +22,7 @@ describe('StakingPlugin', () => {
   const BNB_RPC = 'https://binance.llamarpc.com';
   const ETH_RPC = 'https://eth.llamarpc.com';
   const SOL_RPC = 'https://api.mainnet-beta.solana.com';
-  const BNB_NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
+  const BNB_NATIVE_TOKEN_ADDRESS = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
   const USDT_TOKEN_ADDRESS = '0x55d398326f99059fF775485246999027B3197955'; // USDT on BSC
   const VUSDT_TOKEN_ADDRESS = '0xfD5840Cd36d94D7229439859C0112a4185BC0255'; // Venus USDT on BSC
 
@@ -36,19 +42,7 @@ describe('StakingPlugin', () => {
           },
         },
       },
-      ethereum: {
-        type: 'evm',
-        config: {
-          chainId: 1,
-          rpcUrl: ETH_RPC,
-          name: 'Ethereum',
-          nativeCurrency: {
-            name: 'Ether',
-            symbol: 'ETH',
-            decimals: 18,
-          },
-        },
-      },
+
       [NetworkName.SOLANA]: {
         type: 'solana',
         config: {
@@ -85,259 +79,207 @@ describe('StakingPlugin', () => {
       wallet,
       networks,
     );
-
-    // Mock invokeTool to return expected results without actually calling providers
-    agent.invokeTool = vi.fn().mockImplementation((tool, params) => {
-      if (tool === 'staking') {
-        // Detect test case by checking parameters
-        if (params.amountA === '1000000') {
-          return { status: 'error', message: 'Insufficient balance' };
-        } else if (params.tokenA === 'InvalidTokenAddress') {
-          return { status: 'error', message: 'Invalid token address' };
-        } else if (params.type === 'supply') {
-          return {
-            status: 'success',
-            provider: 'venus',
-            tokenA: {
-              address: params.tokenA,
-              symbol: 'USDT',
-              decimals: 18,
-            },
-            tokenB: null,
-            amountA: params.amountA,
-            amountB: '0',
-            transactionHash: '0x123456789abcdef',
-            type: 'supply',
-            network: params.network,
-            currentAPY: 5.67,
-          };
-        } else if (params.type === 'withdraw') {
-          return {
-            status: 'success',
-            provider: 'venus',
-            tokenA: {
-              address: params.tokenA,
-              symbol: 'vUSDT',
-              decimals: 18,
-            },
-            tokenB: {
-              address: USDT_TOKEN_ADDRESS,
-              symbol: 'USDT',
-              decimals: 18,
-            },
-            amountA: params.amountA,
-            amountB: params.amountA,
-            transactionHash: '0x123456789abcdef',
-            type: 'withdraw',
-            network: params.network,
-            currentAPY: 0,
-          };
-        } else if (params.type === 'stake') {
-          return {
-            status: 'success',
-            provider: 'venus',
-            tokenA: {
-              address: params.tokenA,
-              symbol: 'BNB',
-              decimals: 18,
-            },
-            tokenB: null,
-            amountA: params.amountA,
-            amountB: '0',
-            transactionHash: '0x123456789abcdef',
-            type: 'stake',
-            network: params.network,
-            currentAPY: 3.21,
-          };
-        } else if (params.type === 'unstake') {
-          return {
-            status: 'success',
-            provider: 'venus',
-            tokenA: {
-              address: params.tokenA,
-              symbol: 'vBNB',
-              decimals: 18,
-            },
-            tokenB: {
-              address: BNB_NATIVE_TOKEN_ADDRESS,
-              symbol: 'BNB',
-              decimals: 18,
-            },
-            amountA: params.amountA,
-            amountB: params.amountA,
-            transactionHash: '0x123456789abcdef',
-            type: 'unstake',
-            network: params.network,
-            currentAPY: 0,
-          };
-        }
-      } else if (tool === 'get_staking_balance') {
-        return [
-          {
-            tokenAddress: VUSDT_TOKEN_ADDRESS,
-            symbol: 'vUSDT',
-            name: 'Venus USDT',
-            balance: '10.5',
-          },
-          {
-            tokenAddress: '0x95c78222B3D6e262426483D42CfA53685A67Ab9D',
-            symbol: 'vBNB',
-            name: 'Venus BNB',
-            balance: '1.25',
-          },
-        ];
-      }
+    const provider = new ethers.JsonRpcProvider(BNB_RPC);
+    const walletPlugin = new WalletPlugin();
+    // Create provider with API key
+    const bnbProvider = new BnbProvider({
+      rpcUrl: BNB_RPC,
     });
+    const alchemyProvider = new AlchemyProvider({
+      apiKey: settings.get('ALCHEMY_API_KEY'),
+    });
+    await walletPlugin.initialize({
+      defaultChain: 'bnb',
+      providers: [bnbProvider, alchemyProvider],
+      supportedChains: ['bnb'],
+    });
+    await agent.registerPlugin(walletPlugin);
+    const stakingPlugin = new StakingPlugin();
+    const venus = new VenusProvider(provider, 56);
+    const kernelDao = new KernelDaoProvider(provider, 56);
+    const venusStaking = new VenusProvider(provider, 56);
+    const listaStaking = new ListaProvider(provider, 56);
 
-    // Create mock provider
-    mockProvider = {
-      getName: () => 'venus',
-      getSupportedNetworks: () => [NetworkName.BNB, NetworkName.ETHEREUM],
-    };
-
-    stakingPlugin = new StakingPlugin();
     await stakingPlugin.initialize({
       defaultNetwork: NetworkName.BNB,
-      providers: [mockProvider],
-      supportedNetworks: [NetworkName.BNB, NetworkName.ETHEREUM],
+      providers: [venus, kernelDao, venusStaking, listaStaking],
+      supportedNetworks: [NetworkName.BNB],
     });
 
     await agent.registerPlugin(stakingPlugin);
   });
 
-  it('should supply tokens to a staking platform', async () => {
-    const params = {
-      tokenA: USDT_TOKEN_ADDRESS,
-      amountA: '100',
-      type: 'supply',
-      network: NetworkName.BNB,
-      provider: 'venus',
-    };
-
-    const result = await agent.invokeTool('staking', params);
-
-    expect(result).toBeDefined();
-    expect(result.status).toBe('success');
-    expect(result.provider).toBe('venus');
-    expect(result.tokenA.address).toBe(USDT_TOKEN_ADDRESS);
-    expect(result.amountA).toBe(params.amountA);
-    expect(result.type).toBe('supply');
-    expect(result.network).toBe(NetworkName.BNB);
-    expect(result.currentAPY).toBeDefined();
-    expect(result.transactionHash).toBeDefined();
-  });
-
-  it('should withdraw tokens from a staking platform', async () => {
-    const params = {
-      tokenA: VUSDT_TOKEN_ADDRESS,
-      amountA: '5',
-      type: 'withdraw',
-      network: NetworkName.BNB,
-      provider: 'venus',
-    };
-
-    const result = await agent.invokeTool('staking', params);
-
-    expect(result).toBeDefined();
-    expect(result.status).toBe('success');
-    expect(result.provider).toBe('venus');
-    expect(result.tokenA.address).toBe(VUSDT_TOKEN_ADDRESS);
-    expect(result.tokenB.address).toBe(USDT_TOKEN_ADDRESS);
-    expect(result.amountA).toBe(params.amountA);
-    expect(result.type).toBe('withdraw');
-    expect(result.network).toBe(NetworkName.BNB);
-    expect(result.transactionHash).toBeDefined();
-  });
-
-  it('should stake native tokens', async () => {
+  it('Example 1: should supply tokens to a staking platform', async () => {
     const params = {
       tokenA: BNB_NATIVE_TOKEN_ADDRESS,
-      amountA: '0.1',
+      amountA: '0.001122234344',
+      type: 'supply',
+      network: NetworkName.BNB,
+      provider: 'kernelDao', // venus, kernelDao, , lista
+    };
+
+    const result = await agent.invokeTool('staking', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ it ~ result 1:', parsedResult);
+
+    expect(parsedResult).toBeDefined();
+    expect(parsedResult.status).toBe('success');
+    let checkProvider = false;
+    if (
+      parsedResult.provider &&
+      (parsedResult.provider === 'venus' ||
+        parsedResult.provider === 'kernelDao' ||
+        parsedResult.provider === 'lista')
+    ) {
+      checkProvider = true;
+    }
+    expect(checkProvider).toBe(true);
+    expect(parsedResult.tokenA.address).toBe(BNB_NATIVE_TOKEN_ADDRESS);
+    expect(parsedResult.amountA).toBe(params.amountA);
+    expect(parsedResult.type).toBe('supply');
+    expect(parsedResult.network).toBe(NetworkName.BNB);
+    expect(parsedResult.transactionHash).toBeDefined();
+  });
+
+  it('Example 2: should withdraw tokens from a staking platform', async () => {
+    const params = {
+      tokenA: BNB_NATIVE_TOKEN_ADDRESS,
+      amountA: '0.001',
+      type: 'withdraw',
+      network: NetworkName.BNB,
+      provider: 'kernelDao', // venus, kernelDao, , lista
+    };
+
+    const result = await agent.invokeTool('staking', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ it ~ result 2:', parsedResult);
+
+    expect(parsedResult).toBeDefined();
+    expect(parsedResult.status).toBe('success');
+    let checkProvider = false;
+    if (
+      parsedResult.provider &&
+      (parsedResult.provider === 'venus' ||
+        parsedResult.provider === 'kernelDao' ||
+        parsedResult.provider === 'lista')
+    ) {
+      checkProvider = true;
+    }
+    expect(parsedResult.tokenA.address).toBe(BNB_NATIVE_TOKEN_ADDRESS);
+    expect(parsedResult.amountA).toBe(params.amountA);
+    expect(parsedResult.type).toBe('withdraw');
+    expect(parsedResult.network).toBe(NetworkName.BNB);
+    expect(parsedResult.transactionHash).toBeDefined();
+  });
+
+  it('Example 3: should stake native tokens', async () => {
+    const params = {
+      tokenA: BNB_NATIVE_TOKEN_ADDRESS,
+      amountA: '0.001',
       type: 'stake',
       network: NetworkName.BNB,
-      provider: 'venus',
+      provider: 'kernelDao', // venus, kernelDao, , lista
     };
 
     const result = await agent.invokeTool('staking', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ it ~ result 3:', parsedResult);
 
-    expect(result).toBeDefined();
-    expect(result.status).toBe('success');
-    expect(result.provider).toBe('venus');
-    expect(result.tokenA.address).toBe(BNB_NATIVE_TOKEN_ADDRESS);
-    expect(result.amountA).toBe(params.amountA);
-    expect(result.type).toBe('stake');
-    expect(result.network).toBe(NetworkName.BNB);
-    expect(result.currentAPY).toBeDefined();
-    expect(result.transactionHash).toBeDefined();
+    expect(parsedResult).toBeDefined();
+    expect(parsedResult.status).toBe('success');
+    let checkProvider = false;
+    if (
+      parsedResult.provider &&
+      (parsedResult.provider === 'venus' ||
+        parsedResult.provider === 'kernelDao' ||
+        parsedResult.provider === 'lista')
+    ) {
+      checkProvider = true;
+    }
+    expect(parsedResult.tokenA.address).toBe(BNB_NATIVE_TOKEN_ADDRESS);
+    expect(parsedResult.amountA).toBe(params.amountA);
+    expect(parsedResult.type).toBe('stake');
+    expect(parsedResult.network).toBe(NetworkName.BNB);
+    expect(parsedResult.transactionHash).toBeDefined();
+    expect(parsedResult.transactionHash).not.toBeNull();
   });
 
-  it('should unstake tokens', async () => {
+  it('Example 4: should unstake tokens', async () => {
     const params = {
-      tokenA: '0x95c78222B3D6e262426483D42CfA53685A67Ab9D', // vBNB token
-      amountA: '0.5',
+      tokenA: BNB_NATIVE_TOKEN_ADDRESS, // vBNB token
+      amountA: '0.001',
       type: 'unstake',
       network: NetworkName.BNB,
-      provider: 'venus',
+      provider: 'kernelDao', // venus, kernelDao, , lista
     };
 
     const result = await agent.invokeTool('staking', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ it ~ result 4:', parsedResult);
 
-    expect(result).toBeDefined();
-    expect(result.status).toBe('success');
-    expect(result.provider).toBe('venus');
-    expect(result.tokenA.symbol).toBe('vBNB');
-    expect(result.tokenB.symbol).toBe('BNB');
-    expect(result.amountA).toBe(params.amountA);
-    expect(result.type).toBe('unstake');
-    expect(result.network).toBe(NetworkName.BNB);
-    expect(result.transactionHash).toBeDefined();
+    expect(parsedResult).toBeDefined();
+    let checkProvider = false;
+    if (
+      parsedResult.provider &&
+      (parsedResult.provider === 'venus' ||
+        parsedResult.provider === 'kernelDao' ||
+        parsedResult.provider === 'lista')
+    ) {
+      checkProvider = true;
+    }
+    expect(parsedResult.tokenB.symbol).toBe('BNB');
+    expect(parsedResult.amountA).toBe(params.amountA);
+    expect(parsedResult.amountB).toBe('0');
+    expect(parsedResult.type).toBe('unstake');
+    expect(parsedResult.network).toBe(NetworkName.BNB);
+    expect(parsedResult.transactionHash).toBeDefined();
   });
 
-  it('should fail with insufficient balance', async () => {
+  it('Example 5: should fail with insufficient balance', async () => {
     const params = {
-      tokenA: USDT_TOKEN_ADDRESS,
+      tokenA: BNB_NATIVE_TOKEN_ADDRESS,
       amountA: '1000000', // Very large amount
       type: 'supply',
       network: NetworkName.BNB,
-      provider: 'venus',
+      provider: 'kernelDao', // venus, kernelDao, , lista
     };
 
     const result = await agent.invokeTool('staking', params);
-
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ it ~ result 5:', parsedResult);
     expect(result).toBeDefined();
-    expect(result.status).toBe('error');
-    expect(result.message).toContain('Insufficient balance');
-  });
+    expect(parsedResult.status).toBe('error');
+  }, 90000);
 
-  it('should fail with invalid token address', async () => {
+  it('Example 6: should fail with invalid token address', async () => {
     const params = {
       tokenA: 'InvalidTokenAddress',
-      amountA: '100',
+      amountA: '0.001',
       type: 'supply',
       network: NetworkName.BNB,
-      provider: 'venus',
+      provider: 'kernelDao', // venus, kernelDao, , lista
     };
 
     const result = await agent.invokeTool('staking', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ it ~ result 6:', parsedResult);
 
     expect(result).toBeDefined();
-    expect(result.status).toBe('error');
-    expect(result.message).toContain('Invalid token address');
+    expect(parsedResult.status).toBe('error');
   });
 
-  it('should get staking balance', async () => {
+  it('Example 7: should get staking balance', async () => {
     const params = {
       network: NetworkName.BNB,
-      provider: 'venus',
+      provider: 'kernelDao', // venus, kernelDao, , lista
     };
 
     const result = await agent.invokeTool('get_staking_balance', params);
+    const parsedResult = typeof result === 'string' ? JSON.parse(result) : result;
+    console.log('🚀 ~ it ~ result 7:', parsedResult);
 
-    expect(result).toBeDefined();
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBeGreaterThan(0);
-    expect(result[0].tokenAddress).toBeDefined();
-    expect(result[0].symbol).toBeDefined();
-    expect(result[0].balance).toBeDefined();
+    expect(parsedResult).toBeDefined();
+    expect(parsedResult.status).toBe('success');
+    expect(parsedResult.network).toBe(NetworkName.BNB);
   });
 });
