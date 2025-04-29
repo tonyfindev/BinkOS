@@ -19,7 +19,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "jest",
+    "test": "vitest run tests/wallet.test.ts",
     "test-ai": "vitest run tests/wallet.ai.test.ts",
     "clean": "rimraf dist"
   },
