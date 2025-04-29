@@ -85,7 +85,7 @@ describe('SwapPlugin', () => {
 
     agent = new Agent(
       {
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         temperature: 0,
       },
       wallet,
