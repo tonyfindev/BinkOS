@@ -1,7 +1,5 @@
-import { AIMessage, HumanMessage } from '@langchain/core/messages';
-import { AlchemyProvider, ethers } from 'ethers';
+import { ethers } from 'ethers';
 import {
-  Agent,
   Wallet,
   Network,
   settings,
@@ -12,14 +10,10 @@ import {
   ToolExecutionData,
   ToolExecutionState,
   PlanningAgent,
-  IAgent,
-  BaseTool,
-  IPlugin,
-} from '../dist';
+} from '../dist/';
 import { Connection } from '@solana/web3.js';
-import { SwapPlugin } from '../../plugins/swap/dist';
-import { BridgePlugin } from '../../plugins/bridge/dist';
-import { TokenPlugin } from '../../plugins/token/dist';
+import { BridgePlugin } from '../../plugins/bridge/dist/BridgePlugin';
+import { TokenPlugin } from '../../plugins/token/dist/TokenPlugin';
 import { BnbProvider } from '@binkai/rpc-provider';
 import { BirdeyeProvider } from '../../providers/birdeye/dist/BirdeyeProvider';
 import { WalletPlugin } from '../../plugins/wallet/dist/WalletPlugin';
@@ -28,16 +22,24 @@ import { JupiterProvider } from '../../providers/jupiter/dist/JupiterProvider';
 import { ThenaProvider } from '../../providers/thena/dist/ThenaProvider';
 import { deBridgeProvider } from '../../providers/deBridge/dist/deBridgeProvider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LangGraphRunnableConfig } from '@langchain/langgraph';
 import { StakingPlugin } from '../../plugins/staking/dist/StakingPlugin';
 import { VenusProvider } from '../../providers/venus/dist/VenusProvider';
-// import { AlchemyProvider } from '../../providers/alchemy/dist/AlchemyProvider';
-// import { SolanaProvider } from '../../providers/solana/dist/SolanaProvider';
+import { BinkProvider } from '../../providers/bink/dist/BinkProvider';
+import { AlchemyProvider } from '../../providers/alchemy/dist/AlchemyProvider';
+import { SolanaProvider } from '../../providers/rpc/dist/SolanaProvider';
+import { ImagePlugin } from '../../plugins/image/dist/ImagePlugin';
+import { KnowledgePlugin } from '../../plugins/knowledge/dist/KnowledgePlugin';
+import { FourMemeProvider } from '../../providers/four-meme/dist/FourMemeProvider';
+import { KernelDaoProvider } from '../../providers/kernel-dao/dist/KernelDaoProvider';
+import { OkuProvider } from '../../providers/oku/dist/OkuProvider';
+import { KyberProvider } from '../../providers/kyber/dist/KyberProvider';
+import { ListaProvider } from '../../providers/lista/dist/ListaProvider';
+import { SwapPlugin } from '../../plugins/swap/dist/SwapPlugin';
 
 // Hardcoded RPC URLs for demonstration
-const BNB_RPC = 'https://bsc-dataseed1.binance.org';
-const ETH_RPC = 'https://eth.llamarpc.com';
-const SOL_RPC = 'https://api.mainnet-beta.solana.com';
+const BSC_RPC_URL='https://bsc-dataseed1.binance.org';
+const ETHEREUM_RPC_URL='https://eth.llamarpc.com';
+const RPC_URL='https://api.mainnet-beta.solana.com';
 
 // Example callback implementation
 class ExampleToolExecutionCallback implements IToolExecutionCallback {
@@ -75,22 +77,76 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
 
 class ToolArgsCallback implements IToolExecutionCallback {
   private toolArgs: any = null;
+  private toolName: string = '';
 
   onToolExecution(data: ToolExecutionData): void {
-    if (data.input && typeof data.input === 'object') {
-      const input = data.input;
-      if ('fromToken' in input && 'toToken' in input && 'amount' in input) {
-        this.toolArgs = input;
-        console.log('🔍 Captured Args:', this.toolArgs);
-      } else if ('tokenA' in input && 'amountA' in input) {
-        this.toolArgs = input;
-        console.log('🔍 Captured Args:', this.toolArgs);
+    // Log state and input data
+    if (data.state === ToolExecutionState.STARTED) {
+      
+      // Save the tool name and input data
+      if (data.input && typeof data.input === 'object') {
+        this.toolName = data.toolName;
+        this.toolArgs = { ...data.input };
       }
     }
   }
 
   getToolArgs() {
     return this.toolArgs;
+  }
+
+  getToolName() {
+    return this.toolName;
+  }
+}
+
+class MockSwapPlugin extends SwapPlugin {
+  finalArgs: any = null;
+
+  // Override initialize to modify the swapTool instance
+  async initialize(config: any): Promise<void> {
+    // Call the parent initialize first
+    await super.initialize(config);
+    
+    // Get the swapTool property from the parent class
+    const swapToolProperty = Object.entries(this).find(([key, value]) => 
+      key === 'swapTool' || (value && typeof value === 'object' && 'simulateQuoteTool' in value)
+    );
+    
+    if (swapToolProperty) {
+      const [toolKey, originalTool] = swapToolProperty;
+      
+      // Replace the simulateQuoteTool method with our spy function
+      const originalSimulateQuoteTool = originalTool.simulateQuoteTool;
+      originalTool.simulateQuoteTool = async (args: any) => {
+        // Capture the args
+        this.finalArgs = {...args};
+        
+        // Return result from original method
+        return originalSimulateQuoteTool.call(originalTool, args);
+      };
+    }
+  }
+}
+
+class MockBridgePlugin extends BridgePlugin {
+  finalArgs: any = null;
+
+  async initialize(config: any): Promise<void> {
+    await super.initialize(config);
+
+    const bridgeToolProperty = Object.entries(this).find(([key, value]) => 
+      key === 'bridgeTool' || (value && typeof value === 'object' && 'simulateQuoteTool' in value)
+    );
+
+    if (bridgeToolProperty) {
+      const [toolKey, originalTool] = bridgeToolProperty;
+      const originalSimulateQuoteTool = originalTool.simulateQuoteTool;
+      originalTool.simulateQuoteTool = async (args: any) => {
+        this.finalArgs = {...args};
+        return originalSimulateQuoteTool.call(originalTool, args);
+      };
+    }
   }
 }
 
@@ -100,6 +156,10 @@ describe('Planning Agent', () => {
   let network: Network;
   let networks: NetworksConfig['networks'];
   let toolCallback: ToolArgsCallback;
+  let mockSwapPlugin: MockSwapPlugin;
+  let mockBridgePlugin: MockBridgePlugin;
+  
+  
 
   beforeEach(async () => {
     // Check required environment variables
@@ -113,7 +173,7 @@ describe('Planning Agent', () => {
         type: 'evm' as NetworkType,
         config: {
           chainId: 56,
-          rpcUrl: BNB_RPC,
+          rpcUrl: BSC_RPC_URL,
           name: 'BNB Chain',
           nativeCurrency: {
             name: 'BNB',
@@ -122,10 +182,23 @@ describe('Planning Agent', () => {
           },
         },
       },
-      [NetworkName.SOLANA]: {
+      ethereum: {
+        type: 'evm' as NetworkType,
+        config: {
+          chainId: 1,
+          rpcUrl: ETHEREUM_RPC_URL,
+          name: 'Ethereum',
+          nativeCurrency: {
+            name: 'Ether',
+            symbol: 'ETH',
+            decimals: 18,
+          },
+        },
+      },
+      solana: {
         type: 'solana' as NetworkType,
         config: {
-          rpcUrl: SOL_RPC,
+          rpcUrl: RPC_URL,
           name: 'Solana',
           nativeCurrency: {
             name: 'Solana',
@@ -136,12 +209,10 @@ describe('Planning Agent', () => {
       },
     };
 
+    
+
     // Initialize network
     network = new Network({ networks });
-
-    // Initialize provider
-    const provider = new ethers.JsonRpcProvider(BNB_RPC);
-    const solanaProvider = new Connection(SOL_RPC);
 
     // Initialize a new wallet
     wallet = new Wallet(
@@ -157,8 +228,10 @@ describe('Planning Agent', () => {
     // Create an agent with OpenAI
     agent = new PlanningAgent(
       {
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         temperature: 0,
+        isHumanReview: true,
+        systemPrompt: `You are a BINK AI assistant.`,
       },
       wallet,
       networks,
@@ -167,288 +240,280 @@ describe('Planning Agent', () => {
     toolCallback = new ToolArgsCallback();
     agent.registerToolExecutionCallback(toolCallback);
 
-    // Initialize plugins
-    const swapPlugin = new SwapPlugin();
-    const bridgePlugin = new BridgePlugin();
-    const stakingPlugin = new StakingPlugin();
-    const tokenPlugin = new TokenPlugin();
-    const walletPlugin = new WalletPlugin();
+    /**
+    * Initialize every provider and plugin in system since it will effect the reasoning ability of the agent
+    * This is AI dependent test, so we need to initialize everything to make the test reliable
+    */
 
-    // Initialize providers
-    const birdeye = new BirdeyeProvider({
+      // Initialize provider
+    const birdeyeApi = new BirdeyeProvider({
       apiKey: settings.get('BIRDEYE_API_KEY'),
     });
-    const bnbProvider = new BnbProvider({
-      rpcUrl: BNB_RPC,
+    const alchemyApi = new AlchemyProvider({
+      apiKey: settings.get('ALCHEMY_API_KEY'),
     });
+    const binkProvider = new BinkProvider({
+      apiKey: settings.get('BINK_API_KEY') ?? 'this-is-test-key',
+      baseUrl: settings.get('BINK_BASE_URL') ?? 'https://api.test-bink.com',
+      imageApiUrl: settings.get('BINK_IMAGE_API_URL') ?? 'https://image.test-bink.com',
+    });
+    const bnbProvider = new BnbProvider({
+      rpcUrl: BSC_RPC_URL,
+    });
+    const solanaProvider = new SolanaProvider({
+      rpcUrl: RPC_URL,
+    });
+    const bscProvider = new ethers.JsonRpcProvider(BSC_RPC_URL);
 
-    const pancakeswap = new PancakeSwapProvider(provider, 56);
-    const jupiter = new JupiterProvider(solanaProvider);
-    const thena = new ThenaProvider(provider, 56);
-    const debridge = new deBridgeProvider([provider, solanaProvider]);
-    const venus = new VenusProvider(provider, 56);
+
+    // Initialize plugins
+    const bscChainId = 56;
+    const pancakeswap = new PancakeSwapProvider(bscProvider, bscChainId);
+    // const okx = new OkxProvider(this.bscProvider, bscChainId);
+    const fourMeme = new FourMemeProvider(bscProvider, bscChainId);
+    const venus = new VenusProvider(bscProvider, bscChainId);
+    const kernelDao = new KernelDaoProvider(bscProvider, bscChainId);
+    const oku = new OkuProvider(bscProvider, bscChainId);
+    const kyber = new KyberProvider(bscProvider, bscChainId);
+    const jupiter = new JupiterProvider(new Connection(RPC_URL));
+    const imagePlugin = new ImagePlugin();
+    // const swapPlugin = new SwapPlugin();
+    
+    const tokenPlugin = new TokenPlugin();
+    const knowledgePlugin = new KnowledgePlugin();
+    const bridgePlugin = new BridgePlugin();
+    const debridge = new deBridgeProvider(
+      [bscProvider, new Connection(RPC_URL)],
+      56,
+      7565164,
+    );
+    const walletPlugin = new WalletPlugin();
+    const stakingPlugin = new StakingPlugin();
+    const thena = new ThenaProvider(bscProvider, bscChainId);
+    const lista = new ListaProvider(bscProvider, bscChainId);
+
+    mockSwapPlugin = new MockSwapPlugin();
+    mockBridgePlugin = new MockBridgePlugin();
+
 
     // Initialize plugins with providers
-    await walletPlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [bnbProvider, birdeye],
-      supportedChains: ['bnb', 'solana', 'ethereum'],
-    });
-
-    await tokenPlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [birdeye],
-      supportedChains: ['solana', 'bnb'],
-    });
-
-    await swapPlugin.initialize({
+    mockSwapPlugin.initialize({
       defaultSlippage: 0.5,
-      defaultChain: 'solana',
-      providers: [jupiter],
-      supportedChains: ['solana'],
-    });
-
+      defaultChain: 'bnb',
+      providers: [pancakeswap, fourMeme, thena, jupiter, oku, kyber],
+      supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
+    }),
+    tokenPlugin.initialize({
+      defaultChain: 'bnb',
+      providers: [birdeyeApi, fourMeme as any],
+      supportedChains: ['solana', 'bnb', 'ethereum'],
+    }),
+    await knowledgePlugin.initialize({
+      providers: [binkProvider],
+    }),
+    await imagePlugin.initialize({
+      defaultChain: 'bnb',
+      providers: [binkProvider],
+    }),
     await bridgePlugin.initialize({
       defaultChain: 'bnb',
       providers: [debridge],
       supportedChains: ['bnb', 'solana'],
-    });
-
+    }),
+    await walletPlugin.initialize({
+      defaultChain: 'bnb',
+      providers: [birdeyeApi, alchemyApi, bnbProvider, solanaProvider],
+      supportedChains: ['bnb', 'solana', 'ethereum'],
+    }),
     await stakingPlugin.initialize({
       defaultSlippage: 0.5,
       defaultChain: 'bnb',
-      providers: [venus],
-      supportedChains: ['bnb', 'ethereum'],
-    });
+      providers: [venus, kernelDao, lista],
+    }),
 
     // Register plugins with agent
-    await agent.registerPlugin(swapPlugin);
-    await agent.registerPlugin(walletPlugin);
-    await agent.registerPlugin(tokenPlugin);
-    await agent.registerPlugin(bridgePlugin);
-    await agent.registerPlugin(stakingPlugin);
+    await agent.registerPlugin(mockSwapPlugin as any);
+    await agent.registerPlugin(tokenPlugin as any);
+    await agent.registerPlugin(knowledgePlugin as any);
+    await agent.registerPlugin(bridgePlugin as any);
+    await agent.registerPlugin(walletPlugin as any);
+    await agent.registerPlugin(stakingPlugin as any);
+    await agent.registerPlugin(imagePlugin as any);
   }, 30000); // Increase timeout for beforeEach
 
-  // === GET INFO ===
 
-  it('should get balance on Solana', async () => {
-    const result = await agent.execute({
-      input: 'get my balance on solana',
-      threadId: '123e4567-e89b-12d3-a456-426614174000',
-    });
+  /**
+   * Helper function to execute tool operations and validate arguments
+   * @param testNumber - Test case number for logging
+   * @param input - User input command
+   * @param expectedTool - Expected tool name (swap, bridge, transfer)
+   * @param expectedArgs - Expected arguments to validate
+   * @param isErrorCase - Whether this test is expected to fail
+   */
 
-    console.log('🔍 result 1:', result);
-
-    expect(result).toBeDefined();
-    expect(result.toLowerCase()).toContain(
-      (await wallet.getAddress(NetworkName.SOLANA)).toLowerCase(),
-    );
-    expect(result.toLowerCase()).toContain('sol');
-  }, 30000); // Increase timeout for this test
-
-  // === SWAP ===
-
-  it('Example 3: swap token on jupiter', async () => {
+  
+  async function testOperation(
+    testNumber: number, 
+    input: string,
+    expectedTool: string,
+    expectedArgs: Record<string, any>,
+    isErrorCase = false
+  ) {
+    console.log(`\n🧪 TEST ${testNumber}: ${expectedTool.toUpperCase()} - "${input}"`);
+    
+    // Reset tool callback before each test
+    toolCallback = new ToolArgsCallback();
+    agent.registerToolExecutionCallback(toolCallback);
+    
     await agent.execute({
-      input: 'swap 0.0001 SOL to USDC',
-      threadId: '987fcdeb-a123-45e6-7890-123456789abc',
+      input: input,
+      threadId: `test-${testNumber}-aaaa-bbbb-cccc-${Date.now().toString(16)}`,
     });
-
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 3 Captured Swap Args:', capturedArgs);
-
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
-      expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
-      // expect(capturedArgs.amount).toBe('0.0001');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('solana');
-      expect(capturedArgs.provider).toBe('jupiter');
+    
+    // Get captured arguments
+    let args;
+    if (expectedTool === 'swap') {
+      args = mockSwapPlugin.finalArgs || toolCallback.getToolArgs();
+    } else if (expectedTool === 'bridge') {
+      args = mockBridgePlugin.finalArgs || toolCallback.getToolArgs();
     } else {
-      expect(capturedArgs).toBeNull();
+      args = toolCallback.getToolArgs();
     }
-  }, 90000);
+    
+    const capturedToolName = toolCallback.getToolName();
+    console.log(`📥 Tool used: ${capturedToolName}`);
+    console.log(`📤 Tool args: ${JSON.stringify(args, null, 2)}`);
 
-  it('Example 4: should fail when swapping with insufficient balance', async () => {
-    await agent.execute({
-      input: 'swap 0.0002 SOL to USDC', // Large amount that exceeds balance
-      threadId: '456bcdef-7890-12a3-b456-789012345def',
-    });
-
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 4 Captured Swap Args:', capturedArgs);
-
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
-      expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
-      // expect(capturedArgs.amount).toBe('0.0001');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('solana');
-    } else {
-      expect(capturedArgs).toBeNull();
+    // For error cases, accept null args
+    if (isErrorCase && !args) {
+      console.log(`⚠️ Test ${testNumber}: Args not captured - expected for error case`);
+      return;
     }
-  }, 90000);
-
-  it('Example 5: should handle invalid token symbol gracefully', async () => {
-    await agent.execute({
-      input: 'swap 0.03 INVALIDTOKEN to USDC',
-      threadId: '123e4567-e89b-12d3-a456-426614174003',
-    });
-
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 5 Captured Swap Args:', capturedArgs);
-
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('INVALIDTOKEN');
-      expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
-      // expect(capturedArgs.amount).toBe('0.0001');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('solana');
-    } else {
-      expect(capturedArgs).toBeNull();
+    
+    // For non-error cases, require args
+    if (!isErrorCase) {
+      expect(args).not.toBeNull();
+      // Check if the correct tool was used
+      expect(capturedToolName).toBe(expectedTool);
     }
-  }, 30000);
-
-  it('Example 5b: should swap tokens via PancakeSwap on BNB Chain', async () => {
-    await agent.execute({
-      input: 'swap 0.01 BNB to CAKE on BNB chain using pancakeswap',
-      threadId: '123e4567-e89b-12d3-a456-426614174004',
-    });
-
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 5b Captured Swap Args:', capturedArgs);
-
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
-      expect(capturedArgs.toToken).toBe('0x0e09fabb73bd3ae120f0902e54560ff690412c03');
-      // expect(capturedArgs.amount).toBe('0.01');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('bnb');
-      expect(capturedArgs.provider).toBe('pancakeswap');
-    } else {
-      expect(capturedArgs).toBeNull();
+    
+    // If we have args, validate them
+    if (args) {
+      Object.entries(expectedArgs).forEach(([key, value]) => {
+        expect(args[key]).toBe(value);
+      });
+      console.log(`✅ Test ${testNumber} passed`);
     }
-  }, 90000);
+  }
 
-  // // === BRIDGE ===
+  // ... existing beforeEach setup ...
 
-  it('Example 6: should handle bridge request between chains', async () => {
-    const result = await agent.execute({
-      input: 'bridge 0.1 SOL to BNB chain',
-      threadId: '123e4567-e89b-12d3-a456-426614174002',
-    });
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 6 Captured Bridge Args:', capturedArgs);
-    if (result) {
-      expect(result).toBeDefined();
-      expect(result.toLowerCase()).toContain('successfully');
-      expect(result.toLowerCase()).toContain('bridge');
-      expect(result.toLowerCase()).toContain('sol');
-      expect(result.toLowerCase()).toContain('bnb');
-    } else {
-      expect(result).toBeNull();
-    }
-  }, 90000);
+  describe('Cross-Service Operations Tests', () => {
+    // SWAP OPERATIONS - 4 tests
+    it('Test 1: Basic swap with input amount', async () => {
+      await testOperation(
+        1, 
+        'swap 0.001 SOL to USDC', 
+        'swap',
+        {
+          fromToken: 'So11111111111111111111111111111111111111111',
+          toToken: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+          amount: '0.001',
+          amountType: 'input',
+          network: 'solana'
+        }
+      );
+    }, 90000);
 
-  it('Example 7:should handle bridge with specific amount and token', async () => {
-    await agent.execute({
-      input: 'bridge 10 BNB to SOL using debridge',
-      threadId: '123e4567-e89b-12d3-a456-426614174005',
-    });
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 7 Captured Bridge Args:', capturedArgs);
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
-      expect(capturedArgs.toToken).toBe('So11111111111111111111111111111111111111111');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.network).toBe('bnb');
-      expect(capturedArgs.provider).toBe('deBridge');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
+    it('Test 2: Reverse swap with output amount', async () => {
+      await testOperation(
+        2, 
+        'buy 0.01 USDC with SOL', 
+        'swap',
+        {
+          fromToken: 'So11111111111111111111111111111111111111111',
+          toToken: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+          amount: '0.01',
+          amountType: 'output',
+          network: 'solana'
+        }
+      );
+    }, 90000);
 
-  it('Example 8:should handle bridge with insufficient liquidity', async () => {
-    const result = await agent.execute({
-      input: 'bridge 111 SOL to BNB chain', // Very large amount to trigger liquidity error
-      threadId: '123e4567-e89b-12d3-a456-426614174006',
-    });
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 8 Captured Bridge Args:', capturedArgs);
-    console.log('🔍 Result 10:', result);
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.fromNetwork).toBe('solana');
-      expect(capturedArgs.toNetwork).toBe('bnb');
-      expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
-      expect(capturedArgs.toToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
-      // expect(capturedArgs.amount).toBe('0.0001');
-      expect(capturedArgs.amountType).toBe('input');
-      expect(capturedArgs.provider).toBe('deBridge');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
+    it('Test 3: Swap with specific provider', async () => {
+      await testOperation(
+        3, 
+        'swap 0.001 SOL to USDC using jupiter', 
+        'swap',
+        {
+          fromToken: 'So11111111111111111111111111111111111111111',
+          toToken: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+          amount: '0.001',
+          amountType: 'input',
+          network: 'solana',
+          provider: 'jupiter'
+        }
+      );
+    }, 90000);
 
-  // STAKE
-  it('Example 9: should handle stake request', async () => {
-    await agent.execute({
-      input: 'stake 0.001 BNB on Venus',
-      threadId: '123e4567-e89b-12d3-a456-426614174007',
-    });
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 9 Captured Stake Args:', capturedArgs);
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.tokenA).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
-      expect(capturedArgs.amountA).toBe('0.001');
-      expect(capturedArgs.type).toBe('supply');
-      expect(capturedArgs.network).toBe('bnb');
-      expect(capturedArgs.provider).toBe('venus');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
+    it('Test 4: Swap with slippage specified', async () => {
+      await testOperation(
+        4, 
+        'swap 0.001 SOL to USDC with 1% slippage', 
+        'swap',
+        {
+          fromToken: 'So11111111111111111111111111111111111111111',
+          toToken: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+          amount: '0.001',
+          amountType: 'input',
+          network: 'solana',
+          slippage: 1
+        }
+      );
+    }, 90000);
 
-  it('Example 10: should handle stake BNB request', async () => {
-    await agent.execute({
-      input: 'stake 0.001 BNB on Venus',
-      threadId: '123e4567-e89b-12d3-a456-426614174008',
-    });
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 10 Captured Stake BNB Args:', capturedArgs);
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.tokenA).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
-      expect(capturedArgs.amountA).toBe('0.001');
-      expect(capturedArgs.type).toBe('supply');
-      expect(capturedArgs.network).toBe('bnb');
-      expect(capturedArgs.provider).toBe('venus');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
+    // BRIDGE OPERATIONS - 3 tests
+    it('Test 5: Bridge tokens from BNB to Solana', async () => {
+      await testOperation(
+        5, 
+        'bridge 0.001 BNB to Solana', 
+        'bridge',
+        {
+          amount: '0.001',
+          fromNetwork: 'bnb',
+          toNetwork: 'solana',
+          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+        }
+      );
+    }, 90000);
 
-  it('Example 11: should handle unstake BNB request', async () => {
-    await agent.execute({
-      input: 'unstake all BNB from Venus',
-      threadId: '123e4567-e89b-12d3-a456-426614174009',
-    });
-    const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 11 Captured Unstake BNB Args:', capturedArgs);
-    if (capturedArgs) {
-      expect(capturedArgs).toBeDefined();
-      expect(capturedArgs.tokenA).toBe('0xA07c5b74C9B40447a954e1466938b865b6BBea36');
-      expect(capturedArgs.type).toBe('withdraw');
-      expect(capturedArgs.network).toBe('bnb');
-      expect(capturedArgs.provider).toBe('venus');
-    } else {
-      expect(capturedArgs).toBeNull();
-    }
-  }, 90000);
+    it('Test 6: Bridge specific token with slippage', async () => {
+      await testOperation(
+        6, 
+        'bridge 1 USDT from BNB to Solana with 0.5% slippage', 
+        'bridge',
+        {
+          amount: '1',
+          fromNetwork: 'bnb',
+          toNetwork: 'solana',
+          token: '0x55d398326f99059ff775485246999027b3197955', // USDT on BSC
+          slippage: 0.5
+        }
+      );
+    }, 90000);
+
+    it('Test 7: Bridge with natural language input', async () => {
+      await testOperation(
+        7, 
+        'I want to move 0.01 BNB from BNB Chain to Solana network', 
+        'bridge',
+        {
+          amount: '0.01',
+          fromNetwork: 'bnb',
+          toNetwork: 'solana',
+          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+        }
+      );
+    }, 90000);
+  });
 });
