@@ -336,7 +336,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
             const formattedBalance = ethers.formatUnits(nativeBalance, 9);
             return {
               isValid: false,
-              message: `Insufficient SOL for gas fees. Required: ~${ethers.formatUnits(gasBuffer, 9)}, Available: ${formattedBalance}`,
+              message: `Insufficient SOL for gas fees. Required: ~${ethers.formatUnits(gasBuffer, quote.fromToken.decimals)}, Available: ${formattedBalance}`,
             };
           }
         }
@@ -366,7 +366,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
             const formattedTotal = ethers.formatEther(totalRequired);
             return {
               isValid: false,
-              message: `Insufficient native token balance. Required: ${formattedRequired} (+ ~${ethers.formatEther(gasBuffer)} for gas = ${formattedTotal}), Available: ${formattedBalance}`,
+              message: `Insufficient native token balance. Required: ${formattedRequired} (+ ~${ethers.formatUnits(gasBuffer, quote.fromToken.decimals)} for gas = ${formattedTotal}), Available: ${formattedBalance}`,
             };
           }
         } else {
@@ -396,7 +396,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
             const formattedBalance = ethers.formatEther(nativeBalance);
             return {
               isValid: false,
-              message: `Insufficient native token for gas fees. Required: ~${ethers.formatEther(gasBuffer)}, Available: ${formattedBalance}`,
+              message: `Insufficient native token for gas fees. Required: ~${ethers.formatUnits(gasBuffer, quote.fromToken.decimals)}, Available: ${formattedBalance}`,
             };
           }
         }
