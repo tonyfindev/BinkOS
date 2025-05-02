@@ -19,7 +19,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "jest",
+    "test": "vitest run tests/planning.test.ts",
     "test:watch": "jest --watch"
   },
   "dependencies": {
@@ -38,7 +38,8 @@
     "socket.io": "^4.8.1",
     "tweetnacl": "^1.0.3",
     "uuid": "^10.0.0",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "vitest": "^3.0.5"
   },
   "devDependencies": {
     "@types/bs58": "^4.0.4",

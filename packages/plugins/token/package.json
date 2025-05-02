@@ -22,6 +22,7 @@
   "dependencies": {
     "@binkai/core": "workspace:*",
     "@langchain/core": "^0.3.32",
+    "vitest": "^3.0.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {

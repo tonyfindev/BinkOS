@@ -146,7 +146,7 @@ async function main() {
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
     {
-      model: 'gpt-4.1',
+      model: 'gpt-4o-mini',
       temperature: 0,
       systemPrompt:
         'You are a BINK AI agent. You are able to perform swaps and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a staking or unstaking.',
