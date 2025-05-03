@@ -283,7 +283,7 @@ export class PlanningAgent extends Agent {
         state => {
           const activePlan = state.plans?.find(plan => plan.plan_id === state.active_plan_id);
           const isLastActivePlanRejected = activePlan?.status === 'rejected';
-          
+
           if (state.ended_by === 'other_action') {
             return 'supervisor';
           } else if (state.ended_by === 'reject_transaction' && isLastActivePlanRejected) {
