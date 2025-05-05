@@ -120,7 +120,7 @@ describe('Planning Agent - Wallet Transfer', () => {
     // Create an agent with OpenAI
     agent = new PlanningAgent(
       {
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         temperature: 0,
       },
       wallet,

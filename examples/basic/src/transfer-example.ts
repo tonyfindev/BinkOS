@@ -94,7 +94,7 @@ async function main() {
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
     {
-      model: 'gpt-4.1',
+      model: 'gpt-4o-mini',
       temperature: 0,
     },
     wallet,
