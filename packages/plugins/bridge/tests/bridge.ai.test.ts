@@ -216,7 +216,6 @@ describe('Planning Agent', () => {
       threadId: '123e4567-e89b-12d3-a456-426614174002',
     });
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 1 Captured Bridge Args:', capturedArgs);
     expect(capturedArgs).toBeDefined();
     expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
     expect(capturedArgs.toToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
@@ -232,7 +231,6 @@ describe('Planning Agent', () => {
       threadId: '123e4567-e89b-12d3-a456-426614174005',
     });
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 2 Captured Bridge Args:', capturedArgs);
     expect(capturedArgs).toBeDefined();
     expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
     expect(capturedArgs.toToken).toBe('So11111111111111111111111111111111111111112');
@@ -248,7 +246,6 @@ describe('Planning Agent', () => {
       threadId: '123e4567-e89b-12d3-a456-426614174006',
     });
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 3 Captured Bridge Args:', capturedArgs);
     expect(capturedArgs).toBeDefined();
     expect(capturedArgs.fromNetwork).toBe('solana');
     expect(capturedArgs.toNetwork).toBe('bnb');

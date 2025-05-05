@@ -222,7 +222,6 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 1 Captured Swap Args:', capturedArgs);
 
     expect(capturedArgs).toBeDefined();
     expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
@@ -241,7 +240,6 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 2 Captured Swap Args:', capturedArgs);
 
     if (capturedArgs === null) {
       expect(capturedArgs).toBeNull();
@@ -255,14 +253,12 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 3 Captured Swap Args:', capturedArgs);
 
     if (capturedArgs === null) {
       expect(capturedArgs).toBeNull();
     }
   }, 30000);
 
-  //should check balance bink in wallet
   it('Example 4: should swap tokens via PancakeSwap on BNB Chain', async () => {
     await agent.execute({
       input: 'swap 0.001 BNB to BINK on BNB chain via pancakeswap',
@@ -270,11 +266,8 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 4 Captured Swap Args:', capturedArgs);
 
-    // Ensure swap arguments were captured
     expect(capturedArgs).toBeDefined();
-    // Verify the swap details
     expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
     expect(capturedArgs.toToken).toBe('0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1');
     expect(capturedArgs.amount).toBe('0.001');
@@ -291,7 +284,6 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 5 Captured Swap Args:', capturedArgs);
 
     expect(capturedArgs).toBeDefined();
     expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
@@ -310,11 +302,8 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 6 Captured Swap Args:', capturedArgs);
 
-    // Ensure swap arguments were captured
     expect(capturedArgs).toBeDefined();
-    // Verify the swap details
     expect(capturedArgs.fromToken).toBe('0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1');
     expect(capturedArgs.toToken).toBe('0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82');
     expect(capturedArgs.amount).toBe('1.1232334');
@@ -331,11 +320,8 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 7 Captured Swap Args:', capturedArgs);
 
-    // Ensure swap arguments were captured
     expect(capturedArgs).toBeDefined();
-    // Verify the swap details
     expect(capturedArgs.fromToken).toBe('So11111111111111111111111111111111111111111');
     expect(capturedArgs.toToken).toBe('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
     expect(capturedArgs.amountType).toBe('input');
@@ -351,11 +337,8 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 8 Captured Swap Args:', capturedArgs);
 
-    // Ensure swap arguments were captured
     expect(capturedArgs).toBeDefined();
-    // Verify the swap details
     expect(capturedArgs.fromToken).toBe('0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee');
     expect(capturedArgs.toToken).toBe('0x55d398326f99059ff775485246999027b3197955');
     expect(capturedArgs.amountType).toBe('input');
@@ -371,11 +354,7 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 9 Captured Swap Args:', capturedArgs);
-
-    // Ensure swap arguments were captured
     expect(capturedArgs).toBeDefined();
-    // Verify the swap details
     expect(capturedArgs.fromToken).toBe('0x5fdfafd107fc267bd6d6b1c08fcafb8d31394ba1');
     expect(capturedArgs.toToken).toBe('0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82');
     expect(capturedArgs.amount).toBe('1');
@@ -392,11 +371,8 @@ describe('Planning Agent', () => {
     });
 
     const capturedArgs = toolCallback.getToolArgs();
-    console.log('🔍 10 Captured Swap Args:', capturedArgs);
 
-    // Ensure swap arguments were captured
     expect(capturedArgs).not.toBeNull();
-    // Verify the swap details
     let checkFromToken = false;
 
     capturedArgs.fromToken == 'So11111111111111111111111111111111111111111' ||
