@@ -348,7 +348,7 @@ export class SwapTool extends BaseTool {
         }
       }
     } catch (error: any) {
-      console.warn(`Failed to get quote:`, error);
+      logger.warn(`Failed to get quote:`, error);
       throw error;
     }
 

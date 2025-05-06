@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
+import {
+  BaseTool,
+  CustomDynamicStructuredTool,
+  IToolConfig,
+  ToolProgress,
+  logger,
+} from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IStakingProvider, StakingBalance, StakingQuote, StakingParams } from './types';
 
@@ -20,7 +26,7 @@ export class GetStakeInfoTool extends BaseTool {
 
   registerProvider(provider: IStakingProvider): void {
     this.registry.registerProvider(provider);
-    console.log('🔌 Provider registered:', provider.getName());
+    logger.info('🔌 Provider registered:', provider.getName());
     provider.getSupportedNetworks().forEach(network => {
       this.supportedNetworks.add(network);
     });
@@ -97,12 +103,12 @@ export class GetStakeInfoTool extends BaseTool {
     const quotes = await Promise.all(
       providers.map(async (provider: IStakingProvider) => {
         try {
-          console.log('🤖 Getting quote from', provider.getName());
+          logger.info('🤖 Getting quote from', provider.getName());
           const quote = await provider.getQuote(params, userAddress);
-          console.log('🤖 Quote:', quote);
+          logger.info('🤖 Quote:', quote);
           return { provider, quote };
         } catch (error) {
-          console.warn(`Failed to get quote from ${provider.getName()}:`, error);
+          logger.warn(`Failed to get quote from ${provider.getName()}:`, error);
           return null;
         }
       }),
@@ -113,7 +119,7 @@ export class GetStakeInfoTool extends BaseTool {
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('🛠️ Creating staking balance tool');
+    logger.info('🛠️ Creating staking balance tool');
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -130,7 +136,7 @@ export class GetStakeInfoTool extends BaseTool {
           }
 
           let address = args.address;
-          console.log(
+          logger.info(
             `🔍 Getting staking balances for ${address || 'agent wallet'} on ${args.network}`,
           );
 
@@ -155,12 +161,12 @@ export class GetStakeInfoTool extends BaseTool {
           try {
             // If no address provided, get it from the agent's wallet
             if (!address) {
-              console.log('🔑 No address provided, using agent wallet');
+              logger.info('🔑 No address provided, using agent wallet');
               address = await this.agent.getWallet().getAddress(args.network);
-              console.log(`🔑 Using agent wallet address: ${address}`);
+              logger.info(`🔑 Using agent wallet address: ${address}`);
             }
           } catch (error) {
-            console.error(`❌ Failed to get wallet address for network ${args.network}`);
+            logger.error(`❌ Failed to get wallet address for network ${args.network}`);
             throw error;
           }
 
@@ -196,7 +202,7 @@ export class GetStakeInfoTool extends BaseTool {
             address: address,
           });
         } catch (error) {
-          console.error(
+          logger.error(
             '❌ Error in staking balance tool:',
             error instanceof Error ? error.message : error,
           );

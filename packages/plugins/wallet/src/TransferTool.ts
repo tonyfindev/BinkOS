@@ -6,6 +6,7 @@ import {
   IToolConfig,
   NetworkName,
   ToolProgress,
+  logger,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IWalletProvider, TransferParams, TransferQuote } from './types';
@@ -182,7 +183,7 @@ export class TransferTool extends BaseTool {
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Creating tool', this.getName());
+    logger.info('✓ Creating tool', this.getName());
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -202,7 +203,7 @@ export class TransferTool extends BaseTool {
             provider: preferredProvider,
           } = args;
 
-          console.log('🤖 Transfer Args:', args);
+          logger.info('🤖 Transfer Args:', args);
 
           const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
 
@@ -229,7 +230,7 @@ export class TransferTool extends BaseTool {
               Number(quote?.amount || 0) * 10 ** (quote?.token.decimals || 0),
             );
 
-            console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
+            logger.info('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
             if (allowance && allowance < requiredAmount) {
               const approveTx = await selectedProvider?.buildApproveTransaction?.(
@@ -240,7 +241,7 @@ export class TransferTool extends BaseTool {
                 userAddress,
               );
 
-              console.log('🤖 Approving...');
+              logger.info('🤖 Approving...');
               // Sign and send approval transaction
               const approveReceipt = await wallet.signAndSendTransaction(network, {
                 to: approveTx?.to || '',
@@ -248,7 +249,7 @@ export class TransferTool extends BaseTool {
                 value: BigInt(approveTx?.value || 0),
               });
 
-              console.log('🤖 ApproveReceipt:', approveReceipt);
+              logger.info('🤖 ApproveReceipt:', approveReceipt);
 
               // Wait for approval to be mined
               await approveReceipt.wait();
@@ -261,7 +262,7 @@ export class TransferTool extends BaseTool {
             }
           }
 
-          console.log('🤖 Transferring...');
+          logger.info('🤖 Transferring...');
 
           // Sign and send transfer transaction
           const receipt = await wallet.signAndSendTransaction(network, {
@@ -286,7 +287,7 @@ export class TransferTool extends BaseTool {
             network,
           });
         } catch (error) {
-          console.error('Transfer error:', error);
+          logger.error('Transfer error:', error);
           return JSON.stringify({
             status: 'error',
             message: error instanceof Error ? error.message : String(error),
