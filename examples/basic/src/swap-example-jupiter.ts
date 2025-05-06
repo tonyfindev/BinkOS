@@ -32,7 +32,7 @@ async function main() {
 
   console.log('🔑 OpenAI API key found\n');
 
-  logger.enable();
+  logger.disable();
 
   // Define available networks
   console.log('📡 Configuring networks...');

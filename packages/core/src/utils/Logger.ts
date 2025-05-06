@@ -50,22 +50,22 @@ export class Logger {
   }
 
   public debug(message: string, ...args: any[]): void {
-    if (!this.shouldLog('debug') && !this.isEnabled) return;
+    if (!this.shouldLog('debug') || !this.isEnabled) return;
     console.log(`${colors.gray}[${this.getTimestamp()}] DEBUG:${colors.reset}`, message, ...args);
   }
 
   public info(message: string, ...args: any[]): void {
-    if (!this.shouldLog('info') && !this.isEnabled) return;
+    if (!this.shouldLog('info') || !this.isEnabled) return;
     console.log(`${colors.green}[${this.getTimestamp()}] INFO:${colors.reset}`, message, ...args);
   }
 
   public warn(message: string, ...args: any[]): void {
-    if (!this.shouldLog('warn') && !this.isEnabled) return;
+    if (!this.shouldLog('warn') || !this.isEnabled) return;
     console.log(`${colors.yellow}[${this.getTimestamp()}] WARN:${colors.reset}`, message, ...args);
   }
 
   public error(message: string | Error, ...args: any[]): void {
-    if (!this.shouldLog('error') && !this.isEnabled) return;
+    if (!this.shouldLog('error') || !this.isEnabled) return;
     const errorMessage = message instanceof Error ? message.stack || message.message : message;
     console.error(
       `${colors.red}[${this.getTimestamp()}] ERROR:${colors.reset}`,
