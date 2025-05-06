@@ -1,6 +1,6 @@
 {
   "name": "@binkai/rpc-provider",
-  "version": "0.2.11-alpha.0",
+  "version": "0.2.12-alpha.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
