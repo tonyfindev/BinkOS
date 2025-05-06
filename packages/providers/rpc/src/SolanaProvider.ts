@@ -208,13 +208,15 @@ export class SolanaProvider implements IWalletProvider {
       throw new Error('Quote sender does not match wallet address');
     }
 
-    //const blockhash = await this.connection.getLatestBlockhash('finalized');
+    const blockhash = await this.connection.getLatestBlockhash('finalized');
 
     // Build transfer using legacy transaction to avoid version issues
     const tx = new solanaWeb3.Transaction();
     tx.feePayer = new PublicKey(quote.fromAddress);
-    //tx.recentBlockhash = blockhash.blockhash;
-    //tx.lastValidBlockHeight = blockhash.lastValidBlockHeight;
+    if (!tx.recentBlockhash) {
+      tx.recentBlockhash = blockhash.blockhash;
+      tx.lastValidBlockHeight = blockhash.lastValidBlockHeight;
+    }
 
     if (this.isNativeSolana(quote.token.address)) {
       // Handle native SOL transfer
@@ -274,11 +276,6 @@ export class SolanaProvider implements IWalletProvider {
 
     // Serialize without signatures since they will be added by the wallet
     const dataTx = Buffer.from(tx.serialize({ verifySignatures: false })).toString('base64');
-    const blockhash = await this.connection.getLatestBlockhash('finalized');
-    if (!blockhash) {
-      throw new Error('Transaction simulation failed 1: Blockhash not found');
-    }
-
     return {
       to: quote.toAddress,
       data: dataTx,
