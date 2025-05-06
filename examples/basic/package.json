@@ -15,6 +15,7 @@
     "bridge": "ts-node src/bridge-example-debridge.ts",
     "swap-thena": "ts-node src/swap-example-thena.ts",
     "swap-four-meme": "ts-node src/swap-example-four-meme.ts",
+    "staking": "ts-node src/staking-example.ts",
     "staking-venus": "ts-node src/staking-example-venus.ts",
     "staking-kernel": "ts-node src/staking-example-kernel.ts",
     "staking-lista": "ts-node src/staking-example-lista.ts",

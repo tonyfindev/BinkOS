@@ -10,6 +10,7 @@ import {
   IToolExecutionCallback,
   ToolExecutionState,
   ToolExecutionData,
+  logger,
 } from '@binkai/core';
 import { StakingPlugin } from '@binkai/staking-plugin';
 import { KernelDaoProvider } from '@binkai/kernel-dao-provider';
@@ -62,6 +63,9 @@ async function main() {
   }
 
   console.log('🔑 OpenAI API key found\n');
+
+  //configure enable logger
+  logger.enable();
 
   // Define available networks
   console.log('📡 Configuring networks...');
