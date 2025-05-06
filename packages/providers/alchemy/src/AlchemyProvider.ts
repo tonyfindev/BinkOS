@@ -153,6 +153,7 @@ export class AlchemyProvider implements ITokenProvider, IWalletProvider {
               decimals: token?.tokenMetadata?.decimals,
               usdValue: token?.tokenPrices?.[0]?.value || 0,
               balance: ethers.formatUnits(token?.tokenBalance, token?.tokenMetadata?.decimals),
+              network: network,
             };
           });
       }
