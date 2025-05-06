@@ -37,9 +37,9 @@ import { ListaProvider } from '../../../providers/lista/dist/ListaProvider';
 import { SwapPlugin } from '../../../plugins/swap/dist/SwapPlugin';
 
 // Hardcoded RPC URLs for demonstration
-const BSC_RPC_URL='https://bsc-dataseed1.binance.org';
-const ETHEREUM_RPC_URL='https://eth.llamarpc.com';
-const RPC_URL='https://api.mainnet-beta.solana.com';
+const BSC_RPC_URL = 'https://bsc-dataseed1.binance.org';
+const ETHEREUM_RPC_URL = 'https://eth.llamarpc.com';
+const RPC_URL = 'https://api.mainnet-beta.solana.com';
 
 // Example callback implementation
 class ExampleToolExecutionCallback implements IToolExecutionCallback {
@@ -82,7 +82,6 @@ class ToolArgsCallback implements IToolExecutionCallback {
   onToolExecution(data: ToolExecutionData): void {
     // Log state and input data
     if (data.state === ToolExecutionState.STARTED) {
-      
       // Save the tool name and input data
       if (data.input && typeof data.input === 'object') {
         this.toolName = data.toolName;
@@ -100,22 +99,23 @@ class ToolArgsCallback implements IToolExecutionCallback {
   }
 }
 
-
 class MockBridgePlugin extends BridgePlugin {
   finalArgs: any = null;
 
   async initialize(config: any): Promise<void> {
     await super.initialize(config);
 
-    const bridgeToolProperty = Object.entries(this).find(([key, value]) => 
-      key === 'bridgeTool' || (value && typeof value === 'object' && 'simulateQuoteTool' in value)
+    const bridgeToolProperty = Object.entries(this).find(
+      ([key, value]) =>
+        key === 'bridgeTool' ||
+        (value && typeof value === 'object' && 'simulateQuoteTool' in value),
     );
 
     if (bridgeToolProperty) {
       const [toolKey, originalTool] = bridgeToolProperty;
       const originalSimulateQuoteTool = originalTool.simulateQuoteTool;
       originalTool.simulateQuoteTool = async (args: any) => {
-        this.finalArgs = {...args};
+        this.finalArgs = { ...args };
         return originalSimulateQuoteTool.call(originalTool, args);
       };
     }
@@ -129,7 +129,7 @@ describe('Planning Agent', () => {
   let networks: NetworksConfig['networks'];
   let toolCallback: ToolArgsCallback;
   let mockBridgePlugin: MockBridgePlugin;
-  
+
   /**
    * Helper function to execute tool operations and validate arguments
    * @param testNumber - Test case number for logging
@@ -139,28 +139,27 @@ describe('Planning Agent', () => {
    * @param isErrorCase - Whether this test is expected to fail
    */
   async function testOperation(
-    testNumber: number, 
+    testNumber: number,
     input: string,
     expectedTool: string,
     expectedArgs: Record<string, any>,
-    isErrorCase = false
+    isErrorCase = false,
   ) {
     console.log(`\n🧪 TEST ${testNumber}: ${expectedTool.toUpperCase()} - "${input}"`);
-    
+
     // Reset tool callback before each test
     toolCallback = new ToolArgsCallback();
     agent.registerToolExecutionCallback(toolCallback);
-    
+
     await agent.execute({
       input: input,
       threadId: `test-${testNumber}-aaaa-bbbb-cccc-${Date.now().toString(16)}`,
     });
-    
+
     // Get captured arguments
     let args;
     args = mockBridgePlugin.finalArgs || toolCallback.getToolArgs();
-    
-    
+
     const capturedToolName = toolCallback.getToolName();
     console.log(`📥 Tool used: ${capturedToolName}`);
     console.log(`📤 Tool args: ${JSON.stringify(args, null, 2)}`);
@@ -170,14 +169,14 @@ describe('Planning Agent', () => {
       console.log(`⚠️ Test ${testNumber}: Args not captured - expected for error case`);
       return;
     }
-    
+
     // For non-error cases, require args
     if (!isErrorCase) {
       expect(args).not.toBeNull();
       // Check if the correct tool was used
       expect(capturedToolName).toBe(expectedTool);
     }
-    
+
     // If we have args, validate them
     if (args) {
       Object.entries(expectedArgs).forEach(([key, value]) => {
@@ -294,14 +293,10 @@ describe('Planning Agent', () => {
     const kyber = new KyberProvider(bscProvider, bscChainId);
     const jupiter = new JupiterProvider(new Connection(RPC_URL));
     const imagePlugin = new ImagePlugin();
-    
+
     const tokenPlugin = new TokenPlugin();
     const knowledgePlugin = new KnowledgePlugin();
-    const debridge = new deBridgeProvider(
-      [bscProvider, new Connection(RPC_URL)],
-      56,
-      7565164,
-    );
+    const debridge = new deBridgeProvider([bscProvider, new Connection(RPC_URL)], 56, 7565164);
     const walletPlugin = new WalletPlugin();
     const stakingPlugin = new StakingPlugin();
     const thena = new ThenaProvider(bscProvider, bscChainId);
@@ -310,42 +305,41 @@ describe('Planning Agent', () => {
     mockBridgePlugin = new MockBridgePlugin();
 
     // Initialize plugins with providers
-    SwapPlugin.initialize({
+    mockBridgePlugin.initialize({
       defaultSlippage: 0.5,
       defaultChain: 'bnb',
       providers: [pancakeswap, fourMeme, thena, jupiter, oku, kyber],
       supportedChains: ['bnb', 'ethereum', 'solana'],
     }),
-    tokenPlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [birdeyeApi, fourMeme as any],
-      supportedChains: ['solana', 'bnb', 'ethereum'],
-    }),
-    await knowledgePlugin.initialize({
-      providers: [binkProvider],
-    }),
-    await imagePlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [binkProvider],
-    }),
-    await mockBridgePlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [debridge],
-      supportedChains: ['bnb', 'solana'],
-    }),
-    await walletPlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [birdeyeApi, alchemyApi, bnbProvider, solanaProvider],
-      supportedChains: ['bnb', 'solana', 'ethereum'],
-    }),
-    await stakingPlugin.initialize({
-      defaultSlippage: 0.5,
-      defaultChain: 'bnb',
-      providers: [venus, kernelDao, lista],
-    }),
-
-    // Register plugins with agent
-    await agent.registerPlugin(SwapPlugin as any);
+      tokenPlugin.initialize({
+        defaultChain: 'bnb',
+        providers: [birdeyeApi, fourMeme as any],
+        supportedChains: ['solana', 'bnb', 'ethereum'],
+      }),
+      await knowledgePlugin.initialize({
+        providers: [binkProvider],
+      }),
+      await imagePlugin.initialize({
+        defaultChain: 'bnb',
+        providers: [binkProvider],
+      }),
+      await mockBridgePlugin.initialize({
+        defaultChain: 'bnb',
+        providers: [debridge],
+        supportedChains: ['bnb', 'solana'],
+      }),
+      await walletPlugin.initialize({
+        defaultChain: 'bnb',
+        providers: [birdeyeApi, alchemyApi, bnbProvider, solanaProvider],
+        supportedChains: ['bnb', 'solana', 'ethereum'],
+      }),
+      await stakingPlugin.initialize({
+        defaultSlippage: 0.5,
+        defaultChain: 'bnb',
+        providers: [venus, kernelDao, lista],
+      }),
+      // Register plugins with agent
+      await agent.registerPlugin(SwapPlugin as any);
     await agent.registerPlugin(tokenPlugin as any);
     await agent.registerPlugin(knowledgePlugin as any);
     await agent.registerPlugin(mockBridgePlugin as any);
@@ -357,140 +351,104 @@ describe('Planning Agent', () => {
   describe('Bridge Operations Tests', () => {
     // Test 1: Bridge native token from BNB to Solana
     it('Test 1: Bridge native token from BNB to Solana', async () => {
-      await testOperation(
-        1, 
-        'bridge 0.001 BNB to Solana', 
-        'bridge',
-        {
-          amount: '0.001',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
-      );
+      await testOperation(1, 'bridge 0.001 BNB to Solana', 'bridge', {
+        amount: '0.001',
+        fromNetwork: 'bnb',
+        toNetwork: 'solana',
+        token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      });
     }, 90000);
 
     // Test 2: Bridge USDT from BNB to Solana with slippage
     it('Test 2: Bridge USDT with custom slippage', async () => {
-      await testOperation(
-        2, 
-        'bridge 1 USDT from BNB to Solana with 0.5% slippage', 
-        'bridge',
-        {
-          amount: '1',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0x55d398326f99059ff775485246999027b3197955', // USDT on BSC
-          slippage: 0.5
-        }
-      );
+      await testOperation(2, 'bridge 1 USDT from BNB to Solana with 0.5% slippage', 'bridge', {
+        amount: '1',
+        fromNetwork: 'bnb',
+        toNetwork: 'solana',
+        token: '0x55d398326f99059ff775485246999027b3197955', // USDT on BSC
+        slippage: 0.5,
+      });
     }, 90000);
 
     // Test 3: Bridge using natural language
     it('Test 3: Bridge with natural language input', async () => {
-      await testOperation(
-        3, 
-        'I want to move 0.01 BNB from BNB Chain to Solana network', 
-        'bridge',
-        {
-          amount: '0.01',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
-      );
+      await testOperation(3, 'I want to move 0.01 BNB from BNB Chain to Solana network', 'bridge', {
+        amount: '0.01',
+        fromNetwork: 'bnb',
+        toNetwork: 'solana',
+        token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      });
     }, 90000);
 
     // Test 4: Bridge token by symbol
     it('Test 4: Bridge token by symbol', async () => {
-      await testOperation(
-        4, 
-        'bridge 0.5 CAKE from BNB to Solana', 
-        'bridge',
-        {
-          amount: '0.5',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0x0e09fabb73bd3ae120f0902e54560ff690412c03' // CAKE address
-        }
-      );
+      await testOperation(4, 'bridge 0.5 CAKE from BNB to Solana', 'bridge', {
+        amount: '0.5',
+        fromNetwork: 'bnb',
+        toNetwork: 'solana',
+        token: '0x0e09fabb73bd3ae120f0902e54560ff690412c03', // CAKE address
+      });
     }, 90000);
 
     // Test 5: Bridge with recipient address specified
     it('Test 5: Bridge with recipient address', async () => {
       await testOperation(
-        5, 
-        'bridge 0.002 BNB from BNB Chain to Solana to 8ZUTCFpLcN29GNrMXjgk7sSAHaJTpEqLJcQvzYuiNuDb', 
+        5,
+        'bridge 0.002 BNB from BNB Chain to Solana to 8ZUTCFpLcN29GNrMXjgk7sSAHaJTpEqLJcQvzYuiNuDb',
         'bridge',
         {
           amount: '0.002',
           fromNetwork: 'bnb',
           toNetwork: 'solana',
           token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-          recipient: '8ZUTCFpLcN29GNrMXjgk7sSAHaJTpEqLJcQvzYuiNuDb'
-        }
+          recipient: '8ZUTCFpLcN29GNrMXjgk7sSAHaJTpEqLJcQvzYuiNuDb',
+        },
       );
     }, 90000);
 
     // Test 6: Bridge a larger amount to test validation
     it('Test 6: Bridge large amount', async () => {
-      await testOperation(
-        6, 
-        'bridge 10 BNB to Solana', 
-        'bridge',
-        {
-          amount: '10',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
-      );
+      await testOperation(6, 'bridge 10 BNB to Solana', 'bridge', {
+        amount: '10',
+        fromNetwork: 'bnb',
+        toNetwork: 'solana',
+        token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      });
     }, 90000);
 
     // Test 7: Bridge with complex query
     it('Test 7: Bridge with complex description', async () => {
       await testOperation(
-        7, 
-        'I need to transfer 0.001 BNB from my BNB Chain wallet to my Solana wallet with minimal fees, can you help?', 
+        7,
+        'I need to transfer 0.001 BNB from my BNB Chain wallet to my Solana wallet with minimal fees, can you help?',
         'bridge',
         {
           amount: '0.001',
           fromNetwork: 'bnb',
           toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
+          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        },
       );
     }, 90000);
 
     // Test 8: Bridge between different networks
     it('Test 8: Bridge BUSD between networks', async () => {
-      await testOperation(
-        8, 
-        'bridge 5 BUSD from BNB Chain to Solana', 
-        'bridge',
-        {
-          amount: '5',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0xe9e7cea3dedca5984780bafc599bd69add087d56' // BUSD address on BSC
-        }
-      );
+      await testOperation(8, 'bridge 5 BUSD from BNB Chain to Solana', 'bridge', {
+        amount: '5',
+        fromNetwork: 'bnb',
+        toNetwork: 'solana',
+        token: '0xe9e7cea3dedca5984780bafc599bd69add087d56', // BUSD address on BSC
+      });
     }, 90000);
 
     // Test 9: Bridge small amount
     it('Test 9: Bridge small amount', async () => {
-      await testOperation(
-        9, 
-        'bridge 0.0001 BNB to Solana', 
-        'bridge',
-        {
-          amount: '0.0001',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
-      );
+      await testOperation(9, 'bridge 0.0001 BNB to Solana', 'bridge', {
+        amount: '0.0001',
+        fromNetwork: 'bnb',
+        toNetwork: 'solana',
+        token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      });
     }, 90000);
-
   });
 });
