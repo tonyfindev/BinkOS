@@ -13,6 +13,7 @@ import {
   SOL_NATIVE_TOKEN_ADDRESS,
   SOL_NATIVE_TOKEN_ADDRESS2,
   Token,
+  logger,
 } from '@binkai/core';
 import { Metaplex } from '@metaplex-foundation/js';
 import { ethers } from 'ethers';
@@ -135,7 +136,7 @@ export class SolanaProvider implements IWalletProvider {
       // If we have enough balance, no adjustment needed
       return amount;
     } catch (error) {
-      console.error('Error adjusting amount:', error);
+      logger.error('Error adjusting amount:', error);
       // In case of error, return original amount
       return amount;
     }
@@ -225,7 +226,7 @@ export class SolanaProvider implements IWalletProvider {
         }),
       );
     } else {
-      console.log('spl token transfer');
+      logger.info('spl token transfer');
       // Handle SPL token transfer
       const mintPubkey = new PublicKey(quote.token.address);
       const fromPubkey = new PublicKey(quote.fromAddress);
@@ -426,7 +427,7 @@ function parseTokenAmount(amount: string, decimals: number) {
     // Normal case - use ethers.parseUnits directly
     return ethers.parseUnits(amount, decimals);
   } catch (error) {
-    console.error('Error parsing token amount:', error);
+    logger.error('Error parsing token amount:', error);
     // In case of any error, return zero
     return BigInt(0);
   }

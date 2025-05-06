@@ -8,7 +8,7 @@ import {
 } from '@binkai/staking-plugin';
 import { ethers, Contract, Provider } from 'ethers';
 import { ListaPoolABI } from './abis/Lista';
-import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token, logger } from '@binkai/core';
 import { isWithinTolerance, parseTokenAmount } from '@binkai/staking-plugin';
 
 export enum StakingOperationType {
@@ -86,7 +86,7 @@ export class ListaProvider extends BaseStakingProvider {
       decimals: token.decimals,
       symbol: token.symbol,
     };
-    console.log('🤖 Lista token info:', tokenInfo);
+    logger.info('🤖 Lista token info:', tokenInfo);
     return tokenInfo;
   }
 
@@ -116,7 +116,7 @@ export class ListaProvider extends BaseStakingProvider {
         averageAPY: data.data.apr,
       };
     } catch (error) {
-      console.error('Error fetching Lista APY:', error);
+      logger.error('Error fetching Lista APY:', error);
       // Return default values in case of error
       return {
         currentAPY: '0.01095',
@@ -163,7 +163,7 @@ export class ListaProvider extends BaseStakingProvider {
         );
 
         if (adjustedAmount !== params.amountA) {
-          console.log(`🤖 Lista adjusted input amount from ${params.amountA} to ${adjustedAmount}`);
+          logger.info(`🤖 Lista adjusted input amount from ${params.amountA} to ${adjustedAmount}`);
         }
       } else if (
         params.type === StakingOperationType.WITHDRAW ||
@@ -173,7 +173,7 @@ export class ListaProvider extends BaseStakingProvider {
       }
       // Calculate input amount based on decimals
       const swapAmountA = BigInt(Math.floor(Number(adjustedAmount) * 10 ** tokenA.decimals));
-      console.log('🚀 ~ ListaProvider ~ getQuote ~ swapAmountA:', swapAmountA);
+      logger.info('🚀 ~ ListaProvider ~ getQuote ~ swapAmountA:', swapAmountA);
 
       const swapAmountB = params.amountB
         ? BigInt(Math.floor(Number(params.amountB) * 10 ** tokenB.decimals))
@@ -205,13 +205,13 @@ export class ListaProvider extends BaseStakingProvider {
         swapTransactionData,
         buildTransactionData,
       );
-      console.log('🚀 ~ ListaProvider ~ getQuote ~ quote:', quote);
+      logger.info('🚀 ~ ListaProvider ~ getQuote ~ quote:', quote);
 
       this.storeQuoteWithExpiry(quote);
 
       return quote;
     } catch (error: unknown) {
-      console.error('Error getting quote:', error);
+      logger.error('Error getting quote:', error);
       throw new Error(
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
@@ -246,7 +246,7 @@ export class ListaProvider extends BaseStakingProvider {
         };
       }
     } catch (error) {
-      console.error('Error building staking transaction:', error);
+      logger.error('Error building staking transaction:', error);
       throw new Error(
         `Failed to build staking transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
@@ -266,7 +266,7 @@ export class ListaProvider extends BaseStakingProvider {
         spender: CONSTANTS.LISTA_CONTRACT_ADDRESS,
       };
     } catch (error) {
-      console.error('Error building claim transaction:', error);
+      logger.error('Error building claim transaction:', error);
       throw new Error(
         `Failed to build claim transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
@@ -391,7 +391,7 @@ export class ListaProvider extends BaseStakingProvider {
 
       return { isValid: true };
     } catch (error) {
-      console.error('Error checking balance:', error);
+      logger.error('Error checking balance:', error);
       return {
         isValid: false,
         message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -421,7 +421,7 @@ export class ListaProvider extends BaseStakingProvider {
         tokens: [slisBNBInfo],
       };
     } catch (error) {
-      console.error('Error getting slisBNB staking balance:', error);
+      logger.error('Error getting slisBNB staking balance:', error);
       throw new Error(
         `Failed to get slisBNB staking balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
@@ -463,7 +463,7 @@ export class ListaProvider extends BaseStakingProvider {
         tokens: formattedBalances,
       };
     } catch (error) {
-      console.error('Error getting claimable balances:', error);
+      logger.error('Error getting claimable balances:', error);
       throw new Error(
         `Failed to get claimable balances: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );

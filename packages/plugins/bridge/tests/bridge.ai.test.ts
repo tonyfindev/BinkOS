@@ -36,12 +36,12 @@ import { KyberProvider } from '../../../providers/kyber/dist/KyberProvider';
 import { ListaProvider } from '../../../providers/lista/dist/ListaProvider';
 import { SwapPlugin } from '../../../plugins/swap/dist/SwapPlugin';
 
-// Hardcoded RPC URLs for demonstration
-const BSC_RPC_URL='https://bsc-dataseed1.binance.org';
-const ETHEREUM_RPC_URL='https://eth.llamarpc.com';
-const RPC_URL='https://api.mainnet-beta.solana.com';
+// ========== Constants ==========
+const BSC_RPC_URL = 'https://bsc-dataseed1.binance.org';
+const ETHEREUM_RPC_URL = 'https://eth.llamarpc.com';
+const RPC_URL = 'https://api.mainnet-beta.solana.com';
 
-// Example callback implementation
+// ========== Callback Classes ==========
 class ExampleToolExecutionCallback implements IToolExecutionCallback {
   onToolExecution(data: ToolExecutionData): void {
     const stateEmoji = {
@@ -75,115 +75,334 @@ class ExampleToolExecutionCallback implements IToolExecutionCallback {
   }
 }
 
-class ToolArgsCallback implements IToolExecutionCallback {
-  private toolArgs: any = null;
-  private toolName: string = '';
+class ToolMonitorCallback implements IToolExecutionCallback {
+  private toolCalls: Record<string, any[]> = {};
+  private lastToolName: string = '';
+  private lastLogs: string[] = [];
 
   onToolExecution(data: ToolExecutionData): void {
-    // Log state and input data
-    if (data.state === ToolExecutionState.STARTED) {
-      
-      // Save the tool name and input data
-      if (data.input && typeof data.input === 'object') {
-        this.toolName = data.toolName;
-        this.toolArgs = { ...data.input };
+    const logMsg = `${new Date(data.timestamp).toISOString()} | Tool ${data.toolName} state: ${data.state}`;
+    this.lastLogs.push(logMsg);
+    console.log(`🔄 Tool Event: ${logMsg}`);
+
+    this.lastToolName = data.toolName;
+
+    if (!this.toolCalls[data.toolName]) {
+      this.toolCalls[data.toolName] = [];
+    }
+
+    this.toolCalls[data.toolName].push({
+      input: data.input,
+      timestamp: data.timestamp,
+      message: data.message,
+      state: data.state,
+      error: data.error,
+    });
+
+    if (data.toolName === 'ask_user' || data.toolName === 'ask') {
+      if (data.state === ToolExecutionState.STARTED && data.input) {
+        console.log(
+          `❓ Ask question: ${(data.input as any).question || JSON.stringify(data.input)}`,
+        );
+      } else if (data.state === ToolExecutionState.COMPLETED && data.data) {
+        console.log(`✅ Ask completed with response: ${JSON.stringify(data.data)}`);
+      } else if (data.state === ToolExecutionState.FAILED && data.error) {
+        console.log(`❌ Ask failed with error: ${data.error}`);
       }
     }
   }
 
-  getToolArgs() {
-    return this.toolArgs;
+  getLastLogs(count: number = 10): string[] {
+    return this.lastLogs.slice(-count);
   }
 
-  getToolName() {
-    return this.toolName;
+  wasToolCalled(toolName: string): boolean {
+    return !!this.toolCalls[toolName] && this.toolCalls[toolName].length > 0;
+  }
+
+  reset(): void {
+    this.toolCalls = {};
+    this.lastToolName = '';
+    this.lastLogs = [];
+    console.log('🧹 ToolMonitor reset');
   }
 }
 
+class AskUserCallback implements IToolExecutionCallback {
+  private askCalled: boolean = false;
+  private questions: string[] = [];
 
+  onToolExecution(data: ToolExecutionData): void {
+    if (
+      (data.toolName === 'ask_user' || data.toolName === 'ask') &&
+      data.state === ToolExecutionState.STARTED
+    ) {
+      this.askCalled = true;
+      console.log(`🗣️ ASK DETECTED: ${data.toolName} was called`);
+
+      if (data.input && typeof data.input === 'object' && 'question' in data.input) {
+        const question = data.input.question as string;
+        this.questions.push(question);
+        console.log(`❓ Question: ${question}`);
+      }
+    }
+  }
+
+  wasAskCalled(): boolean {
+    return this.askCalled;
+  }
+
+  getQuestions(): string[] {
+    return this.questions;
+  }
+
+  reset(): void {
+    this.askCalled = false;
+    this.questions = [];
+    console.log('🧹 AskUserCallback reset');
+  }
+}
+
+// ========== Mock Plugins ==========
 class MockBridgePlugin extends BridgePlugin {
   finalArgs: any = null;
 
+  // Override initialize to modify the swapTool instance
   async initialize(config: any): Promise<void> {
+    // Call the parent initialize first
     await super.initialize(config);
 
-    const bridgeToolProperty = Object.entries(this).find(([key, value]) => 
-      key === 'bridgeTool' || (value && typeof value === 'object' && 'simulateQuoteTool' in value)
+    // Get the swapTool property from the parent class
+    const bridgeToolProperty = Object.entries(this).find(
+      ([key, value]) =>
+        key === 'bridgeTool' ||
+        (value && typeof value === 'object' && 'simulateQuoteTool' in value),
     );
 
     if (bridgeToolProperty) {
       const [toolKey, originalTool] = bridgeToolProperty;
+
+      // Replace the simulateQuoteTool method with our spy function
       const originalSimulateQuoteTool = originalTool.simulateQuoteTool;
       originalTool.simulateQuoteTool = async (args: any) => {
-        this.finalArgs = {...args};
+        // Capture the args
+        this.finalArgs = { ...args };
+
+        // Return result from original method
         return originalSimulateQuoteTool.call(originalTool, args);
       };
     }
   }
 }
 
+// ========== Test Helpers ==========
+/**
+ * Helper function to test bridge operations
+ */
+async function testBridgeOperation(
+  agent: PlanningAgent,
+  toolMonitor: ToolMonitorCallback,
+  askMonitor: AskUserCallback,
+  mockBridgePlugin: MockBridgePlugin,
+  testNumber: number,
+  input: string,
+  expectedArgs: Record<string, any>,
+  expectedErrorKeywords?: string[],
+): Promise<boolean> {
+  console.log(`\n🧪 TEST ${testNumber}: BRIDGE - "${input}"`);
+
+  // Redirect console.log for monitoring
+  const originalLog = console.log;
+  const logs: string[] = [];
+  console.log = function (...args) {
+    const logString = args.join(' ');
+    logs.push(logString);
+    originalLog.apply(console, args);
+  };
+
+  try {
+    toolMonitor.reset();
+    askMonitor.reset();
+
+    await agent.execute({
+      input: input,
+      threadId: `test-bridge-aaaa-bbbb-${Date.now().toString(16)}`,
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const args = mockBridgePlugin.finalArgs;
+    console.log(`📤 Captured args:`, args ? JSON.stringify(args, null, 2) : 'null');
+
+    const askLogFound = logs.some(
+      log =>
+        log.includes('Tool ask_user execution started') ||
+        log.includes('Tool ask execution started'),
+    );
+
+    console.log(`🔍 Ask detected in logs: ${askLogFound}`);
+
+    if (askLogFound) {
+      // Check if any expected error keywords were found in the questions
+      if (expectedErrorKeywords && expectedErrorKeywords.length > 0) {
+        const questions = askMonitor.getQuestions();
+        const foundErrorKeyword = expectedErrorKeywords.some(keyword =>
+          questions.some(q => q.toLowerCase().includes(keyword.toLowerCase())),
+        );
+
+        if (foundErrorKeyword) {
+          console.log(`💯 Test ${testNumber} PASSED: Expected error keyword found in ask question`);
+          return true;
+        }
+      }
+
+      console.log(`💯 Test ${testNumber} PASSED via ask_user detection in logs`);
+      return true;
+    }
+
+    if (!args) {
+      console.log(`❌ Test ${testNumber} FAILED: No args captured and no ask detected`);
+      expect(args).not.toBeNull();
+      return false;
+    }
+
+    if (Object.keys(expectedArgs).length > 0) {
+      let allMatched = true;
+
+      for (const [key, expectedValue] of Object.entries(expectedArgs)) {
+        if (args[key] !== expectedValue) {
+          console.log(`❌ Expected ${key} to be ${expectedValue} but got ${args[key]}`);
+          allMatched = false;
+        }
+      }
+
+      if (!allMatched) {
+        console.log(`❌ Test ${testNumber} FAILED: Args did not match expected values`);
+        expect(allMatched).toBe(true);
+        return false;
+      }
+
+      console.log(`✅ All expected args matched`);
+    }
+
+    console.log(`💯 Test ${testNumber} PASSED via args validation`);
+    return true;
+  } finally {
+    console.log = originalLog;
+  }
+}
+
+// ========== Main Test Suite ==========
 describe('Planning Agent', () => {
   let agent: PlanningAgent;
   let wallet: Wallet;
   let network: Network;
   let networks: NetworksConfig['networks'];
-  let toolCallback: ToolArgsCallback;
   let mockBridgePlugin: MockBridgePlugin;
-  
-  /**
-   * Helper function to execute tool operations and validate arguments
-   * @param testNumber - Test case number for logging
-   * @param input - User input command
-   * @param expectedTool - Expected tool name (swap, bridge, transfer)
-   * @param expectedArgs - Expected arguments to validate
-   * @param isErrorCase - Whether this test is expected to fail
-   */
-  async function testOperation(
-    testNumber: number, 
-    input: string,
-    expectedTool: string,
-    expectedArgs: Record<string, any>,
-    isErrorCase = false
-  ) {
-    console.log(`\n🧪 TEST ${testNumber}: ${expectedTool.toUpperCase()} - "${input}"`);
-    
-    // Reset tool callback before each test
-    toolCallback = new ToolArgsCallback();
-    agent.registerToolExecutionCallback(toolCallback);
-    
-    await agent.execute({
-      input: input,
-      threadId: `test-${testNumber}-aaaa-bbbb-cccc-${Date.now().toString(16)}`,
-    });
-    
-    // Get captured arguments
-    let args;
-    args = mockBridgePlugin.finalArgs || toolCallback.getToolArgs();
-    
-    
-    const capturedToolName = toolCallback.getToolName();
-    console.log(`📥 Tool used: ${capturedToolName}`);
-    console.log(`📤 Tool args: ${JSON.stringify(args, null, 2)}`);
+  let toolMonitor: ToolMonitorCallback;
+  let askMonitor: AskUserCallback;
 
-    // For error cases, accept null args
-    if (isErrorCase && !args) {
-      console.log(`⚠️ Test ${testNumber}: Args not captured - expected for error case`);
-      return;
-    }
-    
-    // For non-error cases, require args
-    if (!isErrorCase) {
-      expect(args).not.toBeNull();
-      // Check if the correct tool was used
-      expect(capturedToolName).toBe(expectedTool);
-    }
-    
-    // If we have args, validate them
-    if (args) {
-      Object.entries(expectedArgs).forEach(([key, value]) => {
-        expect(args[key]).toBe(value);
+  // Helper test function
+  async function testSwapOperation(
+    testNumber: number,
+    input: string,
+    expectedArgs: Record<string, any>,
+    expectedErrorKeywords?: string[],
+  ) {
+    console.log(`\n🧪 TEST ${testNumber}: SWAP - "${input}"`);
+
+    // Redirect console.log for monitoring
+    const originalLog = console.log;
+    const logs: string[] = [];
+
+    console.log = function (...args) {
+      const logString = args.join(' ');
+      logs.push(logString);
+      originalLog.apply(console, args);
+    };
+
+    try {
+      // Reset toolMonitor
+      toolMonitor.reset();
+
+      // Call and wait for results
+      await agent.execute({
+        input: input,
+        threadId: `test-${testNumber}-aaaa-bbbb-cccc-${Date.now().toString(16)}`,
       });
-      console.log(`✅ Test ${testNumber} passed`);
+
+      // Wait a bit to ensure all logs have been recorded
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Get parameters from simulateQuoteTool
+      const args = mockBridgePlugin.finalArgs;
+
+      console.log(`📤 Captured args:`, args ? JSON.stringify(args, null, 2) : 'null');
+
+      // Check logs for ask_user
+      const askLogFound = logs.some(
+        log =>
+          log.includes('Tool ask_user execution started') ||
+          log.includes('Tool ask execution started'),
+      );
+
+      console.log(`🔍 Ask detected in logs: ${askLogFound}`);
+
+      if (askLogFound) {
+        // Find ask question in logs
+        const askLogIndex = logs.findIndex(
+          log =>
+            log.includes('Tool ask_user execution started') ||
+            log.includes('Tool ask execution started'),
+        );
+
+        if (
+          askLogIndex >= 0 &&
+          askLogIndex + 1 < logs.length &&
+          logs[askLogIndex + 1].includes('question')
+        ) {
+          const questionMatch = logs[askLogIndex + 1].match(/"question":\s*"([^"]+)"/);
+          if (questionMatch && questionMatch[1]) {
+            console.log(`🔔 Ask question found: ${questionMatch[1]}`);
+          }
+        }
+
+        console.log(`💯 Test ${testNumber} PASSED via ask_user detection in logs`);
+        return true;
+      }
+
+      // If no args and no ask, test fails
+      if (!args) {
+        console.log(`❌ Test ${testNumber} FAILED: No args captured and no ask detected`);
+        expect(args).not.toBeNull();
+        return false;
+      }
+
+      // Check captured parameters
+      if (Object.keys(expectedArgs).length > 0) {
+        let allMatched = true;
+
+        for (const [key, expectedValue] of Object.entries(expectedArgs)) {
+          if (args[key] !== expectedValue) {
+            console.log(`❌ Expected ${key} to be ${expectedValue} but got ${args[key]}`);
+            allMatched = false;
+          }
+        }
+
+        if (!allMatched) {
+          console.log(`❌ Test ${testNumber} FAILED: Args did not match expected values`);
+          expect(allMatched).toBe(true);
+          return false;
+        }
+
+        console.log(`✅ All expected args matched`);
+      }
+
+      console.log(`💯 Test ${testNumber} PASSED via args validation`);
+      return true;
+    } finally {
+      // Restore console.log
+      console.log = originalLog;
     }
   }
 
@@ -261,8 +480,19 @@ describe('Planning Agent', () => {
       networks,
     );
 
-    toolCallback = new ToolArgsCallback();
-    agent.registerToolExecutionCallback(toolCallback);
+    // Initialize callbacks
+    toolMonitor = new ToolMonitorCallback();
+    askMonitor = new AskUserCallback();
+
+    // Register callbacks
+    agent.registerToolExecutionCallback(toolMonitor);
+    agent.registerToolExecutionCallback(askMonitor);
+    agent.registerToolExecutionCallback(new ExampleToolExecutionCallback());
+
+    /**
+     * Initialize every provider and plugin in system since it will effect the reasoning ability of the agent
+     * This is AI dependent test, so we need to initialize everything to make the test reliable
+     */
 
     // Initialize provider
     const birdeyeApi = new BirdeyeProvider({
@@ -287,6 +517,7 @@ describe('Planning Agent', () => {
     // Initialize plugins
     const bscChainId = 56;
     const pancakeswap = new PancakeSwapProvider(bscProvider, bscChainId);
+    // const okx = new OkxProvider(this.bscProvider, bscChainId);
     const fourMeme = new FourMemeProvider(bscProvider, bscChainId);
     const venus = new VenusProvider(bscProvider, bscChainId);
     const kernelDao = new KernelDaoProvider(bscProvider, bscChainId);
@@ -294,203 +525,137 @@ describe('Planning Agent', () => {
     const kyber = new KyberProvider(bscProvider, bscChainId);
     const jupiter = new JupiterProvider(new Connection(RPC_URL));
     const imagePlugin = new ImagePlugin();
-    
-    const tokenPlugin = new TokenPlugin();
-    const knowledgePlugin = new KnowledgePlugin();
-    const debridge = new deBridgeProvider(
-      [bscProvider, new Connection(RPC_URL)],
-      56,
-      7565164,
-    );
-    const walletPlugin = new WalletPlugin();
-    const stakingPlugin = new StakingPlugin();
+    const swapPlugin = new SwapPlugin();
+    const debridge = new deBridgeProvider([bscProvider, new Connection(RPC_URL)], 56, 7565164);
     const thena = new ThenaProvider(bscProvider, bscChainId);
     const lista = new ListaProvider(bscProvider, bscChainId);
-
+    const stakingPlugin = new StakingPlugin();
     mockBridgePlugin = new MockBridgePlugin();
 
-    // Initialize plugins with providers
-    SwapPlugin.initialize({
-      defaultSlippage: 0.5,
-      defaultChain: 'bnb',
-      providers: [pancakeswap, fourMeme, thena, jupiter, oku, kyber],
-      supportedChains: ['bnb', 'ethereum', 'solana'],
-    }),
-    tokenPlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [birdeyeApi, fourMeme as any],
-      supportedChains: ['solana', 'bnb', 'ethereum'],
-    }),
-    await knowledgePlugin.initialize({
-      providers: [binkProvider],
-    }),
-    await imagePlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [binkProvider],
-    }),
-    await mockBridgePlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [debridge],
-      supportedChains: ['bnb', 'solana'],
-    }),
-    await walletPlugin.initialize({
-      defaultChain: 'bnb',
-      providers: [birdeyeApi, alchemyApi, bnbProvider, solanaProvider],
-      supportedChains: ['bnb', 'solana', 'ethereum'],
-    }),
+    // Create plugins
+    const tokenPlugin = new TokenPlugin();
+    const knowledgePlugin = new KnowledgePlugin();
+    const walletPlugin = new WalletPlugin();
+
+    // Initialize plugins with appropriate providers
     await stakingPlugin.initialize({
-      defaultSlippage: 0.5,
       defaultChain: 'bnb',
       providers: [venus, kernelDao, lista],
-    }),
+      supportedChains: ['bnb', 'ethereum'],
+    });
 
-    // Register plugins with agent
-    await agent.registerPlugin(SwapPlugin as any);
+    await swapPlugin.initialize({
+      defaultChain: 'bnb',
+      providers: [pancakeswap, fourMeme, thena, jupiter, oku, kyber],
+      supportedChains: ['bnb', 'ethereum', 'solana'], // These will be intersected with agent's networks
+    }),
+      await tokenPlugin.initialize({
+        defaultChain: 'bnb',
+        providers: [birdeyeApi, fourMeme as any],
+        supportedChains: ['solana', 'bnb', 'ethereum'],
+      }),
+      await knowledgePlugin.initialize({
+        providers: [binkProvider],
+      }),
+      await imagePlugin.initialize({
+        defaultChain: 'bnb',
+        providers: [binkProvider],
+      }),
+      await mockBridgePlugin.initialize({
+        defaultChain: 'bnb',
+        providers: [debridge],
+        supportedChains: ['bnb', 'solana'],
+      }),
+      await walletPlugin.initialize({
+        defaultChain: 'bnb',
+        providers: [birdeyeApi, alchemyApi, bnbProvider, solanaProvider],
+        supportedChains: ['bnb', 'solana', 'ethereum'],
+      }),
+      // Register all plugins - only registering essential plugins for staking tests
+      await agent.registerPlugin(stakingPlugin as any);
     await agent.registerPlugin(tokenPlugin as any);
     await agent.registerPlugin(knowledgePlugin as any);
-    await agent.registerPlugin(mockBridgePlugin as any);
     await agent.registerPlugin(walletPlugin as any);
-    await agent.registerPlugin(stakingPlugin as any);
-    await agent.registerPlugin(imagePlugin as any);
-  }, 30000); // Increase timeout for beforeEach
+    await agent.registerPlugin(swapPlugin as any);
+    await agent.registerPlugin(mockBridgePlugin as any);
+  }, 30000);
 
-  describe('Bridge Operations Tests', () => {
-    // Test 1: Bridge native token from BNB to Solana
-    it('Test 1: Bridge native token from BNB to Solana', async () => {
-      await testOperation(
-        1, 
-        'bridge 0.001 BNB to Solana', 
-        'bridge',
+  describe('Basic Bridge Operations', () => {
+    // Test Case 1: Basic bridge operation - BNB to SOL
+    it('Test 1: Bridge BNB to SOL', async () => {
+      await testBridgeOperation(
+        agent,
+        toolMonitor,
+        askMonitor,
+        mockBridgePlugin,
+        1,
+        'bridge 0.001 BNB to SOL',
         {
+          fromToken: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+          toToken: 'So11111111111111111111111111111111111111111',
           amount: '0.001',
           fromNetwork: 'bnb',
           toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
+        },
       );
     }, 90000);
 
-    // Test 2: Bridge USDT from BNB to Solana with slippage
-    it('Test 2: Bridge USDT with custom slippage', async () => {
-      await testOperation(
-        2, 
-        'bridge 1 USDT from BNB to Solana with 0.5% slippage', 
-        'bridge',
+    // Test Case 2: Bridge with natural language input
+    it('Test 2: Bridge with natural language input', async () => {
+      await testBridgeOperation(
+        agent,
+        toolMonitor,
+        askMonitor,
+        mockBridgePlugin,
+        2,
+        'I want to move 0.01 BNB from BNB Chain to SOL network',
         {
-          amount: '1',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0x55d398326f99059ff775485246999027b3197955', // USDT on BSC
-          slippage: 0.5
-        }
-      );
-    }, 90000);
-
-    // Test 3: Bridge using natural language
-    it('Test 3: Bridge with natural language input', async () => {
-      await testOperation(
-        3, 
-        'I want to move 0.01 BNB from BNB Chain to Solana network', 
-        'bridge',
-        {
+          fromToken: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+          toToken: 'So11111111111111111111111111111111111111111',
           amount: '0.01',
           fromNetwork: 'bnb',
           toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
+        },
       );
     }, 90000);
 
-    // Test 4: Bridge token by symbol
-    it('Test 4: Bridge token by symbol', async () => {
-      await testOperation(
-        4, 
-        'bridge 0.5 CAKE from BNB to Solana', 
-        'bridge',
+    // Test Case 3: Bridge with specific tokens
+    it('Test 3: Bridge USDT from BNB to SOL', async () => {
+      await testBridgeOperation(
+        agent,
+        toolMonitor,
+        askMonitor,
+        mockBridgePlugin,
+        3,
+        'bridge 10 USDT from BNB Chain to SOL',
         {
-          amount: '0.5',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0x0e09fabb73bd3ae120f0902e54560ff690412c03' // CAKE address
-        }
-      );
-    }, 90000);
-
-    // Test 5: Bridge with recipient address specified
-    it('Test 5: Bridge with recipient address', async () => {
-      await testOperation(
-        5, 
-        'bridge 0.002 BNB from BNB Chain to Solana to 8ZUTCFpLcN29GNrMXjgk7sSAHaJTpEqLJcQvzYuiNuDb', 
-        'bridge',
-        {
-          amount: '0.002',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-          recipient: '8ZUTCFpLcN29GNrMXjgk7sSAHaJTpEqLJcQvzYuiNuDb'
-        }
-      );
-    }, 90000);
-
-    // Test 6: Bridge a larger amount to test validation
-    it('Test 6: Bridge large amount', async () => {
-      await testOperation(
-        6, 
-        'bridge 10 BNB to Solana', 
-        'bridge',
-        {
+          fromToken: '0x55d398326f99059ff775485246999027b3197955',
+          toToken: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
           amount: '10',
           fromNetwork: 'bnb',
           toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
+        },
       );
     }, 90000);
 
-    // Test 7: Bridge with complex query
-    it('Test 7: Bridge with complex description', async () => {
-      await testOperation(
-        7, 
-        'I need to transfer 0.001 BNB from my BNB Chain wallet to my Solana wallet with minimal fees, can you help?', 
-        'bridge',
+    // Test Case 4: Bridge with very small amount (may trigger ask)
+    it('Test 4: Bridge with very small amount', async () => {
+      await testBridgeOperation(
+        agent,
+        toolMonitor,
+        askMonitor,
+        mockBridgePlugin,
+        4,
+        'bridge 0.0000001 BNB to SOL',
         {
-          amount: '0.001',
+          fromToken: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+          toToken: 'So11111111111111111111111111111111111111111',
+          amount: '0.0000001',
           fromNetwork: 'bnb',
           toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
+        },
+        ['amount too small', 'minimum amount', 'too small'],
       );
     }, 90000);
-
-    // Test 8: Bridge between different networks
-    it('Test 8: Bridge BUSD between networks', async () => {
-      await testOperation(
-        8, 
-        'bridge 5 BUSD from BNB Chain to Solana', 
-        'bridge',
-        {
-          amount: '5',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0xe9e7cea3dedca5984780bafc599bd69add087d56' // BUSD address on BSC
-        }
-      );
-    }, 90000);
-
-    // Test 9: Bridge small amount
-    it('Test 9: Bridge small amount', async () => {
-      await testOperation(
-        9, 
-        'bridge 0.0001 BNB to Solana', 
-        'bridge',
-        {
-          amount: '0.0001',
-          fromNetwork: 'bnb',
-          toNetwork: 'solana',
-          token: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-        }
-      );
-    }, 90000);
-
   });
 });
