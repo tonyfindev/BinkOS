@@ -7,6 +7,7 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { JupiterProvider } from '@binkai/jupiter-provider';
@@ -30,6 +31,8 @@ async function main() {
   }
 
   console.log('🔑 OpenAI API key found\n');
+
+  logger.enable();
 
   // Define available networks
   console.log('📡 Configuring networks...');
@@ -114,7 +117,7 @@ async function main() {
     defaultSlippage: 0.5,
     defaultChain: 'solana',
     providers: [jupiter],
-    supportedChains: ['solana'], // These will be intersected with agent's networks
+    supportedChains: ['solana'],
   });
   console.log('✓ Swap plugin initialized\n');
 
@@ -146,7 +149,7 @@ async function main() {
   console.log('💱 Example 1: Buy USDC from SOL');
   const inputResult = await agent.execute({
     input: `
-        swap all USDT(Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB) to SOL(So11111111111111111111111111111111111111111) via jupiter
+        swap 0.001 SOL to USDC via jupiter
     `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');

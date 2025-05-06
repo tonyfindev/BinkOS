@@ -4,6 +4,7 @@ import {
   SOL_NATIVE_TOKEN_ADDRESS,
   SOL_NATIVE_TOKEN_ADDRESS2,
   Token,
+  logger,
 } from '@binkai/core';
 import { ISwapProvider, SwapQuote, SwapParams, Transaction, NetworkProvider } from './types';
 import { ethers, Contract, Interface, Provider } from 'ethers';
@@ -214,7 +215,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
       // Subtract gas buffer from amount
       const adjustedAmountBN = amountBN - gasBuffer;
       const adjustedAmount = ethers.formatUnits(adjustedAmountBN, decimals);
-      console.log(
+      logger.info(
         '🤖 Adjusted amount for gas buffer:',
         `${ethers.formatUnits(amountBN, decimals)}`,
         `(insufficient balance for full amount + ${ethers.formatUnits(gasBuffer, decimals)} gas)`,
@@ -222,7 +223,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
       return adjustedAmount;
     }
 
-    console.log(
+    logger.info(
       '🤖 Using full amount:',
       amount,
       `(sufficient balance for amount + ${ethers.formatUnits(gasBuffer, decimals)} gas)`,
@@ -404,7 +405,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
 
       return { isValid: true };
     } catch (error) {
-      console.error('Error checking balance:', error);
+      logger.error('Error checking balance:', error);
       return {
         isValid: false,
         message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -510,7 +511,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
         lastValidBlockHeight: storedData.quote.tx?.lastValidBlockHeight,
       };
     } catch (error) {
-      console.error('Error building swap transaction:', error);
+      logger.error('Error building swap transaction:', error);
       throw new Error(
         `Failed to build swap transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
@@ -563,7 +564,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
         return adjustTokenAmount(amount, formattedBalance, decimals, this.TOLERANCE_PERCENTAGE);
       }
     } catch (error) {
-      console.error('Error in adjustAmount:', error);
+      logger.error('Error in adjustAmount:', error);
       // In case of any error, return the original amount
       return amount;
     }
@@ -618,7 +619,7 @@ export abstract class BaseSwapProvider implements ISwapProvider {
           }
         }
       } catch (error) {
-        console.error('Error cleaning up caches:', error);
+        logger.error('Error cleaning up caches:', error);
       }
     }, CLEANUP_INTERVAL);
   }
