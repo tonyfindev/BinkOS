@@ -9,12 +9,16 @@ import {
   NetworkType,
   settings,
   Wallet,
+  logger,
 } from '@binkai/core';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { WalletPlugin } from '@binkai/wallet-plugin';
 import { ethers } from 'ethers';
 
 async function main() {
+  //configure enable logger
+  logger.enable();
+
   // Define available networks
   const BNB_RPC = 'https://bsc-dataseed1.binance.org';
   const ETH_RPC = 'https://eth.llamarpc.com';

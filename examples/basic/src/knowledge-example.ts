@@ -6,12 +6,19 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
 } from '@binkai/core';
 import { KnowledgePlugin } from '@binkai/knowledge-plugin';
 import { BinkProvider } from '@binkai/bink-provider';
 import { PostgresDatabaseAdapter } from '@binkai/postgres-adapter';
 
 async function main() {
+  //configure enable logger
+  logger.enable();
+
+  // //configure disable logger
+  // logger.disable();
+
   const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 
   // Define available networks

@@ -8,6 +8,7 @@ import {
   settings,
   Wallet,
   NetworkName,
+  logger,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
@@ -17,6 +18,9 @@ import { BirdeyeProvider } from '@binkai/birdeye-provider';
 import { TokenPlugin } from '@binkai/token-plugin';
 
 async function main() {
+  //configure enable logger
+  logger.enable();
+
   const BNB_RPC = 'https://bsc-dataseed1.binance.org';
   const SOL_RPC = 'https://api.mainnet-beta.solana.com';
   const ETH_RPC = 'https://eth.llamarpc.com';

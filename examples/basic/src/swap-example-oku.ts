@@ -7,6 +7,7 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { OkuProvider } from '@binkai/oku-provider';
@@ -25,6 +26,9 @@ async function main() {
   }
 
   console.log('🔑 OpenAI API key found\n');
+
+  //configure enable logger
+  logger.enable();
 
   // Define available networks
   console.log('📡 Configuring networks...');
