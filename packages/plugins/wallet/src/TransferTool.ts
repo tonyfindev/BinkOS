@@ -82,8 +82,10 @@ export class TransferTool extends BaseTool {
     }
 
     return z.object({
-      token: z.string().describe('The token address to transfer'),
-      toAddress: z.string().describe('The recipient contract address'),
+      token: z
+        .string()
+        .describe('The contract address of the token you want to transfer (not the token symbol)'),
+      toAddress: z.string().describe('The recipient wallet address'),
       amount: z.string().describe('The amount of tokens to transfer'),
       network: z
         .enum(supportedNetworks as [string, ...string[]])
@@ -91,8 +93,6 @@ export class TransferTool extends BaseTool {
         .describe('The blockchain network to execute the transfer on'),
       provider: z
         .enum(providers as [string, ...string[]])
-        .optional()
-        .default('bnb')
         .describe(
           'The provider to use for the transfer. If not specified, the standard provider will be used',
         ),
