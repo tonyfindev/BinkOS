@@ -116,13 +116,30 @@ async function mockExtensionWalletClient(network: Network) {
       } catch (e) {
         tx = SolanaTransaction.from(Buffer.from(data.transaction, 'base64'));
       }
+      const signedTx = await wallet.signTransaction({ network: data.network, transaction: tx });
+      callback({ signedTransaction: signedTx });
+    } else {
+      callback({ error: 'Not supported' });
+    }
+  });
+
+  socket.on('send_transaction', async (data, callback) => {
+    console.log('send_transaction from extension wallet client', data);
+    let tx: ethers.Transaction | VersionedTransaction | SolanaTransaction;
+
+    if (data.network == 'solana') {
+      callback({ error: 'Not supported' });
     } else {
       tx = Transaction.from(data.transaction);
+      const signedTx = await wallet.signAndSendTransaction(data.network, {
+        to: tx.to || '',
+        data: tx.data,
+        value: tx.value,
+        gasLimit: tx.gasLimit,
+      });
+      console.log('signedTx', signedTx);
+      callback({ tx_hash: signedTx.hash });
     }
-
-    const signedTx = await wallet.signTransaction({ network: data.network, transaction: tx });
-    console.log('signedTx', signedTx);
-    callback({ signedTransaction: signedTx });
   });
 }
 
@@ -328,7 +345,7 @@ async function main() {
   console.log('💱 Example 2: buy BINK from 10 USDC on solana');
   const result2 = await agent.execute({
     input: `
-   SELL all USDC to BNB on bnb chain
+   BUY 2 USDC from BNB on bnb chain
     `,
   });
 

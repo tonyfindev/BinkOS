@@ -19,11 +19,10 @@ import {
 export class ExtensionWallet implements IWallet {
   socket: Socket | null = null;
   readonly #network: Network;
-  readonly timeout: number;
+  readonly timeout: number = 60000; // 60 seconds timeout
 
-  constructor(network: Network, timeout: number = 60000) {
+  constructor(network: Network) {
     this.#network = network;
-    this.timeout = timeout;
   }
 
   public async connect(socket: Socket): Promise<void> {
@@ -99,6 +98,7 @@ export class ExtensionWallet implements IWallet {
       network: params.network,
       transaction: transactionStr,
     })) as { signedTransaction?: string; error?: string };
+
     if (response.error) {
       throw new Error(response.error);
     }
