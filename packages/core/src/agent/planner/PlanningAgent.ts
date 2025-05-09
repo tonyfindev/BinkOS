@@ -31,6 +31,7 @@ import { z } from 'zod';
 import { cleanToolParameters, shouldBindTools } from './utils/llm';
 import { BasicQuestionGraph } from './graph/BasicQuestionGraph';
 import { threadId } from 'worker_threads';
+import { BaseModel } from '../../model/BaseModel';
 
 const StateAnnotation = Annotation.Root({
   executor_input: Annotation<string>,
@@ -60,9 +61,10 @@ export class PlanningAgent extends Agent {
   private _isAskUser = false;
   private askUserTimeout: NodeJS.Timeout | null = null;
   private _processedThreads: Set<string> = new Set();
-  constructor(config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
-    super(config, wallet, networks);
+  constructor(model: BaseModel, config: AgentConfig, wallet: IWallet, networks: NetworksConfig['networks']) {
+    super(model, config, wallet, networks);
   }
+
 
   protected getDefaultTools(): ITool[] {
     return [];
@@ -120,16 +122,17 @@ export class PlanningAgent extends Agent {
 
     const tools = [routerTool];
     let modelWithTools;
-    if (shouldBindTools(this.model, tools)) {
-      if (!('bindTools' in this.model) || typeof this.model.bindTools !== 'function') {
+    const langchainLLM = this.model.getLangChainLLM();
+    if (shouldBindTools(langchainLLM, tools)) {
+      if (!('bindTools' in langchainLLM) || typeof langchainLLM.bindTools !== 'function') {
         throw new Error(`llm ${this.model} must define bindTools method.`);
       }
       console.log('binding tools');
-      modelWithTools = this.model.bindTools(tools, {
+      modelWithTools = langchainLLM.bindTools(tools, {
         tool_choice: 'required',
       });
     } else {
-      modelWithTools = this.model;
+      modelWithTools = langchainLLM;
     }
 
     const planAgent = prompt.pipe(modelWithTools);
@@ -147,7 +150,7 @@ export class PlanningAgent extends Agent {
       const tool = tools.find(t => t.name === toolName);
       const result = await tool?.invoke(toolArgs);
       return {
-        next_node: result.next,
+        next_node: typeof result === 'object' && result !== null && 'next' in result ? result.next : undefined,
       };
     }
     return response;
@@ -213,14 +216,14 @@ export class PlanningAgent extends Agent {
     }
 
     const executorGraph = new ExecutorGraph({
-      model: this.model,
+      model: this.model.getLangChainLLM(),
       executorPrompt,
       tools: executorTools,
       agent: this,
     }).create();
 
     const plannerGraph = new PlannerGraph({
-      model: this.model,
+      model: this.model.getLangChainLLM(),
       createPlanPrompt: createPlanPrompt,
       updatePlanPrompt: updatePlanPrompt,
       activeTasksPrompt: '',
@@ -230,7 +233,7 @@ export class PlanningAgent extends Agent {
     }).create();
 
     const basicQuestionGraph = new BasicQuestionGraph({
-      model: this.model,
+      model: this.model.getLangChainLLM(),
       prompt: this.config.systemPrompt || '',
       tools: this.getRetrievalTools(),
     }).create();

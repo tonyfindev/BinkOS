@@ -8,6 +8,8 @@ import {
   NetworksConfig,
   NetworkName,
   logger,
+  PlanningAgent,
+  OpenAIModel,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { OkuProvider } from '@binkai/oku-provider';
@@ -90,10 +92,16 @@ async function main() {
   console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
+  const llm = new OpenAIModel({
+    apiKey: settings.get('OPENAI_API_KEY') || '',
+    model: 'gpt-4o-mini',
+  });
   const agent = new Agent(
+    llm,
     {
-      model: 'gpt-4o',
       temperature: 0,
+      systemPrompt:
+        'You are a BINK AI agent. You are able to perform swaps, bridges and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge or swap.',
     },
     wallet,
     networks,
