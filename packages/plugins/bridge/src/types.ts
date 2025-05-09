@@ -6,6 +6,7 @@ export type NetworkProvider = Provider | Connection;
 
 export interface BridgeQuote {
   quoteId: string;
+  provider?: string;
   fromNetwork: NetworkName;
   toNetwork: NetworkName;
   fromToken: Token;

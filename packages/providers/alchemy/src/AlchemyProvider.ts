@@ -13,7 +13,7 @@ import {
   CHAIN_MAPPING,
   SupportedChain,
 } from './types';
-import { NetworkName } from '@binkai/core';
+import { NetworkName, logger } from '@binkai/core';
 import { IWalletProvider, WalletInfo } from '@binkai/wallet-plugin';
 import { ethers } from 'ethers';
 export class AlchemyProvider implements ITokenProvider, IWalletProvider {
@@ -89,10 +89,10 @@ export class AlchemyProvider implements ITokenProvider, IWalletProvider {
 
   async getTokenInfo(params: TokenQueryParams): Promise<TokenInfo> {
     try {
-      console.log('getTokenInfo alchemy:', params);
+      logger.info('getTokenInfo alchemy:', params);
 
       const walletInfo = await this.getWalletInfo(params.query, params.network);
-      console.log('walletInfo:', walletInfo);
+      logger.info('walletInfo:', walletInfo);
 
       return {} as TokenInfo;
     } catch (error) {
@@ -141,17 +141,19 @@ export class AlchemyProvider implements ITokenProvider, IWalletProvider {
       if (response.data && response.data.data && response.data.data.tokens) {
         const tokens = response.data.data.tokens;
         data = tokens
-          .filter((token: any) => token.tokenPrices.length > 0 && BigInt(token.tokenBalance) > 0n)
+          .filter(
+            (token: any) =>
+              token.tokenPrices.length > 0 && BigInt(token.tokenBalance) > 0n && token.tokenAddress,
+          )
           .map((token: any) => {
             return {
-              tokenAddress: token.address,
-              symbol: token.tokenMetadata.symbol,
-              name: token.tokenMetadata.name,
-              decimals: token.tokenMetadata.decimals,
-              usdValue: token.tokenPrices[0].value,
-              balance: this.formatBalance(
-                ethers.formatUnits(token.tokenBalance, token.tokenMetadata.decimals),
-              ),
+              tokenAddress: token?.tokenAddress,
+              symbol: token?.tokenMetadata?.symbol,
+              name: token?.tokenMetadata?.name,
+              decimals: token?.tokenMetadata?.decimals,
+              usdValue: token?.tokenPrices?.[0]?.value || 0,
+              balance: ethers.formatUnits(token?.tokenBalance, token?.tokenMetadata?.decimals),
+              network: network,
             };
           });
       }

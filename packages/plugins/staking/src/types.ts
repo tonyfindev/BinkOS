@@ -5,6 +5,7 @@ import { Connection } from '@solana/web3.js';
 export type NetworkProvider = Provider | Connection;
 
 export interface StakingQuote {
+  provider?: string;
   network: NetworkName;
   quoteId: string;
   tokenA: Token;
@@ -17,7 +18,7 @@ export interface StakingQuote {
   currentSupply: number;
   liquidity: number;
   estimatedGas: string;
-  type: 'supply' | 'withdraw' | 'stake' | 'unstake';
+  type: 'supply' | 'withdraw' | 'stake' | 'unstake' | 'deposit';
   tx?: Transaction;
 }
 
@@ -30,10 +31,10 @@ export interface StakingResult extends StakingQuote {
 export interface StakingParams {
   network: NetworkName;
   tokenA: string;
-  tokenB: string;
+  tokenB?: string;
   amountA: string;
-  amountB: string;
-  type: 'supply' | 'withdraw' | 'stake' | 'unstake';
+  amountB?: string;
+  type: 'supply' | 'withdraw' | 'stake' | 'unstake' | 'deposit';
 }
 
 export interface Transaction {
@@ -45,6 +46,12 @@ export interface Transaction {
   spender: string;
 }
 
+export interface StakingBalance {
+  tokenAddress: string;
+  symbol: string;
+  name: string;
+  balance: string;
+}
 export interface IStakingProvider {
   /**
    * Get the name of the DEX provider
@@ -137,4 +144,28 @@ export interface IStakingProvider {
     owner: string,
     spender: string,
   ): Promise<bigint>;
+
+  /**
+   * Get all staking balances for a user
+   * @param walletAddress The address of the user
+   */
+  getAllStakingBalances(walletAddress: string): Promise<{
+    address: string;
+    tokens: StakingBalance[];
+  }>;
+
+  /**
+   * Get all claimable balances for a user
+   * @param walletAddress The address of the user
+   */
+  getAllClaimableBalances(walletAddress: string): Promise<{
+    address: string;
+    tokens: StakingBalance[];
+  }>;
+
+  /**
+   * Build a transaction for claiming a balance
+   * @param uuid The UUID of the claimable balance
+   */
+  buildClaimTransaction(uuid: string): Promise<Transaction>;
 }

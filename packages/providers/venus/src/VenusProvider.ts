@@ -6,7 +6,7 @@ import {
 } from '@binkai/staking-plugin';
 import { ethers, Contract, Provider } from 'ethers';
 import { VenusPoolABI } from './abis/VenusPool';
-import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token, logger } from '@binkai/core';
 import { isSolanaNetwork } from '@binkai/staking-plugin';
 import { isWithinTolerance, parseTokenAmount } from '@binkai/staking-plugin';
 
@@ -18,6 +18,7 @@ const CONSTANTS = {
   BNB_ADDRESS: EVM_NATIVE_TOKEN_ADDRESS,
   VENUS_API_BASE: 'https://api.venus.io/',
   VENUS_POOL_ADDRESS: '0xa07c5b74c9b40447a954e1466938b865b6bbea36',
+  VBNB_ADDRESS: '0xA07c5b74C9B40447a954e1466938b865b6BBea36',
 } as const;
 
 enum ChainId {
@@ -156,7 +157,7 @@ export class VenusProvider extends BaseStakingProvider {
       decimals: token.decimals,
       symbol: token.symbol,
     };
-    console.log('🤖 Venus token info:', tokenInfo);
+    logger.info('🤖 Venus token info:', tokenInfo);
     return tokenInfo;
   }
 
@@ -194,7 +195,7 @@ export class VenusProvider extends BaseStakingProvider {
         );
 
         if (adjustedAmount !== params.amountA) {
-          console.log(`🤖 Venus adjusted input amount from ${params.amountA} to ${adjustedAmount}`);
+          logger.info(`🤖 Venus adjusted input amount from ${params.amountA} to ${adjustedAmount}`);
         }
       }
 
@@ -222,7 +223,7 @@ export class VenusProvider extends BaseStakingProvider {
 
       return quote;
     } catch (error: unknown) {
-      console.error('Error getting quote:', error);
+      logger.error('Error getting quote:', error);
       throw new Error(
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
@@ -262,7 +263,7 @@ export class VenusProvider extends BaseStakingProvider {
     routeData: VenusMarket,
     amountA: bigint,
     amountB: bigint,
-    type: 'stake' | 'unstake' | 'supply' | 'withdraw' = 'stake',
+    type: 'stake' | 'unstake' | 'supply' | 'withdraw' | 'deposit' = 'stake',
   ) {
     try {
       let txData: string;
@@ -290,7 +291,7 @@ export class VenusProvider extends BaseStakingProvider {
         };
       }
     } catch (error) {
-      console.error('Error building staking transaction:', error);
+      logger.error('Error building staking transaction:', error);
       throw new Error(
         `Failed to build staking transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
@@ -418,11 +419,41 @@ export class VenusProvider extends BaseStakingProvider {
 
       return { isValid: true };
     } catch (error) {
-      console.error('Error checking balance:', error);
+      logger.error('Error checking balance:', error);
       return {
         isValid: false,
         message: `Failed to check balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
+    }
+  }
+
+  async getAllStakingBalances(walletAddress: string) {
+    try {
+      // Get vBNB balance
+      const vBNBBalance = await this.getTokenBalance(
+        CONSTANTS.VBNB_ADDRESS,
+        walletAddress,
+        NetworkName.BNB,
+      );
+
+      const vBNBInfo = {
+        tokenAddress: CONSTANTS.VBNB_ADDRESS,
+        symbol: 'vBNB',
+        name: 'Venus BNB',
+        decimals: 8,
+        balance: vBNBBalance.formattedBalance,
+        provider: this.getName(),
+      };
+
+      return {
+        address: walletAddress,
+        tokens: [vBNBInfo],
+      };
+    } catch (error) {
+      logger.error('Error getting vBNB staking balance:', error);
+      throw new Error(
+        `Failed to get vBNB staking balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 }

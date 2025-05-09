@@ -25,6 +25,7 @@ import { deBridgeProvider } from '@binkai/debridge-provider';
 import { Server } from 'socket.io';
 import { io as ioClient } from 'socket.io-client';
 import { JupiterProvider } from '@binkai/jupiter-provider';
+import { AlchemyProvider } from '@binkai/alchemy-provider';
 import {
   Connection,
   VersionedTransaction,
@@ -115,13 +116,30 @@ async function mockExtensionWalletClient(network: Network) {
       } catch (e) {
         tx = SolanaTransaction.from(Buffer.from(data.transaction, 'base64'));
       }
+      const signedTx = await wallet.signTransaction({ network: data.network, transaction: tx });
+      callback({ signedTransaction: signedTx });
+    } else {
+      callback({ error: 'Not supported' });
+    }
+  });
+
+  socket.on('send_transaction', async (data, callback) => {
+    console.log('send_transaction from extension wallet client', data);
+    let tx: ethers.Transaction | VersionedTransaction | SolanaTransaction;
+
+    if (data.network == 'solana') {
+      callback({ error: 'Not supported' });
     } else {
       tx = Transaction.from(data.transaction);
+      const signedTx = await wallet.signAndSendTransaction(data.network, {
+        to: tx.to || '',
+        data: tx.data,
+        value: tx.value,
+        gasLimit: tx.gasLimit,
+      });
+      console.log('signedTx', signedTx);
+      callback({ tx_hash: signedTx.hash });
     }
-
-    const signedTx = await wallet.signTransaction({ network: data.network, transaction: tx });
-    console.log('signedTx', signedTx);
-    callback({ signedTransaction: signedTx });
   });
 }
 
@@ -250,10 +268,14 @@ async function main() {
     rpcUrl: BNB_RPC,
   });
 
+  const alchemyProvider = new AlchemyProvider({
+    apiKey: settings.get('ALCHEMY_API_KEY'),
+  });
+
   // Initialize plugin with provider
   await walletPlugin.initialize({
     defaultChain: 'bnb',
-    providers: [bnbProvider, birdeye],
+    providers: [bnbProvider, alchemyProvider],
     supportedChains: ['bnb'],
   });
   // Configure the plugin with supported chains
@@ -323,7 +345,7 @@ async function main() {
   console.log('💱 Example 2: buy BINK from 10 USDC on solana');
   const result2 = await agent.execute({
     input: `
-   BUY TRUMP from 0.001 SOL
+   BUY 2 USDC from BNB on bnb chain
     `,
   });
 

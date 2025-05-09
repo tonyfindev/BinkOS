@@ -1,7 +1,6 @@
 import { SwapQuote, SwapParams, BaseSwapProvider, NetworkProvider } from '@binkai/swap-plugin';
 import { ethers, Provider } from 'ethers';
-import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
-import { parseTokenAmount } from '@binkai/swap-plugin/src/utils/tokenUtils';
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token, logger } from '@binkai/core';
 
 // Core system constants
 const CONSTANTS = {
@@ -43,9 +42,6 @@ export class KyberProvider extends BaseSwapProvider {
   getSupportedNetworks(): NetworkName[] {
     return [NetworkName.BNB];
   }
-  // getPrompt(): string {
-  //   return `If you are using KyberSwap, You can use BNB with address ${CONSTANTS.BNB_ADDRESS}`;
-  // }
 
   protected isNativeToken(tokenAddress: string): boolean {
     return tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase();
@@ -71,42 +67,51 @@ export class KyberProvider extends BaseSwapProvider {
     return tokenInfo;
   }
 
-  // /**
-  //  * Retrieves token information with caching and TTL
-  //  * @param tokenAddress The address of the token
-  //  * @returns Promise<Token>
-  //  */
-  // private async getToken(tokenAddress: string): Promise<Token> {
-  //   const now = Date.now();
-  //   const cached = this.tokenCache.get(tokenAddress);
+  private async callKyberApi(
+    amount: string,
+    fromToken: Token,
+    toToken: Token,
+    userAddress: string,
+  ) {
+    const routePath = `api/v1/routes?tokenIn=${fromToken.address}&tokenOut=${toToken.address}&amountIn=${amount}&gasInclude=true`;
+    logger.info('🤖 Kyber Path', routePath);
+    const routeResponse = await fetch(`${CONSTANTS.KYBER_API_BASE}${routePath}`);
+    const routeData = await routeResponse.json();
 
-  //   if (cached && now - cached.timestamp < this.CACHE_TTL) {
-  //     return cached.token;
-  //   }
+    if (!routeData.data || routeData.data.length === 0) {
+      throw new Error('No swap routes available from Kyber');
+    }
 
-  //   if (tokenAddress.toLowerCase() === EVM_NATIVE_TOKEN_ADDRESS.toLowerCase()) {
-  //     const token = {
-  //       chainId: this.chainId,
-  //       address: tokenAddress as `0x${string}`,
-  //       decimals: 18,
-  //       symbol: 'BNB',
-  //     };
-  //     this.tokenCache.set(tokenAddress, { token, timestamp: now });
-  //     return token;
-  //   }
+    const transactionResponse = await fetch(`${CONSTANTS.KYBER_API_BASE}api/v1/route/build`, {
+      method: 'POST',
+      body: JSON.stringify({
+        routeSummary: routeData.data.routeSummary,
+        sender: userAddress,
+        recipient: userAddress,
+        skipSimulateTx: false,
+        slippageTolerance: 200,
+      }),
+    });
 
-  //   const info = await this.getTokenInfo(tokenAddress);
-  //   console.log('🤖 Token info', info);
-  //   const token = {
-  //     chainId: info.chainId,
-  //     address: info.address.toLowerCase() as `0x${string}`,
-  //     decimals: info.decimals,
-  //     symbol: info.symbol,
-  //   };
+    return {
+      routeData: routeData.data,
+      transactionData: (await transactionResponse.json()).data,
+    };
+  }
 
-  //   this.tokenCache.set(tokenAddress, { token, timestamp: now });
-  //   return token;
-  // }
+  private async getReverseQuote(
+    amount: string,
+    fromToken: Token,
+    toToken: Token,
+    userAddress: string,
+  ): Promise<string> {
+    // Swap fromToken and toToken to get reverse quote
+    const result = await this.callKyberApi(amount, toToken, fromToken, userAddress);
+    logger.info('🚀 ~ KyberProvider ~ result:', result);
+    const outputAmount = result.transactionData.amountOut;
+    return ethers.formatUnits(outputAmount, toToken.decimals);
+  }
+
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
       // check is valid limit order
@@ -116,8 +121,8 @@ export class KyberProvider extends BaseSwapProvider {
 
       // Fetch input and output token information
       const [sourceToken, destinationToken] = await Promise.all([
-        this.getToken(params.type === 'input' ? params.fromToken : params.toToken, params.network),
-        this.getToken(params.type === 'input' ? params.toToken : params.fromToken, params.network),
+        this.getToken(params.fromToken, params.network),
+        this.getToken(params.toToken, params.network),
       ]);
 
       let adjustedAmount = params.amount;
@@ -131,38 +136,49 @@ export class KyberProvider extends BaseSwapProvider {
         );
 
         if (adjustedAmount !== params.amount) {
-          console.log(`🤖 Kyber adjusted input amount from ${params.amount} to ${adjustedAmount}`);
+          logger.info(`🤖 Kyber adjusted input amount from ${params.amount} to ${adjustedAmount}`);
         }
       }
 
-      // Create currency amounts
-      const amountIn =
-        params.type === 'input'
-          ? ethers.parseUnits(adjustedAmount, sourceToken.decimals)
-          : ethers.parseUnits(adjustedAmount, destinationToken.decimals);
+      // Calculate amountIn based on swap type
+      let amountIn: string;
+      if (params.type === 'input') {
+        amountIn = ethers.parseUnits(adjustedAmount, sourceToken.decimals).toString();
+      } else {
+        // For output type, get reverse quote to calculate input amount
+        const amountReverse = ethers.parseUnits('1', destinationToken.decimals).toString();
 
-      // Fetch optimal swap route
-      const optimalRoute = await this.fetchOptimalRoute(
-        sourceToken.address,
-        destinationToken.address,
-        amountIn.toString(),
+        const reverseAdjustedAmount = await this.getReverseQuote(
+          amountReverse,
+          sourceToken,
+          destinationToken,
+          userAddress,
+        );
+
+        const realAmount = Number(reverseAdjustedAmount) * Number(adjustedAmount);
+
+        amountIn = ethers.parseUnits(realAmount.toString(), sourceToken.decimals).toString();
+      }
+      // Get swap route and transaction data
+      const { routeData, transactionData } = await this.callKyberApi(
+        amountIn,
+        sourceToken,
+        destinationToken,
+        userAddress,
       );
-
-      // Build swap transaction
-      const swapTransactionData = await this.buildSwapRouteTransaction(optimalRoute, userAddress);
 
       // Create and store quote
       const swapQuote = this.createSwapQuote(
         params,
         sourceToken,
         destinationToken,
-        swapTransactionData,
-        optimalRoute,
+        transactionData,
+        routeData,
       );
       this.storeQuoteWithExpiry(swapQuote);
       return swapQuote;
     } catch (error: unknown) {
-      console.error('Error getting quote:', error);
+      logger.error('Error getting quote:', error);
       throw new Error(
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
@@ -170,32 +186,6 @@ export class KyberProvider extends BaseSwapProvider {
   }
 
   // Helper methods for better separation of concerns
-  private async fetchOptimalRoute(sourceToken: string, destinationToken: string, amount: string) {
-    const routePath = `api/v1/routes?tokenIn=${sourceToken}&tokenOut=${destinationToken}&amountIn=${amount}&gasInclude=true`;
-    console.log('🤖 Kyber Path', routePath);
-    const routeResponse = await fetch(`${CONSTANTS.KYBER_API_BASE}${routePath}`);
-    const routeData = await routeResponse.json();
-
-    if (!routeData.data || routeData.data.length === 0) {
-      throw new Error('No swap routes available from Kyber');
-    }
-    return routeData.data;
-  }
-
-  private async buildSwapRouteTransaction(routeData: any, userAddress: string) {
-    const transactionResponse = await fetch(`${CONSTANTS.KYBER_API_BASE}api/v1/route/build`, {
-      method: 'POST',
-      body: JSON.stringify({
-        routeSummary: routeData.routeSummary,
-        sender: userAddress,
-        recipient: userAddress,
-        skipSimulateTx: false,
-        slippageTolerance: 200,
-      }),
-    });
-    return (await transactionResponse.json()).data;
-  }
-
   private createSwapQuote(
     params: SwapParams,
     sourceToken: Token,

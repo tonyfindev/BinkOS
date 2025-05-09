@@ -27,7 +27,7 @@ export function isProviderInstance(provider: NetworkProvider): provider is Provi
  * @returns True if the provider is a Solana provider, false otherwise
  */
 export function isSolanaProvider(provider: NetworkProvider): provider is Connection {
-  return provider instanceof Connection;
+  return 'getAccountInfo' in provider && 'getEpochInfo' in provider;
 }
 
 /**
@@ -61,11 +61,19 @@ export function getEvmProviderForNetwork(
  * @returns The Solana provider for the specified network
  * @throws Error if the network is not supported or if it's not a Solana network
  */
-export function getSolanaProviderForNetwork(network: NetworkName): Connection {
-  const provider = new Connection('https://api.mainnet-beta.solana.com');
+export function getSolanaProviderForNetwork(
+  providers: Map<NetworkName, NetworkProvider>,
+  network: NetworkName,
+  providerName: string,
+): Connection {
+  const provider = providers.get(network);
   if (!provider) {
-    throw new Error(`Network ${network} is not supported `);
+    throw new Error(`Network ${network} is not supported by ${providerName}`);
   }
+  if (!isSolanaProvider(provider)) {
+    throw new Error(`Network ${network} does not have a Solana provider`);
+  }
+
   return provider;
 }
 

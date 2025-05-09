@@ -1,24 +1,38 @@
-import { IAgent, AgentExecuteParams } from './types';
+import { IAgent, AgentExecuteParams, AgentNodeTypes } from './types';
 import { ITool } from './tools';
 import { IPlugin } from '../plugin/types';
 import { IWallet } from '../wallet/types';
 import { NetworksConfig } from '../network/types';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { DatabaseAdapter } from '../storage';
-import { CallbackManager, IToolExecutionCallback } from './callbacks';
+import {
+  AskUserData,
+  CallbackManager,
+  HumanReviewData,
+  IAskUserCallback,
+  IHumanReviewCallback,
+  IToolExecutionCallback,
+} from './callbacks';
 
 export abstract class BaseAgent implements IAgent {
   protected tools: DynamicStructuredTool[] = [];
+  protected registeredTools: ITool[] = [];
   protected plugins: Map<string, IPlugin> = new Map();
   protected callbackManager: CallbackManager = new CallbackManager();
 
   async registerTool(tool: ITool): Promise<void> {
     tool.setAgent(this);
     // Wrap the tool with our callback system
-    const wrappedTool = this.callbackManager.wrapTool(tool.createTool());
+    const wrappedTool = this.addTool2CallbackManager(tool);
 
     this.tools.push(wrappedTool);
+    this.registeredTools.push(tool);
+
     await this.onToolsUpdated();
+  }
+
+  public addTool2CallbackManager(tool: ITool): DynamicStructuredTool {
+    return this.callbackManager.wrapTool(tool.createTool());
   }
 
   async registerPlugin(plugin: IPlugin): Promise<void> {
@@ -38,6 +52,10 @@ export abstract class BaseAgent implements IAgent {
 
   getPlugin(name: string): IPlugin | undefined {
     return this.plugins.get(name);
+  }
+
+  getRegisteredTools(): ITool[] {
+    return this.registeredTools;
   }
 
   protected async unregisterPlugin(name: string): Promise<void> {
@@ -64,12 +82,37 @@ export abstract class BaseAgent implements IAgent {
   // Hook for subclasses to handle tool updates
   protected abstract onToolsUpdated(): Promise<void>;
 
+  public abstract isMockResponseTool(): boolean;
+
+  public notifyHumanReview(data: HumanReviewData): void {
+    this.callbackManager.notifyHumanReview(data);
+  }
+
+  public notifyAskUser(data: AskUserData): void {
+    this.callbackManager.notifyAskUser(data);
+  }
   /**
    * Register a callback for tool execution events
    * @param callback The callback to register
    */
   registerToolExecutionCallback(callback: IToolExecutionCallback): void {
     this.callbackManager.registerToolExecutionCallback(callback);
+  }
+
+  registerHumanReviewCallback(callback: IHumanReviewCallback): void {
+    this.callbackManager.registerHumanReviewCallback(callback);
+  }
+
+  registerAskUserCallback(callback: IAskUserCallback): void {
+    this.callbackManager.registerAskUserCallback(callback);
+  }
+
+  unregisterAskUserCallback(callback: IAskUserCallback): void {
+    this.callbackManager.unregisterAskUserCallback(callback);
+  }
+
+  unregisterHumanReviewCallback(callback: IHumanReviewCallback): void {
+    this.callbackManager.unregisterHumanReviewCallback(callback);
   }
 
   /**
@@ -90,7 +133,7 @@ export abstract class BaseAgent implements IAgent {
 
   // Core agent functionality that must be implemented
   abstract execute(command: string): Promise<any>;
-  abstract execute(params: AgentExecuteParams): Promise<string>;
+  abstract execute(params: AgentExecuteParams, onStream?: (data: string) => void): Promise<string>;
   abstract getWallet(): IWallet;
   abstract getNetworks(): NetworksConfig['networks'];
   abstract registerDatabase(db: DatabaseAdapter): Promise<void>;

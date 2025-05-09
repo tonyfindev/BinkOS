@@ -7,17 +7,19 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { JupiterProvider } from '@binkai/jupiter-provider';
 import { Connection } from '@solana/web3.js';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
+import { WalletPlugin } from '@binkai/wallet-plugin';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
-const SOL_RPC = 'https://api.mainnet-beta.solana.com';
+const SOL_RPC = 'https://solana-rpc.debridge.finance';
 
 async function main() {
   console.log('🚀 Starting BinkOS swap on Solana example...\n');
@@ -29,6 +31,8 @@ async function main() {
   }
 
   console.log('🔑 OpenAI API key found\n');
+
+  logger.enable();
 
   // Define available networks
   console.log('📡 Configuring networks...');
@@ -65,7 +69,7 @@ async function main() {
       seedPhrase:
         settings.get('WALLET_MNEMONIC') ||
         'test test test test test test test test test test test junk',
-      index: 0,
+      index: 9,
     },
     network,
   );
@@ -113,9 +117,20 @@ async function main() {
     defaultSlippage: 0.5,
     defaultChain: 'solana',
     providers: [jupiter],
-    supportedChains: ['solana'], // These will be intersected with agent's networks
+    supportedChains: ['solana'],
   });
   console.log('✓ Swap plugin initialized\n');
+
+  // Create and configure the wallet plugin
+  console.log('🔄 Initializing wallet plugin...');
+  const walletPlugin = new WalletPlugin();
+
+  // Initialize wallet plugin with provider
+  await walletPlugin.initialize({
+    providers: [birdeye],
+    supportedChains: ['solana'],
+  });
+  console.log('✓ Wallet plugin initialized\n');
 
   console.log('🔌 Registering token plugin with agent...');
   await agent.registerPlugin(tokenPlugin);
@@ -126,10 +141,15 @@ async function main() {
   await agent.registerPlugin(swapPlugin);
   console.log('✓ Plugin registered\n');
 
+  // Register the wallet plugin with the agent
+  console.log('🔌 Registering wallet plugin with agent...');
+  await agent.registerPlugin(walletPlugin);
+  console.log('✓ Wallet plugin registered\n');
+
   console.log('💱 Example 1: Buy USDC from SOL');
   const inputResult = await agent.execute({
     input: `
-       swap 0.001 sol to usdc 
+        swap 0.001 SOL to USDC via jupiter
     `,
   });
   console.log('✓ Swap result (input):', inputResult, '\n');

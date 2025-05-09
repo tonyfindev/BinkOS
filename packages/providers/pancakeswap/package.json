@@ -1,6 +1,6 @@
 {
   "name": "@binkai/pancakeswap-provider",
-  "version": "0.1.13-alpha.0",
+  "version": "0.2.13-alpha.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
@@ -34,5 +34,6 @@
     "@types/node": "^20.0.0",
     "rimraf": "^5.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "homepage": "https://bink.ai/"
 }

@@ -5,6 +5,7 @@ import {
   ErrorStep,
   IToolConfig,
   ToolProgress,
+  logger,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ILimitOrderProvider } from './types';
@@ -26,7 +27,7 @@ export class GetLimitOrdersTool extends BaseTool {
 
   registerProvider(provider: ILimitOrderProvider): void {
     this.registry.registerProvider(provider);
-    console.log('✓ Provider registered', provider.constructor.name);
+    logger.info('✓ Provider registered', provider.constructor.name);
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach((network: string) => {
       this.supportedNetworks.add(network);
@@ -34,7 +35,7 @@ export class GetLimitOrdersTool extends BaseTool {
   }
 
   getName(): string {
-    return 'getLimitOrders';
+    return 'get_limit_order';
   }
 
   getDescription(): string {
@@ -71,15 +72,37 @@ export class GetLimitOrdersTool extends BaseTool {
     return agentNetworks.filter(network => providerNetworks.includes(network));
   }
 
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
+  }
+
   getSchema(): z.ZodObject<any> {
     const providers = this.registry.getProviderNames();
     if (providers.length === 0) {
-      throw new Error('No swap providers registered');
+      return z.object({
+        message: z
+          .string()
+          .default('No providers available')
+          .describe(
+            'No providers are registered. This tool cannot be used until providers are registered.',
+          ),
+      });
     }
 
     const supportedNetworks = this.getSupportedNetworks();
     if (supportedNetworks.length === 0) {
-      throw new Error('No supported networks available');
+      return z.object({
+        message: z
+          .string()
+          .default('No supported networks available')
+          .describe(
+            'No supported networks are available. This tool cannot be used until networks are configured.',
+          ),
+      });
     }
 
     return z.object({
@@ -104,7 +127,7 @@ export class GetLimitOrdersTool extends BaseTool {
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Creating tool', this.getName());
+    logger.info('✓ Creating tool', this.getName());
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -118,8 +141,8 @@ export class GetLimitOrdersTool extends BaseTool {
         try {
           const { network, status, provider: preferredProvider } = args;
 
-          console.log('🔄 Retrieving limit orders...');
-          console.log('🤖 Args:', args);
+          logger.info('🔄 Retrieving limit orders...');
+          logger.info('🤖 Args:', args);
 
           onProgress?.({
             progress: 5,
@@ -216,7 +239,7 @@ export class GetLimitOrdersTool extends BaseTool {
                   validOrders.push(orderId);
                 }
               } catch (error) {
-                console.error(`Error validating order ${orderId}:`, error);
+                logger.error(`Error validating order ${orderId}:`, error);
               }
             }
           }
@@ -239,7 +262,7 @@ export class GetLimitOrdersTool extends BaseTool {
             networks: networksToQuery,
           });
         } catch (error: any) {
-          console.error('Get limit orders error:', error);
+          logger.error('Get limit orders error:', error);
 
           onProgress?.({
             progress: 100,

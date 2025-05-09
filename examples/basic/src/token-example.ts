@@ -6,6 +6,7 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
 } from '@binkai/core';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
@@ -29,6 +30,9 @@ async function main() {
   }
 
   console.log('🔑 API keys found\n');
+
+  //configure enable logger
+  logger.enable();
 
   // Define available networks
   console.log('📡 Configuring networks...');

@@ -7,6 +7,7 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { ThenaProvider } from '@binkai/thena-provider';
@@ -25,6 +26,9 @@ async function main() {
   }
 
   console.log('🔑 OpenAI API key found\n');
+
+  //configure enable logger
+  logger.enable();
 
   // Define available networks
   console.log('📡 Configuring networks...');
@@ -120,7 +124,7 @@ async function main() {
   // Example 1: Buy with exact input amount on BNB Chain
   const result1 = await agent.execute({
     input: `
-      Buy 0.001 BNB to USDC on ThenaSwap with 10% slippage on bnb chain.
+      Swap 0.001 BNB from USDC on ThenaSwap.
       Use the following token addresses:
       USDC: 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d
     `,

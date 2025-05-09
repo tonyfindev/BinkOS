@@ -1,4 +1,6 @@
 import { StakingTool } from './StakingTool';
+import { GetStakingBalanceTool } from './GetStakingBalanceTool';
+import { GetStakeInfoTool } from './GetStakeInfoTool';
 import { IStakingProvider } from './types';
 import { ProviderRegistry } from './ProviderRegistry';
 import { BaseTool, IPluginConfig, BasePlugin, NetworkName } from '@binkai/core';
@@ -12,6 +14,8 @@ export interface StakingPluginConfig extends IPluginConfig {
 export class StakingPlugin extends BasePlugin {
   public registry: ProviderRegistry;
   private stakingTool!: StakingTool;
+  private getStakingBalanceTool!: GetStakingBalanceTool;
+  private getStakeInfoTool!: GetStakeInfoTool;
   private supportedNetworks: Set<string>;
 
   constructor() {
@@ -36,6 +40,16 @@ export class StakingPlugin extends BasePlugin {
       supportedNetworks: Array.from(this.supportedNetworks),
     });
 
+    this.getStakingBalanceTool = new GetStakingBalanceTool({
+      defaultNetwork: config.defaultNetwork,
+      supportedNetworks: Array.from(this.supportedNetworks),
+    });
+
+    this.getStakeInfoTool = new GetStakeInfoTool({
+      defaultNetwork: config.defaultNetwork,
+      supportedNetworks: Array.from(this.supportedNetworks),
+    });
+
     // Register providers if provided in config
     if (config.providers) {
       for (const provider of config.providers) {
@@ -45,7 +59,11 @@ export class StakingPlugin extends BasePlugin {
   }
 
   getTools(): BaseTool[] {
-    return [this.stakingTool as unknown as BaseTool];
+    return [
+      this.stakingTool as unknown as BaseTool,
+      this.getStakingBalanceTool as unknown as BaseTool,
+      this.getStakeInfoTool as unknown as BaseTool,
+    ];
   }
 
   /**
@@ -54,7 +72,8 @@ export class StakingPlugin extends BasePlugin {
   registerProvider(provider: IStakingProvider): void {
     this.registry.registerProvider(provider);
     this.stakingTool.registerProvider(provider);
-
+    this.getStakingBalanceTool.registerProvider(provider);
+    this.getStakeInfoTool.registerProvider(provider);
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach((network: NetworkName) => {
       this.supportedNetworks.add(network);
