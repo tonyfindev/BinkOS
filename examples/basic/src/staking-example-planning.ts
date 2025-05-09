@@ -10,6 +10,8 @@ import {
   ToolExecutionState,
   ToolExecutionData,
   PlanningAgent,
+  Agent,
+  OpenAIModel,
 } from '@binkai/core';
 import { StakingPlugin } from '@binkai/staking-plugin';
 import { VenusProvider } from '@binkai/venus-provider';
@@ -131,12 +133,17 @@ async function runTestCase(testCase: {
   });
 
   // Create a PlanningAgent
-  const agent = new PlanningAgent(
+  const llm = new OpenAIModel({
+    apiKey: settings.get('OPENAI_API_KEY') || '',
+    model: 'gpt-4o-mini',
+  });
+
+  const agent = new Agent(
+    llm,
     {
-      model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
-        'You are a BINK AI agent specialized in planning staking operations. Your task is to analyze user requests and generate appropriate staking arguments. Focus on understanding the user intent and converting it into specific staking parameters.',
+        'You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.',
     },
     wallet,
     networks,
@@ -288,12 +295,17 @@ async function main() {
 
   // Create a PlanningAgent with OpenAI
   console.log('🤖 Initializing AI PlanningAgent...');
-  const agent = new PlanningAgent(
+  const llm = new OpenAIModel({
+    apiKey: settings.get('OPENAI_API_KEY') || '',
+    model: 'gpt-4o-mini',
+  });
+
+  const agent = new Agent(
+    llm,
     {
-      model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
-        'You are a BINK AI agent specialized in planning staking operations. Your task is to analyze user requests and generate appropriate staking arguments. Focus on understanding the user intent and converting it into specific staking parameters.',
+        'You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.',
     },
     wallet,
     networks,
