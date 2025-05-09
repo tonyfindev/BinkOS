@@ -8,6 +8,7 @@ import {
   NetworksConfig,
   NetworkName,
   logger,
+  OpenAIModel,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { OkxProvider } from '@binkai/okx-provider';
@@ -20,6 +21,7 @@ import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
 import { WalletPlugin } from '@binkai/wallet-plugin';
 import { BnbProvider } from '@binkai/rpc-provider';
+import { GroqModel } from '@binkai/core/src/model/GroqModel';
 
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -137,9 +139,20 @@ async function main() {
   console.log('🤖 Wallet SOL:', await wallet.getAddress(NetworkName.SOLANA));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
+
+  // const llm = new OpenAIModel({
+  //   apiKey: settings.get('OPENAI_API_KEY') || "",
+  //   model: "gpt-4o-mini",
+  // });
+
+  const llm = new GroqModel({
+    apiKey: settings.get('GROQ_API_KEY') || '',
+    model: 'llama-3.3-70b-versatile',
+  });
+
   const agent = new Agent(
+    llm,
     {
-      model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
         'You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.',
@@ -190,7 +203,8 @@ async function main() {
   console.log('💱 Example 1: Buy with exact input amount all providers');
   const result1 = await agent.execute({
     input: `
-        swap cross-chain`,
+        swap 0.01 SOL to USDC on solana.
+    `,
   });
   console.log('✓ Result:', result1, '\n');
 
