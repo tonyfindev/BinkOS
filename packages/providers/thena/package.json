@@ -1,6 +1,6 @@
 {
   "name": "@binkai/thena-provider",
-  "version": "0.1.17-alpha.1",
+  "version": "0.2.13-alpha.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -26,5 +26,10 @@
     "@types/node": "^20.0.0",
     "rimraf": "^5.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bink-AI/BinkOS"
+  },
+  "homepage": "https://bink.ai/"
 }

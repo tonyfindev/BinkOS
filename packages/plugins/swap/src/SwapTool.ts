@@ -1,6 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import {
+  AgentNodeTypes,
   BaseTool,
   CustomDynamicStructuredTool,
   IToolConfig,
@@ -8,6 +9,8 @@ import {
   StructuredError,
   ErrorStep,
   EVM_NATIVE_TOKEN_ADDRESS,
+  NetworkName,
+  logger,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ISwapProvider, SwapQuote, SwapParams } from './types';
@@ -17,6 +20,7 @@ import { isSolanaNetwork } from './utils/networkUtils';
 import type { TokenInfo } from '@binkai/token-plugin';
 import { defaultTokens } from '@binkai/token-plugin';
 import { WrapToken } from './types';
+import { Transaction } from '@solana/web3.js';
 
 export interface SwapToolConfig extends IToolConfig {
   defaultSlippage?: number;
@@ -38,7 +42,7 @@ export class SwapTool extends BaseTool {
 
   registerProvider(provider: ISwapProvider): void {
     this.registry.registerProvider(provider);
-    console.log('✓ Provider registered', provider.constructor.name);
+    logger.info('✓ Provider registered', provider.constructor.name);
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach(network => {
       this.supportedNetworks.add(network);
@@ -107,16 +111,8 @@ export class SwapTool extends BaseTool {
       amountType: z
         .enum(['input', 'output'])
         .describe('Whether the amount is input (spend) or output (receive)'),
-      network: z.enum([
-        'bnb',
-        'solana',
-        'ethereum',
-        'arbitrum',
-        'base',
-        'optimism',
-        'polygon',
-        'null',
-      ]).describe(`Determine blockchain network from user input. 
+      network: z.enum(['bnb', 'solana', 'ethereum', 'null'])
+        .describe(`Determine blockchain network from user input. 
         Priority rules:
           1. Use explicitly mentioned network
           2. Infer from native tokens (ETH→Ethereum, SOL→Solana)
@@ -149,11 +145,11 @@ export class SwapTool extends BaseTool {
     const quotes = await Promise.all(
       providers.map(async (provider: ISwapProvider) => {
         try {
-          console.log('🤖 Getting quote from', provider.getName());
+          logger.info('🤖 Getting quote from', provider.getName());
           const quote = await provider.getQuote(params, userAddress);
           return { provider, quote };
         } catch (error: any) {
-          console.warn(`Failed to get quote from ${provider.getName()}:`, error);
+          logger.warn(`Failed to get quote from ${provider.getName()}:`, error);
           return null;
         }
       }),
@@ -169,17 +165,20 @@ export class SwapTool extends BaseTool {
     return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
       if (params.type === 'input') {
         // For input amount, find highest output amount
-        const bestAmount = BigInt(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals);
-        const currentAmount = BigInt(
+        const bestAmount = Math.floor(
+          Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals,
+        );
+        const currentAmount = Math.floor(
           Number(current.quote.toAmount) * 10 ** current.quote.toToken.decimals,
         );
         return currentAmount > bestAmount ? current : best;
       } else {
         // For output amount, find lowest input amount
-        const bestAmount = BigInt(
-          Number(best.quote.fromAmount) * 10 ** best.quote.fromToken.decimals,
+        const bestAmount = Math.floor(
+          Math.floor(Number(best.quote.toAmount) * 10 ** best.quote.toToken.decimals),
         );
-        const currentAmount = BigInt(
+
+        const currentAmount = Math.floor(
           Number(current.quote.fromAmount) * 10 ** current.quote.fromToken.decimals,
         );
         return currentAmount < bestAmount ? current : best;
@@ -187,8 +186,228 @@ export class SwapTool extends BaseTool {
     }, validQuotes[0]);
   }
 
+  async getQuote(
+    args: any,
+    onProgress?: (data: ToolProgress) => void,
+  ): Promise<{
+    selectedProvider: ISwapProvider;
+    quote: SwapQuote;
+    userAddress: string;
+  }> {
+    const {
+      fromToken,
+      toToken,
+      amount,
+      amountType,
+      network,
+      provider: preferredProvider,
+      slippage = this.defaultSlippage,
+      limitPrice,
+    } = args;
+    // STEP 1: Validate network
+    const supportedNetworks = this.getSupportedNetworks();
+    if (!supportedNetworks.includes(network)) {
+      throw this.createError(ErrorStep.NETWORK_VALIDATION, `Network ${network} is not supported.`, {
+        requestedNetwork: network,
+        supportedNetworks: supportedNetworks,
+      });
+    }
+
+    // STEP 2: Validate token addresses
+    const fromTokenValidation = validateTokenAddress(fromToken, network);
+    const toTokenValidation = validateTokenAddress(toToken, network);
+
+    // Process fromToken validation
+    if (!fromTokenValidation.isValid) {
+      throw this.createError(
+        ErrorStep.TOKEN_NOT_FOUND,
+        `Invalid fromToken address for network ${network}: ${fromToken}`,
+        {
+          token: fromToken,
+          network,
+          tokenType: 'fromToken',
+        },
+      );
+    }
+    args.fromToken = fromTokenValidation.address;
+
+    // Process toToken validation
+    if (!toTokenValidation.isValid) {
+      throw this.createError(
+        ErrorStep.TOKEN_NOT_FOUND,
+        `Invalid toToken address for network ${network}: ${toToken}`,
+        {
+          token: toToken,
+          network,
+          tokenType: 'toToken',
+        },
+      );
+    }
+    args.toToken = toTokenValidation.address;
+
+    // STEP 3: Get wallet address
+    let userAddress;
+    try {
+      // Get agent's wallet and address
+      const wallet = this.agent.getWallet();
+      userAddress = await wallet.getAddress(network);
+    } catch (error: any) {
+      throw error;
+    }
+
+    const swapParams: SwapParams = {
+      network,
+      fromToken,
+      toToken,
+      amount,
+      type: amountType,
+      slippage,
+      limitPrice,
+    };
+    let selectedProvider: ISwapProvider;
+    let quote: SwapQuote;
+
+    onProgress?.({
+      progress: 0,
+      message: 'Searching for the best exchange rate for your swap.',
+    });
+
+    // STEP 5: Handle wrapped token BNB
+    // validate is valid limit order
+    if (
+      swapParams?.limitPrice &&
+      swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS &&
+      Number(swapParams?.limitPrice) !== 0
+    ) {
+      onProgress?.({
+        progress: 5,
+        message: `Wrapping BNB to WBNB`,
+      });
+
+      selectedProvider = this.registry.getProvider(preferredProvider);
+      const wrapTx = await selectedProvider.wrapToken(amount.toString(), WrapToken.WBNB);
+
+      const wallet = this.agent.getWallet();
+      const wrapReceipt = await wallet.signAndSendTransaction(network, {
+        to: wrapTx.to,
+        data: wrapTx.data,
+        value: BigInt(wrapTx.value),
+      });
+
+      // Wait for approval to be mined
+      const wrapResult = await wrapReceipt.wait();
+
+      if (!wrapResult?.hash) {
+        throw new Error(`Failed to wrap BNB to WBNB`);
+      }
+      // set wrap token address
+      swapParams.fromToken = WrapToken.WBNB;
+
+      onProgress?.({
+        progress: 8,
+        message: `Successfully wrapped BNB to WBNB`,
+      });
+    }
+
+    // STEP 4: Get provider and quote
+    try {
+      if (preferredProvider) {
+        selectedProvider = this.registry.getProvider(preferredProvider);
+
+        // Validate provider supports the network
+        if (!selectedProvider.getSupportedNetworks().includes(network)) {
+          throw this.createError(
+            ErrorStep.PROVIDER_VALIDATION,
+            `Provider ${preferredProvider} does not support network ${network}.`,
+            {
+              provider: preferredProvider,
+              requestedNetwork: network,
+              providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
+            },
+          );
+        }
+
+        try {
+          quote = await selectedProvider.getQuote(swapParams, userAddress);
+        } catch (error: any) {
+          throw error;
+        }
+      } else {
+        try {
+          const bestQuote = await this.findBestQuote(
+            {
+              ...swapParams,
+              network,
+            },
+            userAddress,
+          );
+          selectedProvider = bestQuote.provider;
+          quote = bestQuote.quote;
+        } catch (error: any) {
+          throw error;
+        }
+      }
+    } catch (error: any) {
+      logger.warn(`Failed to get quote:`, error);
+      throw error;
+    }
+
+    logger.info('🤖 The selected provider is:', selectedProvider.getName());
+    onProgress?.({
+      progress: 10,
+      message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this swap.`,
+    });
+
+    // STEP 5: Check balance
+    try {
+      const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
+      if (!balanceCheck.isValid) {
+        throw 'Insufficient balance for this swap';
+      }
+    } catch (error: any) {
+      throw error; // Re-throw structured errors
+    }
+
+    return {
+      selectedProvider,
+      quote: {
+        ...quote,
+        provider: selectedProvider.getName(),
+      },
+      userAddress,
+    };
+  }
+
+  async simulateQuoteTool(args: any): Promise<SwapQuote> {
+    logger.info('🚀 ~ SwapTool ~ simulateQuoteTool ~ args:', args);
+    if (this.agent.isMockResponseTool()) {
+      const mockResponse = await this.mockResponseTool(args);
+      logger.info('🤖 Mock response:', mockResponse);
+      return JSON.parse(mockResponse);
+    }
+    return (await this.getQuote(args)).quote;
+  }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+        fromAmount: args.amount,
+        toAmount: args.amount,
+        provider: args.provider,
+        fromToken: args.fromToken,
+        toToken: args.toToken,
+        priceImpact: args.priceImpact,
+        type: args.type,
+        network: args.network,
+        transactionHash: args.transactionHash,
+      }),
+    );
+  }
+
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Creating tool', this.getName());
+    logger.info(`✓ Creating tool ${this.getName()}`);
+
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -200,6 +419,11 @@ export class SwapTool extends BaseTool {
         onProgress?: (data: ToolProgress) => void,
       ) => {
         try {
+          // check if amount is number convert to string
+          if (typeof args.amount === 'number') {
+            args.amount = args.amount.toString();
+          }
+
           const {
             fromToken,
             toToken,
@@ -211,171 +435,13 @@ export class SwapTool extends BaseTool {
             limitPrice,
           } = args;
 
-          console.log('🔄 Doing swap operation...');
-          console.log('🤖 Swap Args:', args);
-
-          // STEP 1: Validate network
-          const supportedNetworks = this.getSupportedNetworks();
-          if (!supportedNetworks.includes(network)) {
-            throw this.createError(
-              ErrorStep.NETWORK_VALIDATION,
-              `Network ${network} is not supported.`,
-              {
-                requestedNetwork: network,
-                supportedNetworks: supportedNetworks,
-              },
-            );
+          if (this.agent.isMockResponseTool()) {
+            return this.mockResponseTool(args);
           }
 
-          // STEP 2: Validate token addresses
-          if (!validateTokenAddress(fromToken, network)) {
-            throw this.createError(
-              ErrorStep.TOKEN_NOT_FOUND,
-              `Invalid fromToken address for network ${network}: ${fromToken}`,
-              {
-                token: fromToken,
-                network: network,
-                tokenType: 'fromToken',
-              },
-            );
-          }
+          logger.info('🤖 Swap Args:', args);
 
-          if (!validateTokenAddress(toToken, network)) {
-            throw this.createError(
-              ErrorStep.TOKEN_NOT_FOUND,
-              `Invalid toToken address for network ${network}: ${toToken}`,
-              {
-                token: toToken,
-                network: network,
-                tokenType: 'toToken',
-              },
-            );
-          }
-
-          // STEP 3: Get wallet address
-          let userAddress;
-          try {
-            // Get agent's wallet and address
-            const wallet = this.agent.getWallet();
-            userAddress = await wallet.getAddress(network);
-          } catch (error: any) {
-            throw error;
-          }
-
-          const swapParams: SwapParams = {
-            network,
-            fromToken,
-            toToken,
-            amount,
-            type: amountType,
-            slippage,
-            limitPrice,
-          };
-          let selectedProvider: ISwapProvider;
-          let quote: SwapQuote;
-
-          onProgress?.({
-            progress: 0,
-            message: 'Searching for the best exchange rate for your swap.',
-          });
-
-          // STEP 5: Handle wrapped token BNB
-          // validate is valid limit order
-          if (
-            swapParams?.limitPrice &&
-            swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS &&
-            Number(swapParams?.limitPrice) !== 0
-          ) {
-            onProgress?.({
-              progress: 5,
-              message: `Wrapping BNB to WBNB`,
-            });
-
-            selectedProvider = this.registry.getProvider(preferredProvider);
-            const wrapTx = await selectedProvider.wrapToken(amount.toString(), WrapToken.WBNB);
-
-            const wallet = this.agent.getWallet();
-            const wrapReceipt = await wallet.signAndSendTransaction(network, {
-              to: wrapTx.to,
-              data: wrapTx.data,
-              value: BigInt(wrapTx.value),
-            });
-
-            // Wait for approval to be mined
-            const wrapResult = await wrapReceipt.wait();
-
-            if (!wrapResult?.hash) {
-              throw new Error(`Failed to wrap BNB to WBNB`);
-            }
-            // set wrap token address
-            swapParams.fromToken = WrapToken.WBNB;
-
-            onProgress?.({
-              progress: 8,
-              message: `Successfully wrapped BNB to WBNB`,
-            });
-          }
-
-          // STEP 4: Get provider and quote
-          try {
-            if (preferredProvider) {
-              selectedProvider = this.registry.getProvider(preferredProvider);
-
-              // Validate provider supports the network
-              if (!selectedProvider.getSupportedNetworks().includes(network)) {
-                throw this.createError(
-                  ErrorStep.PROVIDER_VALIDATION,
-                  `Provider ${preferredProvider} does not support network ${network}.`,
-                  {
-                    provider: preferredProvider,
-                    requestedNetwork: network,
-                    providerSupportedNetworks: selectedProvider.getSupportedNetworks(),
-                  },
-                );
-              }
-
-              try {
-                quote = await selectedProvider.getQuote(swapParams, userAddress);
-              } catch (error: any) {
-                throw error;
-              }
-            } else {
-              try {
-                const bestQuote = await this.findBestQuote(
-                  {
-                    ...swapParams,
-                    network,
-                  },
-                  userAddress,
-                );
-                selectedProvider = bestQuote.provider;
-                quote = bestQuote.quote;
-              } catch (error: any) {
-                throw error;
-              }
-            }
-          } catch (error: any) {
-            console.warn(`Failed to get quote:`, error);
-            throw error;
-          }
-
-          console.log('🤖 The selected provider is:', selectedProvider.getName());
-
-          onProgress?.({
-            progress: 10,
-            message: `Verifying you have sufficient ${quote.fromToken.symbol || 'tokens'} for this swap.`,
-          });
-
-          // STEP 5: Check balance
-          try {
-            const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
-            if (!balanceCheck.isValid) {
-              throw 'Not valid checking balance';
-            }
-          } catch (error: any) {
-            throw error; // Re-throw structured errors
-          }
-
+          const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
           onProgress?.({
             progress: 20,
             message: `Preparing to swap ${quote.fromAmount} ${quote.fromToken.symbol || 'tokens'} for approximately ${quote.toAmount} ${quote.toToken.symbol || 'tokens'} via ${selectedProvider.getName()}.`,
@@ -407,8 +473,7 @@ export class SwapTool extends BaseTool {
 
               const requiredAmount = parseTokenAmount(quote.fromAmount, quote.fromToken.decimals);
 
-              console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
-
+              logger.info('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
               if (allowance < requiredAmount) {
                 try {
                   const approveTx = await selectedProvider.buildApproveTransaction(
@@ -432,7 +497,7 @@ export class SwapTool extends BaseTool {
                     value: BigInt(approveTx.value),
                   });
 
-                  console.log('🤖 ApproveReceipt:', approveReceipt);
+                  logger.info('🤖 ApproveReceipt:', approveReceipt);
 
                   // Wait for approval to be mined
                   await approveReceipt.wait();
@@ -445,7 +510,7 @@ export class SwapTool extends BaseTool {
             }
           }
 
-          console.log('🤖 Swapping...');
+          logger.info('🤖 Swapping...');
 
           onProgress?.({
             progress: 80,
@@ -476,7 +541,7 @@ export class SwapTool extends BaseTool {
             selectedProvider.invalidateBalanceCache(quote.fromToken.address, userAddress, network);
             selectedProvider.invalidateBalanceCache(quote.toToken.address, userAddress, network);
           } catch (error: any) {
-            console.error('Error clearing token balance caches:', error);
+            logger.error('Error clearing token balance caches:', error);
             // Non-critical error, don't throw
           }
 
@@ -497,16 +562,16 @@ export class SwapTool extends BaseTool {
             priceImpact: quote.priceImpact,
             type: quote.type,
             network,
-            ...(swapParams?.limitPrice &&
-              swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS &&
-              Number(swapParams.limitPrice) !== 0 && {
-                limitOrderPrice: swapParams.limitPrice,
-              }),
+            // ...(swapParams?.limitPrice &&
+            //   swapParams.fromToken === EVM_NATIVE_TOKEN_ADDRESS &&
+            //   Number(swapParams.limitPrice) !== 0 && {
+            //     limitOrderPrice: swapParams.limitPrice,
+            //   }),
           };
 
           return JSON.stringify(result);
         } catch (error: any) {
-          console.error('Swap error:', error);
+          logger.error('Swap error:', error);
 
           // Special handling for token validation errors that we can try to fix
           if (
@@ -534,7 +599,7 @@ export class SwapTool extends BaseTool {
 
   // Helper method to attempt fixing token addresses
   private async attemptTokenAddressFix(args: any, error: any): Promise<string> {
-    console.log('🔍 Fixing token addresses in Swap...');
+    logger.info('🔍 Fixing token addresses in Swap...');
 
     // Determine which token has the error
     const isFromTokenAddressError =
@@ -550,7 +615,7 @@ export class SwapTool extends BaseTool {
 
     // Add null check for tokenInfos
     if (!tokenInfos) {
-      console.log(`❌ No token information found for network ${args.network}`);
+      logger.error(`❌ No token information found for network ${args.network}`);
       return this.handleError(
         this.createError(
           ErrorStep.TOKEN_NOT_FOUND,
@@ -568,7 +633,7 @@ export class SwapTool extends BaseTool {
     if (isFromTokenAddressError) {
       for (const [address, tokenInfo] of Object.entries(tokenInfos) as [string, TokenInfo][]) {
         if (tokenInfo.symbol.toLowerCase() === args.fromToken.toLowerCase()) {
-          console.log(`🔍 Found correct address for ${args.fromToken}: ${address}`);
+          logger.info(`🔍 Found correct address for ${args.fromToken}: ${address}`);
           updatedArgs.fromToken = address;
           foundCorrectAddress = true;
           break;
@@ -579,7 +644,7 @@ export class SwapTool extends BaseTool {
     if (isToTokenAddressError) {
       for (const [address, tokenInfo] of Object.entries(tokenInfos) as [string, TokenInfo][]) {
         if (tokenInfo.symbol.toLowerCase() === args.toToken.toLowerCase()) {
-          console.log(`🔍 Found correct address for ${args.toToken}: ${address}`);
+          logger.info(`🔍 Found correct address for ${args.toToken}: ${address}`);
           updatedArgs.toToken = address;
           foundCorrectAddress = true;
           break;
@@ -589,12 +654,12 @@ export class SwapTool extends BaseTool {
 
     // Retry the operation with corrected addresses if found
     if (foundCorrectAddress) {
-      console.log('🔄 Retrying with corrected token address...');
+      logger.info('🔄 Retrying with corrected token address...');
       try {
         const result = await this.createTool().func(updatedArgs);
         return result;
       } catch (retryError) {
-        console.error('Error during retry:', retryError);
+        logger.error('Error during retry:', retryError);
         return this.handleError(
           this.createError(
             ErrorStep.TOKEN_NOT_FOUND,

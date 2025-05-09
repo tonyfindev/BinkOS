@@ -8,7 +8,7 @@ import {
   isSolanaNetwork,
 } from '@binkai/swap-plugin';
 import { ethers, Contract, Interface, Provider } from 'ethers';
-import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token } from '@binkai/core';
+import { EVM_NATIVE_TOKEN_ADDRESS, NetworkName, Token, logger } from '@binkai/core';
 // Enhanced interface with better type safety
 interface TokenInfo extends Token {
   // Inherits all Token properties and maintains DRY principle
@@ -70,23 +70,23 @@ export class OkuProvider extends BaseSwapProvider {
   }
   async getQuote(params: SwapParams, userAddress: string): Promise<SwapQuote> {
     try {
-      // check is valid limit order
+      // Validate unsupported features
       if (params?.limitPrice) {
         throw new Error('OKU does not support limit order for native token swaps');
       }
 
-      if (params.type === 'output') {
-        throw new Error('OKU does not support output swaps');
-      }
+      const isInputType = params.type === 'input';
+      const fromToken = isInputType ? params.fromToken : params.toToken;
+      const toToken = isInputType ? params.toToken : params.fromToken;
 
+      // Fetch token metadata
       const [tokenIn, tokenOut] = await Promise.all([
-        this.getToken(params.fromToken, params.network),
-        this.getToken(params.toToken, params.network),
+        this.getToken(fromToken, params.network),
+        this.getToken(toToken, params.network),
       ]);
 
       let adjustedAmount = params.amount;
-      if (params.type === 'input') {
-        // Use the adjustAmount method for all tokens (both native and ERC20)
+      if (isInputType) {
         adjustedAmount = await this.adjustAmount(
           params.fromToken,
           params.amount,
@@ -95,77 +95,108 @@ export class OkuProvider extends BaseSwapProvider {
         );
 
         if (adjustedAmount !== params.amount) {
-          console.log(`🤖 OKu adjusted input amount from ${params.amount} to ${adjustedAmount}`);
+          logger.info(`🤖 OKu adjusted input amount from ${params.amount} to ${adjustedAmount}`);
         }
       }
 
-      const tokenInAddress =
-        tokenIn.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKU_BNB_ADDRESS : tokenIn.address;
+      // Normalize token addresses
+      const normalizeTokenAddress = (address: string) =>
+        address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKU_BNB_ADDRESS : address;
 
-      const tokenOutAddress =
-        tokenOut.address === CONSTANTS.BNB_ADDRESS ? CONSTANTS.OKU_BNB_ADDRESS : tokenOut.address;
+      let tokenInAddress = normalizeTokenAddress(tokenIn.address);
+      let tokenOutAddress = normalizeTokenAddress(tokenOut.address);
 
       const slippageOKU = Number(params.slippage) * 100 || 0.1;
 
-      const headers = {
-        'Content-Type': 'application/json',
-      };
+      // Fetch supported routes
       const response_api = await fetch('https://canoe.v2.icarus.tools/market/overview', {
         method: 'GET',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
       });
+
       const market_route = await response_api.json();
+      const routeNames = market_route.status.map((item: any) => item.name);
+      const protocol = this.findFirstMatch(routeNames);
 
-      const list_route = market_route.status.map((item: any) => item.name);
+      let inputAmount = adjustedAmount;
+      let data;
 
-      const protocol = this.findFirstMatch(list_route);
+      // Reverse input/output if user provided exact output (simulate)
+      if (!isInputType) {
+        const simulatedBody = JSON.stringify({
+          chain: 'bsc',
+          account: userAddress,
+          inTokenAddress: tokenInAddress,
+          outTokenAddress: tokenOutAddress,
+          isExactIn: true,
+          slippage: slippageOKU,
+          inTokenAmount: adjustedAmount,
+        });
 
-      const body = JSON.stringify({
+        const simulateResp = await fetch(CONSTANTS.OKU_API_PATH(protocol), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: simulatedBody,
+        });
+
+        data = await simulateResp.json();
+
+        if (!data || data.length === 0) {
+          throw new Error('No data returned from OKU (simulate)');
+        }
+
+        inputAmount = data.outAmount;
+        tokenInAddress = data.outToken.address;
+        tokenOutAddress = data.inToken.address;
+      }
+
+      // Final quote fetch
+      const quoteBody = JSON.stringify({
         chain: 'bsc',
         account: userAddress,
         inTokenAddress: tokenInAddress,
         outTokenAddress: tokenOutAddress,
         isExactIn: true,
         slippage: slippageOKU,
-        inTokenAmount: adjustedAmount,
-      });
-      const response = await fetch(CONSTANTS.OKU_API_PATH(protocol), {
-        method: 'POST',
-        headers,
-        body,
+        inTokenAmount: inputAmount,
       });
 
-      const data = await response.json();
+      const finalResponse = await fetch(CONSTANTS.OKU_API_PATH(protocol), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: quoteBody,
+      });
+
+      data = await finalResponse.json();
 
       if (!data || data.length === 0) {
         throw new Error('No data returned from OKU');
       }
 
-      const inputAmount = data.inAmount;
-      const outputAmount = data.outAmount;
-      const estimatedGas = data.fees.gas;
-      const priceImpact = 0;
-
+      const inputFinal = data.inAmount;
+      const outputFinal = data.outAmount;
+      const estimatedGas = data.fees?.gas || 0;
+      const priceImpact = 0; // Placeholder until available
       const tx = data.candidateTrade;
-      let spender =
-        tokenInAddress === CONSTANTS.OKU_BNB_ADDRESS
-          ? tx.to
-          : data.coupon.raw?.executionInformation?.approvals[0]?.approvee;
 
-      // Generate a unique quote ID
+      const spender =
+        tokenInAddress === CONSTANTS.OKU_BNB_ADDRESS
+          ? tx?.to
+          : data?.coupon?.raw?.executionInformation?.approvals?.[0]?.approvee;
+
       const quoteId = ethers.hexlify(ethers.randomBytes(32));
 
       const quote: SwapQuote = {
         network: params.network,
         quoteId,
-        fromToken: tokenIn,
-        toToken: tokenOut,
+        fromToken: isInputType ? tokenIn : tokenOut,
+        toToken: isInputType ? tokenOut : tokenIn,
         slippage: params.slippage,
-        fromAmount: inputAmount,
-        toAmount: outputAmount,
+        fromAmount: inputFinal,
+        toAmount: outputFinal,
         priceImpact,
         route: ['oku'],
-        estimatedGas: estimatedGas,
+        estimatedGas,
         type: params.type,
         tx: {
           to: tx?.to || '',
@@ -176,18 +207,18 @@ export class OkuProvider extends BaseSwapProvider {
           spender,
         },
       };
-      console.log('log', quote);
-      // Store the quote and trade for later use
+
+      logger.info('log', quote);
+
       this.quotes.set(quoteId, { quote, expiresAt: Date.now() + CONSTANTS.QUOTE_EXPIRY });
 
-      // Delete quote after 5 minutes
       setTimeout(() => {
         this.quotes.delete(quoteId);
       }, CONSTANTS.QUOTE_EXPIRY);
 
       return quote;
     } catch (error: unknown) {
-      console.error('Error getting quote:', error);
+      logger.error('Error getting quote:', error);
       throw new Error(
         `Failed to get quote: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );

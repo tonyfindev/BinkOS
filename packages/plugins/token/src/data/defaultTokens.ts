@@ -74,6 +74,26 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/usdc.png',
       verified: true,
     },
+    // THE
+    '0xF4C8E32EaDEC4BFe97E0F595AdD0f4450a863a11': {
+      address: '0xF4C8E32EaDEC4BFe97E0F595AdD0f4450a863a11',
+      symbol: 'THE',
+      name: 'Thena',
+      decimals: 18,
+      network: NetworkName.BNB,
+      // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/the.png',
+      verified: true,
+    },
+    // FTM
+    '0xad29abb318791d579433d831ed122afeaf29dcfe': {
+      address: '0xad29abb318791d579433d831ed122afeaf29dcfe',
+      symbol: 'FTM',
+      name: 'Fantom',
+      decimals: 18,
+      network: NetworkName.BNB,
+      // logoURI: 'https://tokens.pancakeswap.finance/images/symbol/ftm.png',
+      verified: true,
+    },
   },
 
   // Ethereum tokens
@@ -83,6 +103,16 @@ export const defaultTokens: Partial<Record<NetworkName, Record<string, TokenInfo
       address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
       symbol: 'ETH',
       name: 'Ethereum',
+      decimals: 18,
+      network: NetworkName.ETHEREUM,
+      // logoURI: 'https://tokens.uniswap.org/images/ethereum.png',
+      verified: true,
+    },
+    // WETH
+    '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2': {
+      address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+      symbol: 'WETH',
+      name: 'Wrapped Ethereum',
       decimals: 18,
       network: NetworkName.ETHEREUM,
       // logoURI: 'https://tokens.uniswap.org/images/ethereum.png',

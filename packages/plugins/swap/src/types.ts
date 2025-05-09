@@ -9,6 +9,7 @@ export const WrapToken = {
 } as const;
 
 export interface SwapQuote {
+  provider?: string;
   network: NetworkName;
   quoteId: string;
   fromToken: Token;

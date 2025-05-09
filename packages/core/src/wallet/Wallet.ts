@@ -226,14 +226,18 @@ export class Wallet implements IWallet {
       const connection = new Connection(networkConfig.config.rpcUrl);
 
       // Try to parse as VersionedTransaction first
+      let isVersionedTransaction = false;
       try {
         const tx = VersionedTransaction.deserialize(
           Buffer.from(signedTransaction.transaction, 'base64'),
         );
 
-        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        isVersionedTransaction = true;
+
         let lastValidBlockHeight = signedTransaction.lastValidBlockHeight;
+
         if (!tx.message.recentBlockhash) {
+          const latestBlockhash = await connection.getLatestBlockhash('finalized');
           tx.message.recentBlockhash = latestBlockhash.blockhash;
           lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
         }
@@ -273,10 +277,14 @@ export class Wallet implements IWallet {
         };
       } catch (e) {
         // If not a VersionedTransaction, try as regular Transaction
+        if (isVersionedTransaction) {
+          throw e;
+        }
+
         const tx = SolanaTransaction.from(Buffer.from(signedTransaction.transaction, 'base64'));
 
         if (!tx.recentBlockhash) {
-          const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+          const latestBlockhash = await connection.getLatestBlockhash('finalized');
           tx.recentBlockhash = latestBlockhash.blockhash;
           tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
         }
@@ -357,13 +365,14 @@ export class Wallet implements IWallet {
       };
     } else {
       const connection = new Connection(networkConfig.config.rpcUrl);
-
+      let isVersionedTransaction = false;
       // Try to parse as VersionedTransaction first
       try {
         let tx = VersionedTransaction.deserialize(Buffer.from(transaction.data, 'base64'));
-        const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+        isVersionedTransaction = true;
         let lastValidBlockHeight = transaction.lastValidBlockHeight;
         if (!tx.message.recentBlockhash) {
+          const latestBlockhash = await connection.getLatestBlockhash('finalized');
           tx.message.recentBlockhash = latestBlockhash.blockhash;
           lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
         }
@@ -372,13 +381,16 @@ export class Wallet implements IWallet {
           throw new Error('Last valid block height is required');
         }
 
+        // Clear existing signatures before signing to avoid conflicts
+        tx.signatures = [];
+
         // Sign transaction
         tx.sign([this.#solanaKeypair]);
 
         // Send raw transaction
         const rawTransaction = Buffer.from(tx.serialize());
         const signature = await connection.sendRawTransaction(rawTransaction, {
-          skipPreflight: false,
+          skipPreflight: true,
           preflightCommitment: 'confirmed',
         });
 
@@ -389,7 +401,7 @@ export class Wallet implements IWallet {
               connection,
               signature,
               tx.message.recentBlockhash,
-              lastValidBlockHeight,
+              lastValidBlockHeight + 5, // fix waiting transaction for 5 blocks
             );
             return {
               hash: signature,
@@ -404,14 +416,21 @@ export class Wallet implements IWallet {
         };
       } catch (e) {
         console.log('🚀 ~ Wallet ~ signAndSendTransactionSolana ~ error:', e);
+        if (isVersionedTransaction) {
+          throw e;
+        }
 
         // If not a VersionedTransaction, try as regular Transaction
         const tx = SolanaTransaction.from(Buffer.from(transaction.data, 'base64'));
         if (!tx.recentBlockhash) {
-          const latestBlockhash = await connection.getLatestBlockhash('confirmed');
+          const latestBlockhash = await connection.getLatestBlockhash('finalized');
           tx.recentBlockhash = latestBlockhash.blockhash;
           tx.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
         }
+
+        // Clear existing signatures before signing to avoid conflicts
+        tx.signatures = [];
+
         // Sign transaction
         tx.sign(this.#solanaKeypair);
 
@@ -429,7 +448,7 @@ export class Wallet implements IWallet {
               connection,
               signature,
               tx.recentBlockhash!,
-              tx.lastValidBlockHeight!,
+              tx.lastValidBlockHeight! + 5,
             );
             return {
               hash: signature,

@@ -5,6 +5,7 @@ import {
   ErrorStep,
   IToolConfig,
   ToolProgress,
+  logger,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ILimitOrderProvider, WrapToken } from './types';
@@ -26,7 +27,7 @@ export class CancelLimitOrdersTool extends BaseTool {
 
   registerProvider(provider: ILimitOrderProvider): void {
     this.registry.registerProvider(provider);
-    console.log('✓ Provider registered', provider.constructor.name);
+    logger.info('✓ Provider registered', provider.constructor.name);
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach((network: string) => {
       this.supportedNetworks.add(network);
@@ -34,7 +35,7 @@ export class CancelLimitOrdersTool extends BaseTool {
   }
 
   getName(): string {
-    return 'cancelLimitOrders';
+    return 'cancel_limit_order';
   }
 
   getDescription(): string {
@@ -69,6 +70,14 @@ export class CancelLimitOrdersTool extends BaseTool {
 
     // Return intersection of agent networks and provider supported networks
     return agentNetworks.filter(network => providerNetworks.includes(network));
+  }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
   }
 
   getSchema(): z.ZodObject<any> {
@@ -121,7 +130,7 @@ export class CancelLimitOrdersTool extends BaseTool {
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Creating tool', this.getName());
+    logger.info('✓ Creating tool', this.getName());
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -135,8 +144,8 @@ export class CancelLimitOrdersTool extends BaseTool {
         try {
           const { network, orderId, provider: preferredProvider } = args;
 
-          console.log('🔄 Canceling limit orders...');
-          console.log('🤖 Args:', args);
+          logger.info('🔄 Canceling limit orders...');
+          logger.info('🤖 Args:', args);
 
           let wallet;
           let userAddress;

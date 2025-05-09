@@ -1,6 +1,6 @@
 {
   "name": "@binkai/token-plugin",
-  "version": "0.1.17-alpha.1",
+  "version": "0.2.13-alpha.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
@@ -22,10 +22,12 @@
   "dependencies": {
     "@binkai/core": "workspace:*",
     "@langchain/core": "^0.3.32",
+    "vitest": "^3.0.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "homepage": "https://bink.ai/"
 }

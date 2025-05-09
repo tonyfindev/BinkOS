@@ -10,9 +10,11 @@
  * @param decimals The number of decimal places to round to (default: 2)
  * @returns The rounded number or undefined if the input is undefined
  */
-export function roundNumber(value: number | undefined, decimals: number = 2): number | undefined {
-  if (value === undefined) return undefined;
-
+export function roundNumber(
+  value: number | null | undefined,
+  decimals: number = 2,
+): number | undefined {
+  if (value === undefined || value === null) return undefined;
   return Number(value.toFixed(decimals));
 
   //   // Handle different value ranges differently

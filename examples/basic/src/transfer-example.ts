@@ -1,5 +1,5 @@
 import { BirdeyeProvider } from '@binkai/birdeye-provider';
-import { BnbProvider } from '@binkai/rpc-provider';
+import { BnbProvider, SolanaProvider } from '@binkai/rpc-provider';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
 import {
   Agent,
@@ -9,15 +9,21 @@ import {
   NetworkType,
   settings,
   Wallet,
+  logger,
 } from '@binkai/core';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { WalletPlugin } from '@binkai/wallet-plugin';
 import { ethers } from 'ethers';
 
 async function main() {
+  //configure enable logger
+  logger.enable();
+
   // Define available networks
   const BNB_RPC = 'https://bsc-dataseed1.binance.org';
   const ETH_RPC = 'https://eth.llamarpc.com';
+  const SOL_RPC = 'https://solana-rpc.debridge.finance';
+
   console.log('📡 Configuring networks...');
   const networks: NetworksConfig['networks'] = {
     bnb: {
@@ -46,6 +52,18 @@ async function main() {
         },
       },
     },
+    [NetworkName.SOLANA]: {
+      type: 'solana' as NetworkType,
+      config: {
+        rpcUrl: SOL_RPC,
+        name: 'Solana',
+        nativeCurrency: {
+          name: 'Solana',
+          symbol: 'SOL',
+          decimals: 9,
+        },
+      },
+    },
   };
   console.log('✓ Networks configured:', Object.keys(networks).join(', '), '\n');
 
@@ -57,6 +75,7 @@ async function main() {
   // Initialize provider
   console.log('🔌 Initializing provider...');
   const provider = new ethers.JsonRpcProvider(BNB_RPC);
+  const providerSolana = new ethers.JsonRpcProvider(SOL_RPC);
   console.log('✓ Provider initialized\n');
 
   // Initialize a new wallet
@@ -66,7 +85,7 @@ async function main() {
       seedPhrase:
         settings.get('WALLET_MNEMONIC') ||
         'test test test test test test test test test test test junk',
-      index: 0,
+      index: 9,
     },
     network,
   );
@@ -74,6 +93,7 @@ async function main() {
 
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
   console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
+  console.log('🤖 Wallet SOL:', await wallet.getAddress(NetworkName.SOLANA));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
   const agent = new Agent(
@@ -93,6 +113,10 @@ async function main() {
   const bnbProvider = new BnbProvider({
     rpcUrl: BNB_RPC,
   });
+  const solanaProvider = new SolanaProvider({
+    rpcUrl: SOL_RPC,
+  });
+
   const alchemyProvider = new AlchemyProvider({
     apiKey: settings.get('ALCHEMY_API_KEY'),
   });
@@ -104,8 +128,8 @@ async function main() {
   // Initialize plugin with provider
   await walletPlugin.initialize({
     defaultChain: 'bnb',
-    providers: [alchemyProvider, bnbProvider],
-    supportedChains: ['bnb'],
+    providers: [alchemyProvider, birdeyeProvider, solanaProvider],
+    supportedChains: ['bnb', 'solana'],
   });
 
   // Create and configure the token plugin
@@ -114,7 +138,7 @@ async function main() {
   await tokenPlugin.initialize({
     defaultChain: 'bnb',
     providers: [birdeyeProvider],
-    supportedChains: ['bnb'],
+    supportedChains: ['bnb', 'solana'],
   });
   console.log('✓ Token plugin initialized\n');
 
@@ -125,7 +149,7 @@ async function main() {
 
   // Execute token transfer through natural language
   const result = await agent.execute({
-    input: 'send all bnb to 0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    input: 'send 0.01 USDT(Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB) to wallet() on solana',
   });
   console.log('🤖 Result:', result);
 }
