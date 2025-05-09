@@ -7,6 +7,7 @@
     "url": "https://github.com/Bink-AI/BinkOS"
   },
   "scripts": {
+    "models": "ts-node src/multi-models-example.ts",
     "start": "ts-node src/example.ts",
     "swap": "ts-node src/swap-example.ts",
     "swap-okx": "ts-node src/swap-example-okx.ts",
