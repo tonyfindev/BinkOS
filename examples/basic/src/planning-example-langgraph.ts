@@ -15,6 +15,7 @@ import {
   HumanReviewData,
   AskUserData,
   IAskUserCallback,
+  OpenAIModel,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { PancakeSwapProvider } from '@binkai/pancakeswap-provider';
@@ -165,10 +166,14 @@ async function main() {
   console.log('🤖 Wallet SOL:', await wallet.getAddress(NetworkName.SOLANA));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
+  const llm = new OpenAIModel({
+    apiKey: settings.get('OPENAI_API_KEY') || '',
+    model: 'gpt-4o-mini',
+  });
   const agent = new PlanningAgent(
+    llm,
     {
       isHumanReview: true,
-      model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
         'You are a BINK AI agent. You are able to perform swaps, bridges and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge or swap.',

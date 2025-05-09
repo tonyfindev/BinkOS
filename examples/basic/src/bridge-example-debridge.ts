@@ -8,6 +8,7 @@ import {
   NetworksConfig,
   NetworkName,
   logger,
+  OpenAIModel,
 } from '@binkai/core';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
@@ -93,9 +94,14 @@ async function main() {
 
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
+  const llm = new OpenAIModel({
+    apiKey: settings.get('OPENAI_API_KEY') || '',
+    model: 'gpt-4o-mini',
+  });
+
   const agent = new Agent(
+    llm,
     {
-      model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
         'You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.',
