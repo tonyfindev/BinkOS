@@ -21,7 +21,7 @@ export class ExtensionWallet implements IWallet {
   readonly #network: Network;
   readonly timeout: number;
 
-  constructor(network: Network, timeout: number = 60000) {
+  constructor(network: Network, timeout: number = 120000) {
     this.#network = network;
     this.timeout = timeout;
   }
