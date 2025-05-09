@@ -99,6 +99,7 @@ export class ExtensionWallet implements IWallet {
       network: params.network,
       transaction: transactionStr,
     })) as { signedTransaction?: string; error?: string };
+
     if (response.error) {
       throw new Error(response.error);
     }
