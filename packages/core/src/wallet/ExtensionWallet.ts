@@ -140,6 +140,8 @@ export class ExtensionWallet implements IWallet {
         network,
         transaction: signedTransaction.transaction,
       });
+      const provider = this.#network.getProvider(network, 'evm');
+      const tx = await provider.getTransaction(response.tx_hash);
       if (response.error) {
         throw new Error(response.error);
       }
@@ -149,6 +151,7 @@ export class ExtensionWallet implements IWallet {
       return {
         hash: response.tx_hash,
         wait: async () => {
+          await tx?.wait();
           return {
             hash: response.tx_hash,
             wait: async () => {
