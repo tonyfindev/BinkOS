@@ -5,6 +5,7 @@ import {
   ErrorStep,
   IToolConfig,
   ToolProgress,
+  logger,
 } from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { ILimitOrderProvider } from './types';
@@ -26,7 +27,7 @@ export class GetLimitOrdersTool extends BaseTool {
 
   registerProvider(provider: ILimitOrderProvider): void {
     this.registry.registerProvider(provider);
-    console.log('✓ Provider registered', provider.constructor.name);
+    logger.info('✓ Provider registered', provider.constructor.name);
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach((network: string) => {
       this.supportedNetworks.add(network);
@@ -34,7 +35,7 @@ export class GetLimitOrdersTool extends BaseTool {
   }
 
   getName(): string {
-    return 'getLimitOrders';
+    return 'get_limit_order';
   }
 
   getDescription(): string {
@@ -69,6 +70,14 @@ export class GetLimitOrdersTool extends BaseTool {
 
     // Return intersection of agent networks and provider supported networks
     return agentNetworks.filter(network => providerNetworks.includes(network));
+  }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
   }
 
   getSchema(): z.ZodObject<any> {
@@ -118,7 +127,7 @@ export class GetLimitOrdersTool extends BaseTool {
   }
 
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Creating tool', this.getName());
+    logger.info('✓ Creating tool', this.getName());
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -132,8 +141,8 @@ export class GetLimitOrdersTool extends BaseTool {
         try {
           const { network, status, provider: preferredProvider } = args;
 
-          console.log('🔄 Retrieving limit orders...');
-          console.log('🤖 Args:', args);
+          logger.info('🔄 Retrieving limit orders...');
+          logger.info('🤖 Args:', args);
 
           onProgress?.({
             progress: 5,
@@ -230,7 +239,7 @@ export class GetLimitOrdersTool extends BaseTool {
                   validOrders.push(orderId);
                 }
               } catch (error) {
-                console.error(`Error validating order ${orderId}:`, error);
+                logger.error(`Error validating order ${orderId}:`, error);
               }
             }
           }
@@ -253,7 +262,7 @@ export class GetLimitOrdersTool extends BaseTool {
             networks: networksToQuery,
           });
         } catch (error: any) {
-          console.error('Get limit orders error:', error);
+          logger.error('Get limit orders error:', error);
 
           onProgress?.({
             progress: 100,

@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
+import {
+  AgentNodeTypes,
+  BaseTool,
+  CustomDynamicStructuredTool,
+  IToolConfig,
+  ToolProgress,
+  logger,
+} from '@binkai/core';
 import { ProviderRegistry } from './ProviderRegistry';
 import { IStakingProvider, StakingQuote, StakingParams } from './types';
 import { validateTokenAddress } from './utils/addressValidation';
@@ -23,7 +30,7 @@ export class StakingTool extends BaseTool {
 
   registerProvider(provider: IStakingProvider): void {
     this.registry.registerProvider(provider);
-    console.log('✓ Provider registered', provider.constructor.name);
+    logger.info('✓ Provider registered', provider.constructor.name);
     // Add provider's supported networks
     provider.getSupportedNetworks().forEach(network => {
       this.supportedNetworks.add(network);
@@ -39,7 +46,10 @@ export class StakingTool extends BaseTool {
     const networks = Array.from(this.supportedNetworks).join(', ');
     let description = `Stake and unstake tokens from your wallet using various staking providers (${providers}). Supports networks: ${networks}. 
     
-Before using this tool, you should first check your staking balances using the get_staking_balance tool to see what tokens you have staked. This is especially important for unstake or withdraw operations, as you'll need to know the specific staked token addresses and available amounts. You should also check your wallet balance to ensure you have sufficient funds for staking operations. This tool will verify your wallet balance and handle any required token approvals automatically. You can specify either input amount (how much to stake) or output amount (how much to receive).`;
+Before using this tool, you should first check your staking balances using the get_staking_balance tool to see what tokens you have staked. This is especially important for unstake or withdraw operations, as you'll need to know the specific staked token addresses and available amounts. You should also check your wallet balance to ensure you have sufficient funds for staking operations. This tool will verify your wallet balance and handle any required token approvals automatically. You can specify either input amount (how much to stake) or output amount (how much to receive).
+Provider-specific tokens:
+- Venus: vBNB
+- KernelDao: WBNB`;
 
     // Add provider-specific prompts if they exist
     const providerPrompts = this.registry
@@ -86,12 +96,10 @@ Before using this tool, you should first check your staking balances using the g
       amountB: z.string().optional().describe('The amount of token B to stake'),
       type: z
         .enum(['supply', 'withdraw', 'stake', 'unstake'])
-        .describe(
-          'The type of staking operation to perform. For "unstake" or "withdraw" operations, you may need to use provider-specific tokens (e.g., for Venus, use "vBNB" to unstake BNB, "vBUSD" to unstake BUSD, etc.). Each provider has its own token representation for staked assets.',
-        ),
+        .describe('The type of staking operation to perform.'),
       network: z
         .enum(supportedNetworks as [string, ...string[]])
-        .default(this.defaultNetwork)
+        // .default(this.defaultNetwork)
         .describe('The blockchain network to execute the staking on'),
       provider: z
         .enum(providers as [string, ...string[]])
@@ -115,11 +123,11 @@ Before using this tool, you should first check your staking balances using the g
     const quotes = await Promise.all(
       providers.map(async (provider: IStakingProvider) => {
         try {
-          console.log('🤖 Getting quote from', provider.getName());
+          logger.info('🤖 Getting quote from', provider.getName());
           const quote = await provider.getQuote(params, userAddress);
           return { provider, quote };
         } catch (error) {
-          console.warn(`Failed to get quote from ${provider.getName()}:`, error);
+          logger.warn(`Failed to get quote from ${provider.getName()}:`, error);
           return null;
         }
       }),
@@ -134,16 +142,143 @@ Before using this tool, you should first check your staking balances using the g
     // Find the best quote based on amount type
     return validQuotes.reduce((best: QuoteResult, current: QuoteResult) => {
       // For output amount, find lowest input amount
-      const bestAmount = BigInt(Number(best.quote.amountA) * 10 ** best.quote.tokenA.decimals);
-      const currentAmount = BigInt(
+      const bestAmount = Math.floor(Number(best.quote.amountA) * 10 ** best.quote.tokenA.decimals);
+      const currentAmount = Math.floor(
         Number(current.quote.amountA) * 10 ** current.quote.tokenA.decimals,
       );
       return currentAmount < bestAmount ? current : best;
     }, validQuotes[0]);
   }
 
+  async getQuote(
+    args: any,
+    onProgress?: (data: ToolProgress) => void,
+  ): Promise<{ selectedProvider: IStakingProvider; quote: StakingQuote; userAddress: string }> {
+    const {
+      tokenA,
+      tokenB,
+      amountA,
+      amountB,
+      type,
+      network = this.defaultNetwork,
+      provider: preferredProvider,
+    } = args;
+
+    // Validate token addresses
+    if (!validateTokenAddress(tokenA, network)) {
+      throw new Error(`Invalid tokenA address for network ${network}: ${tokenA}`);
+    }
+
+    // Get agent's wallet and address
+    const wallet = this.agent.getWallet();
+    const userAddress = await wallet.getAddress(network);
+
+    // Validate network is supported
+    const supportedNetworks = this.getSupportedNetworks();
+    if (!supportedNetworks.includes(network)) {
+      throw new Error(
+        `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
+      );
+    }
+
+    const stakingParams: StakingParams = {
+      network,
+      tokenA,
+      tokenB,
+      amountA,
+      amountB,
+      type,
+    };
+
+    let selectedProvider: IStakingProvider;
+    let quote: StakingQuote;
+
+    onProgress?.({
+      progress: 10,
+      message: `Searching for the best ${type} rate for your tokens.`,
+    });
+
+    if (preferredProvider) {
+      try {
+        selectedProvider = this.registry.getProvider(preferredProvider);
+        // Validate provider supports the network
+        if (!selectedProvider.getSupportedNetworks().includes(network)) {
+          throw new Error(`Provider ${preferredProvider} does not support network ${network}`);
+        }
+        quote = await selectedProvider.getQuote(stakingParams, userAddress);
+      } catch (error) {
+        logger.warn(`Failed to get quote from preferred provider ${preferredProvider}:`, error);
+        logger.info('🔄 Falling back to checking all providers for best quote...');
+        const bestQuote = await this.findBestQuote(
+          {
+            ...stakingParams,
+            network,
+          },
+          userAddress,
+        );
+        selectedProvider = bestQuote.provider;
+        quote = bestQuote.quote;
+      }
+    } else {
+      const bestQuote = await this.findBestQuote(
+        {
+          ...stakingParams,
+          network,
+        },
+        userAddress,
+      );
+      selectedProvider = bestQuote.provider;
+      quote = bestQuote.quote;
+    }
+
+    logger.info('🤖 The selected provider is:', selectedProvider.getName());
+
+    onProgress?.({
+      progress: 20,
+      message: `Verifying you have sufficient ${quote.tokenA.symbol || 'tokens'} for this ${type} operation.`,
+    });
+
+    // Check user's balance before proceeding
+    const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
+
+    if (!balanceCheck.isValid) {
+      throw new Error(balanceCheck.message || 'Insufficient balance for staking');
+    }
+
+    return {
+      selectedProvider,
+      quote: {
+        ...quote,
+        provider: selectedProvider.getName(),
+      },
+      userAddress,
+    };
+  }
+
+  async simulateQuoteTool(args: any): Promise<StakingQuote> {
+    if (this.agent.isMockResponseTool()) {
+      const mockResponse = await this.mockResponseTool(args);
+      return JSON.parse(mockResponse);
+    }
+    return (await this.getQuote(args)).quote;
+  }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        provider: args.provider,
+        tokenA: args.tokenA,
+        tokenB: args.tokenB,
+        amountA: args.amountA,
+        amountB: args.amountB,
+        transactionHash: args.transactionHash,
+        type: args.type,
+        network: args.network,
+      }),
+    );
+  }
   createTool(): CustomDynamicStructuredTool {
-    console.log('✓ Creating tool', this.getName());
+    logger.info('✓ Creating tool', this.getName());
     return {
       name: this.getName(),
       description: this.getDescription(),
@@ -165,93 +300,15 @@ Before using this tool, you should first check your staking balances using the g
             provider: preferredProvider,
           } = args;
 
-          console.log('🤖 Staking Args:', args);
+          logger.info('🤖 Staking Args:', args);
 
-          // Validate token addresses
-          if (!validateTokenAddress(tokenA, network)) {
-            throw new Error(`Invalid tokenA address for network ${network}: ${tokenA}`);
+          if (this.agent.isMockResponseTool()) {
+            return this.mockResponseTool(args);
           }
 
-          // Get agent's wallet and address
+          const { selectedProvider, quote, userAddress } = await this.getQuote(args, onProgress);
+
           const wallet = this.agent.getWallet();
-          const userAddress = await wallet.getAddress(network);
-
-          // Validate network is supported
-          const supportedNetworks = this.getSupportedNetworks();
-          if (!supportedNetworks.includes(network)) {
-            throw new Error(
-              `Network ${network} is not supported. Supported networks: ${supportedNetworks.join(', ')}`,
-            );
-          }
-
-          const stakingParams: StakingParams = {
-            network,
-            tokenA,
-            tokenB,
-            amountA,
-            amountB,
-            type,
-          };
-
-          let selectedProvider: IStakingProvider;
-          let quote: StakingQuote;
-
-          onProgress?.({
-            progress: 10,
-            message: `Searching for the best ${type} rate for your tokens.`,
-          });
-
-          if (preferredProvider) {
-            try {
-              selectedProvider = this.registry.getProvider(preferredProvider);
-              // Validate provider supports the network
-              if (!selectedProvider.getSupportedNetworks().includes(network)) {
-                throw new Error(
-                  `Provider ${preferredProvider} does not support network ${network}`,
-                );
-              }
-              quote = await selectedProvider.getQuote(stakingParams, userAddress);
-            } catch (error) {
-              console.warn(
-                `Failed to get quote from preferred provider ${preferredProvider}:`,
-                error,
-              );
-              console.log('🔄 Falling back to checking all providers for best quote...');
-              const bestQuote = await this.findBestQuote(
-                {
-                  ...stakingParams,
-                  network,
-                },
-                userAddress,
-              );
-              selectedProvider = bestQuote.provider;
-              quote = bestQuote.quote;
-            }
-          } else {
-            const bestQuote = await this.findBestQuote(
-              {
-                ...stakingParams,
-                network,
-              },
-              userAddress,
-            );
-            selectedProvider = bestQuote.provider;
-            quote = bestQuote.quote;
-          }
-
-          console.log('🤖 The selected provider is:', selectedProvider.getName());
-
-          onProgress?.({
-            progress: 20,
-            message: `Verifying you have sufficient ${quote.tokenA.symbol || 'tokens'} for this ${type} operation.`,
-          });
-
-          // Check user's balance before proceeding
-          const balanceCheck = await selectedProvider.checkBalance(quote, userAddress);
-
-          if (!balanceCheck.isValid) {
-            throw new Error(balanceCheck.message || 'Insufficient balance for staking');
-          }
 
           onProgress?.({
             progress: 30,
@@ -276,7 +333,7 @@ Before using this tool, you should first check your staking balances using the g
 
           const requiredAmount = parseTokenAmount(quote.amountA, quote.tokenA.decimals);
 
-          console.log('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
+          logger.info('🤖 Allowance: ', allowance, ' Required amount: ', requiredAmount);
 
           if (allowance < requiredAmount) {
             const approveTx = await selectedProvider.buildApproveTransaction(
@@ -286,7 +343,7 @@ Before using this tool, you should first check your staking balances using the g
               quote.amountA,
               userAddress,
             );
-            console.log('🤖 Approving...');
+            logger.info('🤖 Approving...');
 
             // Sign and send approval transaction
             onProgress?.({
@@ -300,12 +357,12 @@ Before using this tool, you should first check your staking balances using the g
               value: BigInt(approveTx.value),
             });
 
-            console.log('🤖 ApproveReceipt:', approveReceipt);
+            logger.info('🤖 ApproveReceipt:', approveReceipt);
 
             // Wait for approval to be mined
             await approveReceipt.wait();
           }
-          console.log('🤖 Staking...');
+          logger.info('🤖 Staking...');
 
           onProgress?.({
             progress: 80,
@@ -321,13 +378,14 @@ Before using this tool, you should first check your staking balances using the g
           // Wait for transaction to be mined
           const finalReceipt = await receipt.wait();
 
-          onProgress?.({
-            progress: 100,
-            message: `${type.charAt(0).toUpperCase() + type.slice(1)} operation complete! Successfully processed ${quote.amountA} ${quote.tokenA.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
-          });
+          // onProgress?.({
+          //   progress: 100,
+          //   message: `${type.charAt(0).toUpperCase() + type.slice(1)} operation complete! Successfully processed ${quote.amountA} ${quote.tokenA.symbol || 'tokens'} via ${selectedProvider.getName()}. Transaction hash: ${finalReceipt.hash}`,
+          // });
 
           // Return result as JSON string
           return JSON.stringify({
+            status: 'success',
             provider: selectedProvider.getName(),
             tokenA: quote.tokenA,
             tokenB: quote.tokenB,
@@ -338,7 +396,7 @@ Before using this tool, you should first check your staking balances using the g
             network,
           });
         } catch (error) {
-          console.error('Staking error:', error);
+          logger.error('Staking error:', error);
           return JSON.stringify({
             status: 'error',
             message: error,

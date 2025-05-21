@@ -1,4 +1,10 @@
-import { BaseTool, CustomDynamicStructuredTool, IToolConfig, ToolProgress } from '@binkai/core';
+import {
+  BaseTool,
+  CustomDynamicStructuredTool,
+  IToolConfig,
+  ToolProgress,
+  logger,
+} from '@binkai/core';
 import { z } from 'zod';
 import { IImageProvider } from './types';
 
@@ -20,6 +26,14 @@ export class CreateImageTool extends BaseTool {
 
   registerProvider(provider: IImageProvider): void {
     this.providers.set(provider.getName(), provider);
+  }
+
+  mockResponseTool(args: any): Promise<string> {
+    return Promise.resolve(
+      JSON.stringify({
+        status: args.status,
+      }),
+    );
   }
 
   getSchema(): z.ZodObject<any> {
@@ -56,7 +70,7 @@ export class CreateImageTool extends BaseTool {
       ) => {
         try {
           const { prompt, image_url, provider: providerName } = args;
-          console.log('🤖 Create image Args:', args);
+          logger.info('🤖 Create image Args:', args);
 
           onProgress?.({
             progress: 30,

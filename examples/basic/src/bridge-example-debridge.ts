@@ -7,6 +7,8 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
+  OpenAIModel,
 } from '@binkai/core';
 import { BridgePlugin } from '@binkai/bridge-plugin';
 import { deBridgeProvider } from '@binkai/debridge-provider';
@@ -19,7 +21,7 @@ import { Connection } from '@solana/web3.js';
 // Hardcoded RPC URLs for demonstration
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
-const SOL_RPC = 'https://api.mainnet-beta.solana.com';
+const SOL_RPC = 'https://solana-rpc.debridge.finance'; //https://api.mainnet-beta.solana.com | https://solana-rpc.debridge.finance
 
 async function main() {
   console.log('🚀 Starting BinkOS bridge example...\n');
@@ -31,6 +33,9 @@ async function main() {
   }
 
   console.log('🔑 OpenAI API key found\n');
+
+  //configure logger
+  logger.enable();
 
   // Define available networks
   console.log('📡 Configuring networks...');
@@ -71,7 +76,7 @@ async function main() {
   // Initialize provider
   console.log('🔌 Initializing provider...');
   const provider = new ethers.JsonRpcProvider(BNB_RPC);
-  //const provider =  new anchor.web3.Connection(SOL_RPC);
+  const providerSolana = new Connection(SOL_RPC);
   console.log('✓ Provider initialized\n');
 
   // Initialize a new wallet
@@ -79,7 +84,7 @@ async function main() {
   const wallet = new Wallet(
     {
       seedPhrase: settings.get('WALLET_MNEMONIC') || '',
-      index: 0,
+      index: 9,
     },
     network,
   );
@@ -89,9 +94,14 @@ async function main() {
 
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
+  const llm = new OpenAIModel({
+    apiKey: settings.get('OPENAI_API_KEY') || '',
+    model: 'gpt-4o-mini',
+  });
+
   const agent = new Agent(
+    llm,
     {
-      model: 'gpt-4o',
       temperature: 0,
       systemPrompt:
         'You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.',
@@ -135,7 +145,7 @@ async function main() {
   });
 
   // Create providers with proper chain IDs
-  const debridge = new deBridgeProvider(provider, 56, 7565164);
+  const debridge = new deBridgeProvider([provider, providerSolana], 56, 7565164);
 
   // Configure the plugin with supported chains
   await bridgePlugin.initialize({
@@ -161,7 +171,7 @@ async function main() {
 
   console.log('💱 Example 1:Bridge all BNB to SOL on DeBridge Finance');
   const inputResult = await agent.execute({
-    input: `Bridge 0.01 SOL to BNB`,
+    input: `Bridge 0.01 SOL to BNB via debridge`,
     //input: `Bridge 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on BNB to amount 5 Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB on solana`, // usdc bnb to usdt sol
     //input: `swap 10% my BNB to SOL`, // bridge and swap
     //input: `Bridge 5 USDC on SOL to 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d on solana`,

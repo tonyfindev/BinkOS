@@ -6,12 +6,14 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
+  OpenAIModel,
 } from '@binkai/core';
 import { TokenPlugin } from '@binkai/token-plugin';
 import { AlchemyProvider } from '@binkai/alchemy-provider';
 import { WalletPlugin } from '@binkai/wallet-plugin';
 import { BnbProvider } from '@binkai/rpc-provider';
-
+import { BirdeyeProvider } from '@binkai/birdeye-provider';
 // Hardcoded RPC URLs for demonstration
 const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
 const BNB_RPC = 'https://bsc-dataseed1.binance.org';
@@ -31,6 +33,9 @@ async function main() {
   }
 
   console.log('🔑 API keys found\n');
+
+  //configure enable logger
+  logger.enable();
 
   // Define available networks
   console.log('📡 Configuring networks...');
@@ -88,10 +93,17 @@ async function main() {
 
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
+  const llm = new OpenAIModel({
+    apiKey: settings.get('OPENAI_API_KEY') || '',
+    model: 'gpt-4o-mini',
+  });
+
   const agent = new Agent(
+    llm,
     {
-      model: 'gpt-4o',
       temperature: 0,
+      systemPrompt:
+        'You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.',
     },
     wallet,
     networks,
@@ -116,11 +128,14 @@ async function main() {
     apiKey: settings.get('ALCHEMY_API_KEY'),
   });
 
+  const birdeyeProvider = new BirdeyeProvider({
+    apiKey: settings.get('BIRDEYE_API_KEY'),
+  });
   // Initialize plugin with provider
   await walletPlugin.initialize({
-    // defaultChain: 'bnb',
-    providers: [bnbProvider, alchemyProvider],
-    supportedChains: ['bnb'],
+    defaultChain: 'bnb',
+    providers: [bnbProvider, alchemyProvider, birdeyeProvider],
+    supportedChains: ['bnb', 'solana', 'ethereum'],
   });
 
   // Configure the plugin with supported chains
@@ -143,18 +158,18 @@ async function main() {
   // Example 1: Get token info by symbol on BSC
   console.log('💎 Example 1: Get token info by symbol on BSC');
   const bscSymbolResult = await agent.execute({
-    input: 'Get information about the USDT token on BNB chain',
+    input: 'get all my balance and show address of token with balance',
   });
   console.log('✓ Token info (BSC symbol):', bscSymbolResult, '\n');
 
-  // Example 2: Get token info by address on BSC
-  console.log('💎 Example 2: Get token info by address on BSC');
-  const bscAddressResult = await agent.execute({
-    // input:
-    //   'Get wallet balance "0x01245D2204f92587E13d2bC784A28c5458ca3ac7" on BNB chain via Alchemy',
-    input: `My wallet info on BNB via Alchemy`,
-  });
-  console.log('✓ Token info (BSC address):', bscAddressResult, '\n');
+  // // Example 2: Get token info by address on BSC
+  // console.log('💎 Example 2: Get token info by address on BSC');
+  // const bscAddressResult = await agent.execute({
+  //   // input:
+  //   //   'Get wallet balance "0x01245D2204f92587E13d2bC784A28c5458ca3ac7" on BNB chain via Alchemy',
+  //   input: `My wallet info on BNB via Alchemy`,
+  // });
+  // console.log('✓ Token info (BSC address):', bscAddressResult, '\n');
   //usdc: 0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d
 
   // Example 3: Get token info by symbol on Solana
@@ -172,16 +187,16 @@ async function main() {
   // console.log('✓ Search results (BSC):', bscSearchResult, '\n');
 
   // Get plugin information
-  const registeredPlugin = agent.getPlugin('token') as TokenPlugin;
+  // const registeredPlugin = agent.getPlugin('token') as TokenPlugin;
 
-  // Check available providers for each chain
-  console.log('📊 Available providers by chain:');
-  const chains = registeredPlugin.getSupportedNetworks();
-  for (const chain of chains) {
-    const providers = registeredPlugin.getProvidersForNetwork(chain);
-    console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
-  }
-  console.log();
+  // // Check available providers for each chain
+  // console.log('📊 Available providers by chain:');
+  // const chains = registeredPlugin.getSupportedNetworks();
+  // for (const chain of chains) {
+  //   const providers = registeredPlugin.getProvidersForNetwork(chain);
+  //   console.log(`Chain ${chain}:`, providers.map(p => p.getName()).join(', '));
+  // }
+  // console.log();
 }
 
 main().catch(error => {

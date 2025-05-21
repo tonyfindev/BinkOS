@@ -7,6 +7,8 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
+  OpenAIModel,
 } from '@binkai/core';
 import { SwapPlugin } from '@binkai/swap-plugin';
 import { ThenaProvider } from '@binkai/thena-provider';
@@ -31,6 +33,9 @@ async function main() {
   }
 
   console.log('🔑 OpenAI API key found\n');
+
+  //configure enable logger
+  logger.enable();
 
   // Define available networks
   console.log('📡 Configuring networks...');
@@ -104,10 +109,17 @@ async function main() {
   console.log('🤖 Wallet ETH:', await wallet.getAddress(NetworkName.ETHEREUM));
   // Create an agent with OpenAI
   console.log('🤖 Initializing AI agent...');
+  const llm = new OpenAIModel({
+    apiKey: settings.get('OPENAI_API_KEY') || '',
+    model: 'gpt-4o-mini',
+  });
+
   const agent = new Agent(
+    llm,
     {
-      model: 'gpt-4o',
       temperature: 0,
+      systemPrompt:
+        'You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.',
     },
     wallet,
     networks,
@@ -174,8 +186,11 @@ async function main() {
 
   console.log('Example 1:get all limit orders via thena on bnb');
   const result1 = await agent.execute({
+    // input: `
+    //  get all limit orders via jupiter on solana
+    // `,
     input: `
-     get all limit orders via jupiter on solana
+     get all limit orders via thena on BNB
     `,
   });
   console.log('✓ limit order result:', result1, '\n');

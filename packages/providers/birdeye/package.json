@@ -1,6 +1,6 @@
 {
   "name": "@binkai/birdeye-provider",
-  "version": "0.1.15-alpha.0",
+  "version": "0.3.0-alpha.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
@@ -29,5 +29,6 @@
   "devDependencies": {
     "rimraf": "^5.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "homepage": "https://bink.ai/"
 }

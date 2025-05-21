@@ -6,12 +6,20 @@ import {
   NetworkType,
   NetworksConfig,
   NetworkName,
+  logger,
+  OpenAIModel,
 } from '@binkai/core';
 import { KnowledgePlugin } from '@binkai/knowledge-plugin';
 import { BinkProvider } from '@binkai/bink-provider';
 import { PostgresDatabaseAdapter } from '@binkai/postgres-adapter';
 
 async function main() {
+  //configure enable logger
+  logger.enable();
+
+  // //configure disable logger
+  // logger.disable();
+
   const BNB_RPC = 'https://bsc-dataseed1.binance.org';
 
   // Define available networks
@@ -54,10 +62,17 @@ async function main() {
   console.log('🤖 Wallet BNB:', await wallet.getAddress(NetworkName.BNB));
 
   // Create agent instance
+  const llm = new OpenAIModel({
+    apiKey: settings.get('OPENAI_API_KEY') || '',
+    model: 'gpt-4o-mini',
+  });
+
   const agent = new Agent(
+    llm,
     {
-      model: 'gpt-4o-mini',
       temperature: 0,
+      systemPrompt:
+        'You are a BINK AI agent. You are able to perform bridge and get token information on multiple chains. If you do not have the token address, you can use the symbol to get the token information before performing a bridge.',
     },
     wallet,
     networks,
@@ -79,6 +94,7 @@ async function main() {
   const binkProvider = new BinkProvider({
     apiKey: settings.get('BINK_API_KEY') || '',
     baseUrl: settings.get('BINK_API_URL') || '',
+    imageApiUrl: settings.get('BINK_IMAGE_API_URL') || '',
   });
   // Initialize plugin with provider
   const knowledgePlugin = new KnowledgePlugin();

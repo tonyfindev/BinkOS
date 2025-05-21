@@ -19,10 +19,11 @@ import {
 export class ExtensionWallet implements IWallet {
   socket: Socket | null = null;
   readonly #network: Network;
-  readonly timeout: number = 30000; // 30 seconds timeout
+  readonly timeout: number;
 
-  constructor(network: Network) {
+  constructor(network: Network, timeout: number = 120000) {
     this.#network = network;
+    this.timeout = timeout;
   }
 
   public async connect(socket: Socket): Promise<void> {
@@ -48,7 +49,9 @@ export class ExtensionWallet implements IWallet {
   public async getAddress(network: NetworkName): Promise<string> {
     await this.ensureConnection();
 
-    const response = (await this.socket?.timeout(5000).emitWithAck('get_address', { network })) as {
+    const response = (await this.socket
+      ?.timeout(this.timeout)
+      .emitWithAck('get_address', { network })) as {
       address?: string;
       error?: string;
     };
@@ -64,7 +67,9 @@ export class ExtensionWallet implements IWallet {
   public async signMessage(params: SignMessageParams): Promise<string> {
     await this.ensureConnection();
 
-    const response = (await this.socket?.timeout(5000).emitWithAck('sign_message', params)) as {
+    const response = (await this.socket
+      ?.timeout(this.timeout)
+      .emitWithAck('sign_message', params)) as {
       signature?: string;
       error?: string;
     };
@@ -90,10 +95,11 @@ export class ExtensionWallet implements IWallet {
       transactionStr = Buffer.from(params.transaction.serialize()).toString('base64');
     }
 
-    const response = (await this.socket?.timeout(5000).emitWithAck('sign_transaction', {
+    const response = (await this.socket?.timeout(this.timeout).emitWithAck('sign_transaction', {
       network: params.network,
       transaction: transactionStr,
     })) as { signedTransaction?: string; error?: string };
+
     if (response.error) {
       throw new Error(response.error);
     }
@@ -267,7 +273,12 @@ export class ExtensionWallet implements IWallet {
         gasLimit: transaction.gasLimit,
       });
 
-      const signedTx = await this.signTransaction({ network, transaction: tx as EvmTransaction });
+      tx.from = null;
+
+      const signedTx = await this.signTransaction({
+        network,
+        transaction: EvmTransaction.from(tx),
+      });
 
       // Send signed transaction
       const sentTx = await this.sendTransaction(network, { transaction: signedTx });

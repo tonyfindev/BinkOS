@@ -4,6 +4,7 @@ import {
   SOL_NATIVE_TOKEN_ADDRESS,
   SOL_NATIVE_TOKEN_ADDRESS2,
   Token,
+  logger,
 } from '@binkai/core';
 import { ethers, Contract, Interface, Provider } from 'ethers';
 import { Connection, PublicKey } from '@solana/web3.js';
@@ -14,6 +15,7 @@ import {
   validateNetwork,
 } from './networkUtils';
 import { Metaplex } from '@metaplex-foundation/js';
+import { NetworkProvider } from '../types';
 
 // Default cache TTL (30 minutes)
 export const DEFAULT_CACHE_TTL = 30 * 60 * 1000;
@@ -51,9 +53,11 @@ export async function getTokenInfo(
 export async function getTokenInfoSolana(
   tokenAddress: string,
   network: NetworkName,
+  providers: Map<NetworkName, NetworkProvider>,
+  providerName: string,
 ): Promise<Token> {
   try {
-    const connection = getSolanaProviderForNetwork(network);
+    const connection = getSolanaProviderForNetwork(providers, network, providerName);
     const tokenMint = new PublicKey(tokenAddress);
     const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
 
@@ -132,9 +136,9 @@ export function createTokenCache(cacheTTL: number = DEFAULT_CACHE_TTL) {
           return cached.token;
         }
 
-        console.log('🤖 getToken Solana ', tokenAddress);
+        logger.info('🤖 getToken Solana ', tokenAddress);
 
-        const connection = getSolanaProviderForNetwork(network);
+        const connection = getSolanaProviderForNetwork(providers, network, providerName);
         //const connection = new Connection(network);
         const tokenMint = new PublicKey(tokenAddress);
         const tokenInfo = await connection.getParsedAccountInfo(tokenMint);
@@ -256,7 +260,7 @@ export function createTokenBalanceCache(balanceCacheTTL: number = DEFAULT_BALANC
           // TODO: Implement Solana
           //throw new Error('Solana not implemented yet');
 
-          const provider = getSolanaProviderForNetwork(network);
+          const provider = getSolanaProviderForNetwork(providers, network, providerName);
           //const provider = new Connection(network);
           const isNative =
             tokenAddress.toLowerCase() === SOL_NATIVE_TOKEN_ADDRESS.toLowerCase() ||
